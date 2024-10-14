@@ -46,7 +46,7 @@ interface Config {
 }
 
 function getEnvVar(name: keyof Config): string {
-	const value = process.env[name];
+	const value = '';
 	if (value === undefined) {
 		throw new Error(`Environment variable ${name} is not set`);
 	}
@@ -137,80 +137,80 @@ export const { ROLE_DROPDOWNS_COURSE_ROLES } = process.env;
 export const { ROLE_DROPDOWNS_ASSIGN_ROLES } = process.env;
 */
 
+// To get the email delete the user from the database
+
 export const BOT = {
-	TOKEN: config.BOT_TOKEN,
-	CLIENT_ID: config.BOT_CLIENT_ID,
-	NAME: config.BOT_NAME
+	TOKEN: 'MTI5MTAzNzc5NTEwMzU0MzM3Nw.Gr5Gwl.U8veAsfsZE1vTdONO32HIZ5xfj_PYh-d1bXn1c',
+	CLIENT_ID: '1291037795103543377',
+	NAME: 'sagePlusPlus'
 };
+
+export const MONGO = 'mongodb+srv://MukarramHaq:sagepleasework@teamx.yz6cc.mongodb.net/?retryWrites=true&w=majority&appName=TeamX';
 
 export const DB = {
-	CONNECTION: config.DB_CONNECTION,
-	USERS: config.DB_USERS,
-	PVQ: config.DB_PVQ,
-	QTAGS: config.DB_QTAGS,
-	ASSIGNABLE: config.DB_ASSIGNABLE,
-	COURSES: config.DB_COURSES,
-	REMINDERS: config.DB_REMINDERS,
-	CLIENT_DATA: config.DB_CLIENT_DATA,
-	POLLS: config.DB_POLLS
+	CONNECTION: 'mongodb+srv://MukarramHaq:sagepleasework@teamx.yz6cc.mongodb.net/?retryWrites=true&w=majority&appName=TeamX', 			// Mongo connection string here
+	USERS: 'users',
+	PVQ: 'pvQuestions',
+	QTAGS: 'questionTags',
+	ASSIGNABLE: 'assignable',
+	COURSES: 'courses',
+	REMINDERS: 'reminders',
+	CLIENT_DATA: 'clientData',
+	POLLS: 'polls'
 };
 
-export const GUILDS = {
-	MAIN: config.GUILD_MAIN,
-	GATEWAY: config.GUILD_GATEWAY,
-	GATEWAY_INVITE: config.GUILD_GATEWAY_INVITE
+export const GUILDS = {			// Guild IDs for each guild
+	MAIN: '1291050142966743040',
+	GATEWAY: '1291050142966743040',
+	GATEWAY_INVITE: 'rjFDksKR' //https://discord.gg/rjFDksKR
 };
 
-export const ROLES = {
-	ADMIN: config.ROLE_ADMIN,
-	STUDENT_ADMIN: config.ROLE_STUDENT_ADMIN,
-	STAFF: config.ROLE_STAFF,
-	VERIFIED: config.ROLE_VERIFIED,
-	MUTED: config.ROLE_MUTED,
-	LEVEL_ONE: config.ROLE_LEVEL_ONE
+export const ROLES = {			// Role IDS for each role
+	ADMIN: '1292847989475377272',
+	STUDENT_ADMIN: '1292848504988893244',
+	STAFF: '1292848696349818963',
+	VERIFIED: '1292848603173355571',
+	MUTED: '1292848620290441216',
+	LEVEL_ONE: '1292849491996835840'
 };
 
 export const EMAIL = {
-	SENDER: config.EMAIL_SENDER,
-	REPLY_TO: config.EMAIL_REPLY_TO,
-	REPORT_ADDRESSES: config.EMAIL_REPORT_ADDRESSES
+	SENDER: 'Sage <mukarram@udel.edu>',					// The email address all emails should be sent from
+	REPLY_TO: 'Mukarram Haq <mukarram@udel.edu>',				// The replyto address for all emails
+	REPORT_ADDRESSES: [			// A list of all the email address to get the weekly report
+		'mukarram@udel.edu'
+	]
 };
 
-export const CHANNELS = {
-	ERROR_LOG: config.CHANNEL_ERROR_LOG,
-	SERVER_LOG: config.CHANNEL_SERVER_LOG,
-	MEMBER_LOG: config.CHANNEL_MEMBER_LOG,
-	MOD_LOG: config.CHANNEL_MOD_LOG,
-	FEEDBACK: config.CHANNEL_FEEDBACK,
-	SAGE: config.CHANNEL_SAGE,
-	ANNOUNCEMENTS: config.CHANNEL_ANNOUNCEMENTS,
-	ARCHIVE: config.CHANNEL_ARCHIVE,
-	ROLE_SELECT: config.CHANNEL_ROLE_SELECT
+export const CHANNELS = { // Channel IDs
+	ERROR_LOG: '1293244370526404768',
+	SERVER_LOG: '1293244370526404768',
+	MEMBER_LOG: '1293244370526404768',
+	MOD_LOG: '1291050580130664633',
+	FEEDBACK: '1291050580130664633',
+	SAGE: '1291050580130664633',
+	ANNOUNCEMENTS: '1293244370526404768',
+	ARCHIVE: '1293244370526404768',
+	ROLE_SELECT: '1293244370526404768'
 };
 
 export const ROLE_DROPDOWNS = {
-	COURSE_ROLES: config.ROLE_DROPDOWNS_COURSE_ROLES,
-	ASSIGN_ROLES: config.ROLE_DROPDOWNS_ASSIGN_ROLES
+	COURSE_ROLES: '1293244370526404768',
+	ASSIGN_ROLES: '1293244370526404768'
 };
 
-export const GITHUB_PROJECT = config.ENV_GITHUB_PROJECT;
-
-// eslint-disable-next-line prefer-destructuring
-export const SEMESTER_ID = config.SEMESTER_ID;
+export const LEVEL_TIER_ROLES = [
+	'',
+	'',
+	'',
+	'',
+	''
+];
 
 export const FIRST_LEVEL = 10;
-
-export const LEVEL_TIER_ROLES = [config.LEVEL_TIER_ROLES];
-
-// eslint-disable-next-line prefer-destructuring
-export const MAINTAINERS = config.MAINTAINERS;
-
-// eslint-disable-next-line prefer-destructuring
-export const PREFIX = config.PREFIX;
-
-export const BLACKLIST = [config.BLACKLIST];
-
-export const GITHUB_TOKEN = config.ENV_GITHUB_TOKEN;
-
-// eslint-disable-next-line prefer-destructuring
-export const MONGO = config.MONGO;
+export const GITHUB_TOKEN = '';
+export const GITHUB_PROJECT = '';
+export const PREFIX = 's;';
+export const MAINTAINERS = '';	// The current maintainers of this bot
+export const SEMESTER_ID = '';	// The current semester ID. i.e. s21
+export const BLACKLIST = [];
