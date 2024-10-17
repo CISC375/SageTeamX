@@ -8,6 +8,9 @@ config.ts
 # macOS stuff
 .DS_Store
 
+#google credentials
+credentials.json
+
 # Logs
 logs
 !src/pieces/logs
