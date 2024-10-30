@@ -20,7 +20,18 @@ export default class extends Command {
 		// time.
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
+		// function that takes in the even object and prints it into a readable format
+		const printEvent = (event) => {
+			const eventSummary = event.summary;
+			const summaryArray = eventSummary.split('-');
+			const eventName = summaryArray[1];
+			const eventHolder = summaryArray[2];
 
+			// tells the user if this is in-person or virtual
+			const eventLocation1 = summaryArray[3];
+			const eventLocation2 = event.location;
+			const eventTime = `${event.startTime}-${event.endTime}`;
+		};
 		/**
 		 * Reads previously authorized credentials from the save file.
 		 *
