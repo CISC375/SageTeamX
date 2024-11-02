@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, EmbedBuilder, InteractionResponse } from 'discord.js';
+import { ApplicationCommandOptionData, ApplicationCommandOptionType, ChatInputCommandInteraction, EmbedBuilder, InteractionResponse } from 'discord.js';
 import { Command } from '@lib/types/Command';
 
 
@@ -25,7 +25,23 @@ const mockCalendarEvents = [
 
 export default class extends Command {
 
-	description = 'Set a reminder for yourself or someone else.';
+	description = 'Set a reminder for an upcoming event';
+	options: ApplicationCommandOptionData[] = [
+		{
+			name: 'course',
+			description: 'The course for which to set reminder',
+			type: ApplicationCommandOptionType.String,
+			required: true
+
+		},
+		{
+			name: 'time',
+			description: 'Time before the event to set the reminder (15 or 60 minutes)',
+			type: ApplicationCommandOptionType.Integer,
+			required: true
+		}
+	]
+
 
 	async run(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean> | void> {
 		const course = interaction.options.getString('course', true);
@@ -52,7 +68,7 @@ export default class extends Command {
 		}
 
 		// Schedule the reminder
-		const eventStartTime = new Date(upcomingEvent.start.dateTime || upcomingEvent.start.date);
+		const eventStartTime = new Date(upcomingEvent.start.dateTime);
 		this.scheduleReminder(interaction, interaction.user.id, course, eventStartTime, timeBefore);
 		await interaction.reply(`Reminder set for ${course} ${timeBefore} minutes before office hours!`);
 	}
@@ -64,7 +80,7 @@ export default class extends Command {
 	}
 
 	private scheduleReminder(interaction: ChatInputCommandInteraction, userId: string, course: string, eventStartTime: Date, timeBefore: number) {
-		const notifyTime = new Date(eventStartTime.getTime() - timeBefore * 60000);
+		const notifyTime = new Date((eventStartTime.getTime() - timeBefore) * 60000);
 		const delay = notifyTime.getTime() - Date.now();
 
 		if (delay > 0) {
