@@ -31,6 +31,16 @@ export default class extends Command {
 			const eventLocation1 = summaryArray[3];
 			const eventLocation2 = event.location;
 			const eventTime = `${event.startTime}-${event.endTime}`;
+			const eventDate = event.start;
+			console.log(`
+				${eventName}
+				${eventDate}
+				${eventTime}
+				${eventHolder}
+				${eventLocation1}
+				${eventLocation2}
+				-------------------------------------------
+				`);
 		};
 		/**
 		 * Reads previously authorized credentials from the save file.
@@ -108,7 +118,7 @@ export default class extends Command {
 			const eventList = events
 				.map((event, i) => {
 					const start = event.start.dateTime || event.start.date;
-					return `${i + 1}. **${event.summary}** - ${start}`;
+					return `${i + 1}. ${printEvent(event)}`;
 				})
 				.join("\n");
 
