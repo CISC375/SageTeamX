@@ -96,8 +96,25 @@ export default class extends Command {
 
 			const eventList = events
 				.map((event, i) => {
-					const start = event.start.dateTime || event.start.date;
-					return `${i + 1}. **${event.summary}** - ${start}`;
+
+					//Parse the dates
+					const startDate = new Date(event.start.dateTime || event.start.date);
+					const endDate = new Date(event.end.dateTime || event.end.date);
+
+					//Defining the format for displaying Day, Date and Time
+					const dayOptions: Intl.DateTimeFormatOptions = { weekday: 'long' }
+					const dateOptions: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' };
+					const timeOptions: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: 'numeric', hour12: true };
+
+					const day = new Intl.DateTimeFormat("en-US", dayOptions).format(startDate); //This formats the startDate into a day
+					const startDateFormatted = new Intl.DateTimeFormat("en-US", dateOptions).format(startDate); //Converts 2021-11-04T09:10:00 into Nov 4, 2024
+					const startTimeFormatted = new Intl.DateTimeFormat("en-US", timeOptions).format(startDate);
+					const endTimeFormatted = new Intl.DateTimeFormat("en-US", timeOptions).format(endDate);
+
+					return `${i + 1}. **${event.summary}** on ${day}, ${startDateFormatted}\n	Time: ${startTimeFormatted} - ${endTimeFormatted}`;
+
+					// const start = event.start.dateTime || event.start.date;
+					// return `${i + 1}. **${event.summary}** - ${start}`;
 				})
 				.join("\n");
 
