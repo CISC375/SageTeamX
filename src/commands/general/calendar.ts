@@ -7,6 +7,7 @@ const { authenticate } = require("@google-cloud/local-auth");
 const { google } = require("googleapis");
 
 export default class extends Command {
+
 	name = "calendar";
 	description = "Retrieves calendar events";
 
@@ -118,16 +119,16 @@ export default class extends Command {
 				})
 				.join("\n");
 
-			await interaction.followUp(`Upcoming 10 events:\n${eventList}`);
+			await interaction.followUp({ content: `Upcoming 10 events:\n${eventList}`, ephemeral: true });
 		}
 
-		await interaction.reply("Authenticating and fetching events...");
+		await interaction.reply({ content: "Authenticating and Fetching Events", ephemeral: true });
 
 		authorize()
 			.then((auth) => listEvents(auth, interaction))
 			.catch((error) => {
 				console.error(error);
-				interaction.followUp("Failed to retrieve events.");
+				interaction.followUp({ content: "Failed to retrieve events", ephemeral: true });
 			});
 	}
 }
