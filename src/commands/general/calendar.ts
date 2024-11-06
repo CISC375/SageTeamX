@@ -30,8 +30,17 @@ export default class extends Command {
 			// tells the user if this is in-person or virtual
 			const eventLocation1 = summaryArray[3];
 			const eventLocation2 = event.location;
-			const eventTime = `${event.startTime}-${event.endTime}`;
-			const eventDate = event.start;
+			const eventTime = event.startDateTime.asString() + "-" + event.endDateTime.as;
+			const eventDate = event.startDate;
+			console.log(`
+				${eventName}
+				${eventDate}
+				${eventTime}
+				${eventHolder}
+				${eventLocation1}
+				${eventLocation2}
+				-------------------------------------------
+				`);
 			return `
 				${eventName}
 				${eventDate}
@@ -120,7 +129,7 @@ export default class extends Command {
 					const start = event.start.dateTime || event.start.date;
 					return `${printEvent(event)}`;
 				})
-				.join("\n");
+				.join("");
 
 			await interaction.followUp(`Upcoming 10 events:\n${eventList}`);
 		}
