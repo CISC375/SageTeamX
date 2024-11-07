@@ -6,19 +6,19 @@ const mockCalendarEvents = [
 	{
 		summary: 'Math Office Hours',
 		start: {
-			dateTime: '2024-11-02T15:00:00Z',
+			dateTime: '2024-11-02T15:00:00Z'
 		}
 	},
 	{
 		summary: 'Science Office Hours',
 		start: {
-			dateTime: '2024-11-02T16:00:00Z',
+			dateTime: '2024-11-02T16:00:00Z'
 		}
 	},
 	{
 		summary: 'History Office Hours',
 		start: {
-			dateTime: '2024-11-02T14:30:00Z',
+			dateTime: '2024-11-02T14:30:00Z'
 		}
 	}
 ];
