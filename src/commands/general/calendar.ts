@@ -20,36 +20,53 @@ export default class extends Command {
 		// time.
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
+
 		// function that takes in the even object and prints it into a readable format
 		const printEvent = (event) => {
-			const eventSummary = event.summary;
-			const summaryArray = eventSummary.split('-');
-			const eventName = summaryArray[1];
-			const eventHolder = summaryArray[2];
-
-			// tells the user if this is in-person or virtual
-			const eventLocation1 = summaryArray[3];
-			const eventLocation2 = event.location;
-			const eventTime = event.startDateTime.asString() + "-" + event.endDateTime.as;
-			const eventDate = event.startDate;
-			console.log(`
-				${eventName}
-				${eventDate}
-				${eventTime}
-				${eventHolder}
-				${eventLocation1}
-				${eventLocation2}
-				-------------------------------------------
-				`);
-			return `
-				${eventName}
-				${eventDate}
-				${eventTime}
-				${eventHolder}
-				${eventLocation1}
-				${eventLocation2}
-				-------------------------------------------
+			try {
+				// Extracting information from the event object
+				const startDateTime = new Date(event.start.dateTime || event.start.date);
+				const endDateTime = new Date(event.end.dateTime || event.end.date);
+		
+				// Formatting date and time
+				const startDate = startDateTime.toLocaleDateString();
+				const endDate = endDateTime.toLocaleDateString();
+				const startTime = startDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+				const endTime = endDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+		
+				// Parse the summary
+				const summaryParts = (event.summary || "No Title").split('-');
+				const className = summaryParts[0] || "No Class Name";
+				const eventHolder = summaryParts[1] || "No Event Holder";
+				const eventLocation = summaryParts[2] || "No Location"; //virtual/in-person
+		
+				// Alternatively, use the location from the event object if it exists
+				const location = eventLocation;
+		
+				// Format output
+				console.log(`
+					${className}
+					${eventHolder}
+					${startDate}
+					${startTime} - ${endTime}
+					${event.location}
+					${location}
+					------------------------------------
+				`); 
+		//event location - room # or zoom link
+				return `
+					${className}
+					${eventHolder}
+					${startDate}
+					${startTime} - ${endTime}
+					${event.location}
+					${location}
+					------------------------------------
 				`;
+			} catch (error) {
+				console.error("Error printing event:", error);
+				return "Error printing event details.";
+			}
 		};
 		/**
 		 * Reads previously authorized credentials from the save file.
