@@ -52,15 +52,11 @@ export default class extends Command {
 			await interaction.reply('Please provide a valid reminder time (15 or 60 minutes).');
 			return;
 		}
-
-		// Fetch events
 		const events = await this.getUpcomingEvents(interaction);
 		if (!events) {
 			await interaction.reply('Could not fetch calendar events.');
 			return;
 		}
-
-		// Filter for given course
 		const upcomingEvent = events.find(event => event.summary.includes(course));
 		if (!upcomingEvent) {
 			await interaction.reply(`No upcoming office hours found for ${course}.`);
@@ -75,7 +71,6 @@ export default class extends Command {
 
 	private async getUpcomingEvents(interaction: ChatInputCommandInteraction) {
 	// Assuming the existing /calendar command fetches events and stores them in interaction.user.calendarEvents
-		// return interaction.user.calendarEvents; (user events from the /calendar command)
 		return mockCalendarEvents;
 	}
 
