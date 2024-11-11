@@ -29,7 +29,7 @@
 	},
 	"homepage": "https://github.com/ud-cis-discord/SageV2",
 	"dependencies": {
-		"@google-cloud/local-auth": "^2.1.0",
+		"@google-cloud/local-auth": "^2.1.1",
 		"@octokit/rest": "^18.3.5",
 		"axios": "^1.4.0",
 		"canvas": "^2.11.2",
