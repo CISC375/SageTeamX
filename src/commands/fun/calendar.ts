@@ -15,17 +15,10 @@ export default class extends Command {
 	): Promise<InteractionResponse<boolean> | void> {
 		// If modifying these scopes, delete token.json.
 		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
-		// The file token.json stores the user's access and refresh tokens, and is
-		// created automatically when the authorization flow completes for the first
-		// time.
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
 
-		/**
-		 * Reads previously authorized credentials from the save file.
-		 *
-		 * @return {Promise<OAuth2Client|null>}
-		 */
+		// Load previously authorized credentials
 		async function loadSavedCredentialsIfExist() {
 			try {
 				const content = await fs.readFile(TOKEN_PATH);
@@ -36,12 +29,7 @@ export default class extends Command {
 			}
 		}
 
-		/**
-		 * Serializes credentials to a file compatible with GoogleAuth.fromJSON.
-		 *
-		 * @param {OAuth2Client} client
-		 * @return {Promise<void>}
-		 */
+		// Save new credentials
 		async function saveCredentials(client) {
 			const content = await fs.readFile(CREDENTIALS_PATH);
 			const keys = JSON.parse(content);
@@ -55,10 +43,7 @@ export default class extends Command {
 			await fs.writeFile(TOKEN_PATH, payload);
 		}
 
-		/**
-		 * Load or request or authorization to call APIs.
-		 *
-		 */
+		// Authorize the user or request authorization
 		async function authorize() {
 			let client = await loadSavedCredentialsIfExist();
 			if (client) {
@@ -67,6 +52,9 @@ export default class extends Command {
 			client = await authenticate({
 				scopes: SCOPES,
 				keyfilePath: CREDENTIALS_PATH,
+				redirectUri: process.env.NODE_ENV === "production"
+					? "https://your-production-url.com/auth/callback"
+					: "http://localhost:<PORT>/auth/callback"
 			});
 			if (client.credentials) {
 				await saveCredentials(client);
@@ -74,11 +62,8 @@ export default class extends Command {
 			return client;
 		}
 
-		/**
-		 * Lists the next 10 events on the user's primary calendar.
-		 * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
-		 */
-		async function listEvents(auth, interaction) {
+		// List events on the user's primary calendar
+		async function listEvents(auth) {
 			const calendar = google.calendar({ version: "v3", auth });
 			const res = await calendar.events.list({
 				calendarId: "primary",
@@ -90,27 +75,31 @@ export default class extends Command {
 
 			const events = res.data.items;
 			if (!events || events.length === 0) {
-				await interaction.followUp("No upcoming events found.");
-				return;
+				return "No upcoming events found.";
 			}
 
-			const eventList = events
+			// Format the list of events
+			return events
 				.map((event, i) => {
 					const start = event.start.dateTime || event.start.date;
 					return `${i + 1}. **${event.summary}** - ${start}`;
 				})
 				.join("\n");
-
-			await interaction.followUp(`Upcoming 10 events:\n${eventList}`);
 		}
 
-		await interaction.reply("Authenticating and fetching events...");
+		// Initial defer reply
+		await interaction.deferReply({ ephemeral: false });
 
-		authorize()
-			.then((auth) => listEvents(auth, interaction))
-			.catch((error) => {
-				console.error(error);
-				interaction.followUp("Failed to retrieve events.");
+		// Authenticate and retrieve events
+		try {
+			const auth = await authorize();
+			const eventList = await listEvents(auth);
+			await interaction.editReply({
+				content: `Upcoming 10 events:\n${eventList}`
 			});
+		} catch (error) {
+			console.error(error);
+			await interaction.editReply("Failed to retrieve events.");
+		}
 	}
 }
