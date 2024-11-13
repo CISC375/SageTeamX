@@ -21,7 +21,28 @@ export default class extends Command {
 		// time.
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
+		// function that takes in the even object and prints it into a readable format
+		const printEvent = (event) => {
+			const eventSummary = event.summary;
+			const summaryArray = eventSummary.split('-');
+			const eventName = summaryArray[1];
+			const eventHolder = summaryArray[2];
 
+			// tells the user if this is in-person or virtual
+			const eventLocation1 = summaryArray[3];
+			const eventLocation2 = event.location;
+			const eventTime = `${event.startTime}-${event.endTime}`;
+			const eventDate = event.start;
+			return `
+				${eventName}
+				${eventDate}
+				${eventTime}
+				${eventHolder}
+				${eventLocation1}
+				${eventLocation2}
+				-------------------------------------------
+				`;
+		};
 		/**
 		 * Reads previously authorized credentials from the save file.
 		 *
@@ -82,7 +103,7 @@ export default class extends Command {
 		async function listEvents(auth, interaction) {
 			const calendar = google.calendar({ version: "v3", auth });
 			const res = await calendar.events.list({
-				calendarId: "primary",
+				calendarId: "c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com",
 				timeMin: new Date().toISOString(),
 				maxResults: 10,
 				singleEvents: true,
@@ -113,6 +134,7 @@ export default class extends Command {
 					const endTimeFormatted = new Intl.DateTimeFormat("en-US", timeOptions).format(endDate);
 
 					return `${i + 1}. **${event.summary}** on ${day}, ${startDateFormatted}\n	Time: ${startTimeFormatted} - ${endTimeFormatted}`;
+					//return `${printEvent(event)}`;
 
 					// const start = event.start.dateTime || event.start.date;
 					// return `${i + 1}. **${event.summary}** - ${start}`;
