@@ -5,55 +5,34 @@ const path = require("path");
 const process = require("process");
 const { authenticate } = require("@google-cloud/local-auth");
 const { google } = require("googleapis");
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 
 export default class extends Command {
 	name = "calendar";
 	description = "Retrieves calendar events";
 
-	async run(
-		interaction: ChatInputCommandInteraction
-	): Promise<InteractionResponse<boolean> | void> {
-		// If modifying these scopes, delete token.json.
+	async run(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean> | void> {
 		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
-		// The file token.json stores the user's access and refresh tokens, and is
-		// created automatically when the authorization flow completes for the first
-		// time.
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
 
-		// function that takes in the even object and prints it into a readable format
 		const printEvent = (event) => {
 			try {
-				// Extracting information from the event object
 				const startDateTime = new Date(event.start.dateTime || event.start.date);
 				const endDateTime = new Date(event.end.dateTime || event.end.date);
-		
-				// Formatting date and time
+
 				const startDate = startDateTime.toLocaleDateString();
 				const endDate = endDateTime.toLocaleDateString();
 				const startTime = startDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 				const endTime = endDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-		
-				// Parse the summary
+
 				const summaryParts = (event.summary || "No Title").split('-');
 				const className = summaryParts[0] || "No Class Name";
 				const eventHolder = summaryParts[1] || "No Event Holder";
-				const eventLocation = summaryParts[2] || "No Location"; //virtual/in-person
-		
-				// Alternatively, use the location from the event object if it exists
+				const eventLocation = summaryParts[2] || "No Location";
+
 				const location = eventLocation;
-		
-				// Format output
-				console.log(`
-					${className}
-					${eventHolder}
-					${startDate}
-					${startTime} - ${endTime}
-					${event.location}
-					${location}
-					------------------------------------
-				`); 
-		//event location - room # or zoom link
+
 				return `
 					${className}
 					${eventHolder}
@@ -61,18 +40,13 @@ export default class extends Command {
 					${startTime} - ${endTime}
 					${event.location}
 					${location}
-					------------------------------------
 				`;
 			} catch (error) {
 				console.error("Error printing event:", error);
 				return "Error printing event details.";
 			}
 		};
-		/**
-		 * Reads previously authorized credentials from the save file.
-		 *
-		 * @return {Promise<OAuth2Client|null>}
-		 */
+
 		async function loadSavedCredentialsIfExist() {
 			try {
 				const content = await fs.readFile(TOKEN_PATH);
@@ -83,12 +57,6 @@ export default class extends Command {
 			}
 		}
 
-		/**
-		 * Serializes credentials to a file compatible with GoogleAuth.fromJSON.
-		 *
-		 * @param {OAuth2Client} client
-		 * @return {Promise<void>}
-		 */
 		async function saveCredentials(client) {
 			const content = await fs.readFile(CREDENTIALS_PATH);
 			const keys = JSON.parse(content);
@@ -102,10 +70,6 @@ export default class extends Command {
 			await fs.writeFile(TOKEN_PATH, payload);
 		}
 
-		/**
-		 * Load or request or authorization to call APIs.
-		 *
-		 */
 		async function authorize() {
 			let client = await loadSavedCredentialsIfExist();
 			if (client) {
@@ -121,11 +85,7 @@ export default class extends Command {
 			return client;
 		}
 
-		/**
-		 * Lists the next 10 events on the user's primary calendar.
-		 * @param {google.auth.OAuth2} auth An authorized OAuth2 client.
-		 */
-		async function listEvents(auth, interaction) {
+		async function listEvents(auth) {
 			const calendar = google.calendar({ version: "v3", auth });
 			const res = await calendar.events.list({
 				calendarId: "primary",
@@ -137,27 +97,70 @@ export default class extends Command {
 
 			const events = res.data.items;
 			if (!events || events.length === 0) {
-				await interaction.followUp("No upcoming events found.");
-				return;
+				return null; // No events found
 			}
-
-			const eventList = events
-				.map((event, i) => {
-					const start = event.start.dateTime || event.start.date;
-					return `${printEvent(event)}`;
-				})
-				.join("");
-
-			await interaction.followUp(`Upcoming 10 events:\n${eventList}`);
+			return events; // Return the events array
 		}
 
 		await interaction.reply("Authenticating and fetching events...");
 
-		authorize()
-			.then((auth) => listEvents(auth, interaction))
-			.catch((error) => {
-				console.error(error);
-				interaction.followUp("Failed to retrieve events.");
+		try {
+			const auth = await authorize();
+			const events = await listEvents(auth);
+
+			if (!events) {
+				await interaction.followUp("No upcoming events found.");
+				return;
+			}
+
+			let currentIndex = 0;
+
+			const sendEvent = async (index) => {
+				const eventMessage = printEvent(events[index]);
+				const row = new ActionRowBuilder()
+					.addComponents(
+						new ButtonBuilder()
+							.setCustomId('prev')
+							.setLabel('Previous')
+							.setStyle(ButtonStyle.Primary)
+							.setDisabled(index === 0),
+						new ButtonBuilder()
+							.setCustomId('next')
+							.setLabel('Next')
+							.setStyle(ButtonStyle.Primary)
+							.setDisabled(index === events.length - 1),
+					);
+
+				// Update the original interaction message
+				await interaction.editReply({ content: eventMessage, components: [row] });
+			};
+
+			// Initially display the first event
+			await sendEvent(currentIndex);
+
+			const collector = interaction.channel.createMessageComponentCollector({ time: 60000 });
+
+			collector.on('collect', async (buttonInteraction) => {
+				if (buttonInteraction.customId === 'prev') {
+					if (currentIndex > 0) {
+						currentIndex--;
+						await sendEvent(currentIndex);
+					}
+				} else if (buttonInteraction.customId === 'next') {
+					if (currentIndex < events.length - 1) {
+						currentIndex++;
+						await sendEvent(currentIndex);
+					}
+				}
+				await buttonInteraction.deferUpdate(); // Acknowledge button press
 			});
+
+			collector.on('end', () => {
+				interaction.editReply({ components: [] }); // Disable buttons after timeout
+			});
+		} catch (error) {
+			console.error(error);
+			await interaction.followUp("Failed to retrieve events.");
+		}
 	}
 }
