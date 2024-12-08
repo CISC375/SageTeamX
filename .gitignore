@@ -4,9 +4,13 @@ resources/*
 src/commands/admin/eval.ts
 
 config.ts
+token.json
 
 # macOS stuff
 .DS_Store
+
+#google credentials
+credentials.json
 
 # Logs
 logs

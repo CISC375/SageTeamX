@@ -35,5 +35,6 @@
 	"search.exclude": {
 		"**/node_modules": false
 	},
-	"discord.enabled": false
+	"discord.enabled": false,
+	"CodeGPT.apiKey": "CodeGPT Plus Beta"
 }
