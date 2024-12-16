@@ -9,12 +9,27 @@ import {
 	ApplicationCommandStringOptionData,
 } from 'discord.js';
 import { Command } from '@lib/types/Command';
+import 'dotenv/config';
+import { MongoClient } from 'mongodb';
+import event from '@root/src/models/calEvent';
+
+
 const fs = require('fs').promises;
 const path = require('path');
 const process = require('process');
 const { authenticate } = require('@google-cloud/local-auth');
 const { google } = require('googleapis');
 
+interface Event{
+	eventId: string;
+	courseID: string;
+	instructor: string;
+	date: string; 
+	start: string;
+	end: string;
+	location: string;
+	locationType: string; 
+}
 export default class extends Command {
 	name = 'calendar';
 	description = 'Retrieve calendar events over the next 10 days with pagination, optionally filter';
@@ -109,6 +124,17 @@ export default class extends Command {
 			});
 		}
 
+		/**
+		 * MongoDB connection variables. This is where you would add in the connection string to your own MongoDB database, as well as establishing 
+		 * the collection you want the events to be saved to within that database. It is currently set up to store events in the database of the bot
+		 * which is running this command (Lineages), but feel free to make a specific database for the events or switch to your bot's database. 
+		 */
+
+		const connString = process.env.DB_CONN_STRING;
+		const client = await MongoClient.connect(connString);
+		const db = client.db('Lineages');
+		const eventsCollection = db.collection('events');
+
 		// Get the class name and location type arguments (if any)
 		const className = interaction.options.getString('classname') || '';
 		const locationType = interaction.options.getString('locationtype')?.toUpperCase() || '';
@@ -180,6 +206,32 @@ export default class extends Command {
 					return;
 				}
 
+				for (const event of events) {
+					const eventParts = event.summary.split('-');
+					const eventData: Event = {
+						eventId: event.id,
+						courseID: eventParts[0]?.trim() || '',
+						instructor: eventParts[1]?.trim() || '',
+						date: formatDateTime(event.start?.dateTime || event.start?.date),
+						start: event.start?.dateTime || event.start?.date || '',
+						end: event.end?.dateTime || event.end?.date || '',
+						location: event.location || '',
+						locationType: eventParts[2]?.trim().toLowerCase().includes('virtual') ? 'V' : 'IP'
+					};
+		
+					try {
+						// Update or insert the event
+						await eventsCollection.updateOne(
+							{ eventId: eventData.eventId },
+							{ $set: eventData },
+							{ upsert: true }
+						);
+					} catch (dbError) {
+						console.error('Error storing event in database:', dbError);
+					}
+				}
+				
+
 				// Filters are provided, filter events by the ones given by user
 				const filteredEvents = events.filter((event) => {
 					let matchClassName = true;
@@ -227,6 +279,32 @@ export default class extends Command {
 					await interaction.followUp('No events found matching the specified filters.');
 					return;
 				}
+
+				for (const event of filteredEvents) {
+            const eventParts = event.summary.split('-');
+            const eventData: Event = {
+                eventId: event.id,
+                courseID: eventParts[0]?.trim() || '',
+                instructor: eventParts[1]?.trim() || '',
+                date: formatDateTime(event.start?.dateTime || event.start?.date),
+                start: event.start?.dateTime || event.start?.date || '',
+                end: event.end?.dateTime || event.end?.date || '',
+                location: event.location || '',
+                locationType: eventParts[2]?.trim().toLowerCase().includes('virtual') ? 'V' : 'IP'
+            };
+
+            try {
+                // Update or insert the event
+                await eventsCollection.updateOne(
+                    { eventId: eventData.eventId },
+                    { $set: eventData },
+                    { upsert: true }
+                );
+            } catch (dbError) {
+                console.error('Error storing event in database:', dbError);
+                // Continue with the next event even if this one fails
+            }
+        }
 
 				// Puts the event object into stringified fields for printing
 				const parsedEvents = filteredEvents.map((event, index) => ({
