@@ -1,10 +1,25 @@
 import { ChatInputCommandInteraction, InteractionResponse } from "discord.js";
 import { Command } from "@lib/types/Command";
+import { MongoClient } from 'mongodb';
+import 'dotenv/config';
+
 const fs = require("fs").promises;
 const path = require("path");
 const process = require("process");
 const { authenticate } = require("@google-cloud/local-auth");
 const { google } = require("googleapis");
+
+
+interface Event {
+	eventID: string;
+	courseID: string;
+	instructor: string; 
+	date: string; 
+	start: string;
+	end: string;
+	location: string;
+	locationType: string; 
+}
 
 export default class extends Command {
 	name = "calendar";
@@ -22,16 +37,54 @@ export default class extends Command {
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
 		// function that takes in the even object and prints it into a readable format
 		const printEvent = (event) => {
-			const eventSummary = event.summary;
+			const eventSummary = event.summary || '';
 			const summaryArray = eventSummary.split('-');
-			const eventName = summaryArray[1];
-			const eventHolder = summaryArray[2];
+			const eventName = summaryArray[1] || 'Untitled';
+			const eventHolder = summaryArray[2] || ' No Instructor';
 
 			// tells the user if this is in-person or virtual
-			const eventLocation1 = summaryArray[3];
-			const eventLocation2 = event.location;
-			const eventTime = `${event.startTime}-${event.endTime}`;
-			const eventDate = event.start;
+			const eventLocation1 = summaryArray[3] || 'No Location Type';
+			const eventLocation2 = event.location || 'No Location';
+
+			const formatDate = (dateObj) => {
+				if (!dateObj) return 'Date TBD';
+				try {
+					const date = new Date(dateObj);
+					return date.toLocaleDateString('en-US', {
+						weekday: 'short',
+						month: 'short',
+						day: 'numeric'
+					});
+				} catch (err) {
+					return 'Date TBD';
+				}
+			};
+	
+			const formatTime = (dateObj) => {
+				if (!dateObj) return 'Time TBD';
+				try {
+					const date = new Date(dateObj);
+					return date.toLocaleTimeString('en-US', {
+						hour: 'numeric',
+						minute: '2-digit'
+					});
+				} catch (err) {
+					return 'Time TBD';
+				}
+			};
+	
+			// Safely access start and end times
+			const startDateTime = event?.start?.dateTime || event?.start?.date;
+			const endDateTime = event?.end?.dateTime || event?.end?.date;
+	
+			const eventDate = formatDate(startDateTime);
+			let eventTime = 'Time TBD';
+			
+			if (startDateTime && endDateTime) {
+				eventTime = `${formatTime(startDateTime)} - ${formatTime(endDateTime)}`;
+			}
+
+
 			return `
 				${eventName}
 				${eventDate}
@@ -76,6 +129,18 @@ export default class extends Command {
 			await fs.writeFile(TOKEN_PATH, payload);
 		}
 
+		/*
+		PURPOSE:
+		MongoDB connection variables. This is where you would add in the connection string to your own MongoDB database, as well as establishing 
+		the collection you want the events to be saved to within that database. It is currently set up to store events in the database of the bot
+		which is running this command (Lineages), but feel free to make a specific database for the events or switch to your bot's database. 
+		*/
+
+		const connString = process.env.DB_CONN_STRING;
+		const client = await MongoClient.connect(connString);
+		const db = client.db('Lineages');
+		const eventsCollection = db.collection('events');
+
 		/**
 		 * Load or request or authorization to call APIs.
 		 *
@@ -102,7 +167,7 @@ export default class extends Command {
 		async function listEvents(auth, interaction) {
 			const calendar = google.calendar({ version: "v3", auth });
 			const res = await calendar.events.list({
-				calendarId: "primary",
+				calendarId: process.env.CAL_ID,
 				timeMin: new Date().toISOString(),
 				maxResults: 10,
 				singleEvents: true,
@@ -115,14 +180,82 @@ export default class extends Command {
 				return;
 			}
 
-			const eventList = events
-				.map((event, i) => {
-					const start = event.start.dateTime || event.start.date;
-					return `${printEvent(event)}`;
-				})
-				.join("\n");
+			const formatDate = (dateString: string) => {
+				if (!dateString) return '';
+				const date = new Date(dateString);
+				return date.toLocaleDateString('en-US', {
+					month: '2-digit',
+					day: '2-digit',
+					year: 'numeric'
+				});
+			};
+			const formatTime = (dateString: string) => {
+				if (!dateString) return '';
+				const date = new Date(dateString);
+				return date.toLocaleTimeString('en-US', {
+					hour: '2-digit',
+					minute: '2-digit',
+					hour12: true
+				});
+			};
 
-			await interaction.followUp(`Upcoming 10 events:\n${eventList}`);
+		
+			/*
+			This is the part of the code that creates events and stores them to the database. Using the variables established while we parse, 
+			it will add the event data. 
+			*/
+			await Promise.all(events.map(event => {
+				const summaryArray = event.summary?.split('-') || [];
+				const startDateTime = event?.start?.dateTime || event?.start?.date;
+				const endDateTime = event?.end?.dateTime || event?.end?.date;
+				const newEvent: Event = {
+					eventID: event.id, 				//eventID
+					courseID: summaryArray[0] || '',	//courseID (eventName in parsing)
+					instructor: summaryArray[1] || '',  //instructor (eventHolder in parsing)
+					date: formatDate(startDateTime) || '',
+           			start: formatTime(startDateTime) || '',
+            		end: formatTime(endDateTime) || '', // end time
+					location: event.location || '', // location (eventLocation2 in parsing)
+					locationType: summaryArray [2] || '' // locationType (eventLocation1 in parsing)
+				};
+
+				/*
+				If there is an event which has changed since the last time you ran the command, it will update the command. 
+				*/
+
+				return eventsCollection.updateOne( 
+					{ eventID: newEvent.eventID }, 
+					{ $set: { ...newEvent}}, 
+					{upsert: true}
+				);
+
+			}));
+
+
+			const eventChunks: string[] = [];
+    let currentChunk = 'Upcoming 10 events:\n';
+
+    for (const event of events) {
+        const eventText = printEvent(event);
+        
+        // If adding this event would exceed Discord's limit, start a new chunk
+        if (currentChunk.length + eventText.length > 1900) {
+            eventChunks.push(currentChunk);
+            currentChunk = '';
+        }
+        
+        currentChunk += eventText;
+    }
+    
+    // Add the last chunk if it has content
+    if (currentChunk) {
+        eventChunks.push(currentChunk);
+    }
+
+    // Send chunks as separate messages
+    for (const chunk of eventChunks) {
+        await interaction.followUp(chunk);
+    }
 		}
 
 		await interaction.reply("Authenticating and fetching events...");
