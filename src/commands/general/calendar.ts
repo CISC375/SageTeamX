@@ -17,7 +17,7 @@ import{
   export default class extends Command {
 	name = 'calendar';
 	description = 'Retrieve calendar events over the next 10 days with pagination, optionally filter';
-  
+//all availible filters that someone can add and they are not required
 	options: ApplicationCommandStringOptionData[] = [
 	  {
 		type: ApplicationCommandOptionType.String,
@@ -66,7 +66,7 @@ import{
 		  return null;
 		}
 	  }
-  
+  //saves calendar access token.json into its own folder when authenticating
 	  async function saveCredentials(client) {
 		const content = await fs.readFile(CREDENTIALS_PATH);
 		const keys = JSON.parse(content);
@@ -79,7 +79,7 @@ import{
 		});
 		await fs.writeFile(TOKEN_PATH, payload);
 	  }
-  
+  //loads the credentials that were authenticated by used on their first use
 	  async function authorize() {
 		let client = await loadSavedCredentialsIfExist();
 		if (client) {
@@ -137,6 +137,7 @@ import{
 		});
 		return;
 	  }
+	  //makes sure the month is valid otherwise it will not execute
 	  if (eventDate && !dateRegex.test(eventDate)) {
 		await interaction.reply({
 		  content: 'Invalid date format. Please enter a date starting with "month" followed by 1-2 digits (e.g., "december 9").',
@@ -166,7 +167,7 @@ import{
 			return;
 		  }
   
-		  // filters are provided, filter events by it
+		  // filters are provided, filter events by the ones given by user. 
 		  const filteredEvents = events.filter((event) => {
 			let matchClassName = true;
 			let matchLocationType = true;
@@ -211,7 +212,7 @@ import{
 			await interaction.followUp('No events found matching the specified filters.');
 			return;
 		  }
-  
+  //puts the event object into string-ified fields for printing 
 		  const parsedEvents = filteredEvents.map((event, index) => ({
 			name: (event.summary.split('-'))[0] || `Event ${index + 1}`,
 			eventHolder: (event.summary.split('-'))[1],
@@ -220,7 +221,7 @@ import{
 			end: formatDateTime(event.end?.dateTime || event.end?.date),
 			location: event.location || '`NONE`',
 		  }));
-  
+  //the display to the user with 3 events per page with a prev/next button to look through
 		  let currentPage = 0;
 		  const EVENTS_PER_PAGE = 3;
   
@@ -240,7 +241,7 @@ import{
   
 			return embed;
 		  }
-  
+
 		  async function updateMessage(page: number, message) {
 			const embed = generateEmbed(page);
 			const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
