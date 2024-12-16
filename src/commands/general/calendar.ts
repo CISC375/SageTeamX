@@ -200,11 +200,16 @@ export default class extends Command {
 					orderBy: 'startTime',
 				});
 
+				
+
 				const events = res.data.items || [];
 				if (events.length === 0) {
 					await interaction.followUp('No events found over the next 10 days.');
 					return;
 				}
+				/**
+				 * before filtering the events, we store every single one in MongoDB. 
+				 */
 
 				for (const event of events) {
 					const eventParts = event.summary.split('-');
@@ -279,32 +284,6 @@ export default class extends Command {
 					await interaction.followUp('No events found matching the specified filters.');
 					return;
 				}
-
-				for (const event of filteredEvents) {
-            const eventParts = event.summary.split('-');
-            const eventData: Event = {
-                eventId: event.id,
-                courseID: eventParts[0]?.trim() || '',
-                instructor: eventParts[1]?.trim() || '',
-                date: formatDateTime(event.start?.dateTime || event.start?.date),
-                start: event.start?.dateTime || event.start?.date || '',
-                end: event.end?.dateTime || event.end?.date || '',
-                location: event.location || '',
-                locationType: eventParts[2]?.trim().toLowerCase().includes('virtual') ? 'V' : 'IP'
-            };
-
-            try {
-                // Update or insert the event
-                await eventsCollection.updateOne(
-                    { eventId: eventData.eventId },
-                    { $set: eventData },
-                    { upsert: true }
-                );
-            } catch (dbError) {
-                console.error('Error storing event in database:', dbError);
-                // Continue with the next event even if this one fails
-            }
-        }
 
 				// Puts the event object into stringified fields for printing
 				const parsedEvents = filteredEvents.map((event, index) => ({
