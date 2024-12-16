@@ -1,3 +1,4 @@
+/* eslint-disable */
 import {
 	ChatInputCommandInteraction,
 	ButtonBuilder,
@@ -8,11 +9,11 @@ import {
 	ApplicationCommandStringOptionData,
 } from 'discord.js';
 import { Command } from '@lib/types/Command';
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import * as process from 'process';
-import { authenticate } from '@google-cloud/local-auth';
-import { google } from 'googleapis';
+const fs = require('fs').promises;
+const path = require('path');
+const process = require('process');
+const { authenticate } = require('@google-cloud/local-auth');
+const { google } = require('googleapis');
 
 export default class extends Command {
 	name = 'calendar';
@@ -75,9 +76,9 @@ export default class extends Command {
 			const key = keys.installed || keys.web;
 			const payload = JSON.stringify({
 				type: 'authorized_user',
-				clientId: key.client_id,
-				clientSecret: key.client_secret,
-				refreshToken: client.credentials.refresh_token,
+				client_id: key.client_id,
+				client_secret: key.client_secret,
+				refresh_token: client.credentials.refresh_token,
 			});
 			await fs.writeFile(TOKEN_PATH, payload);
 		}
@@ -97,7 +98,7 @@ export default class extends Command {
 
 		// Formats the date and time for events
 		function formatDateTime(dateTime?: string): string {
-			if (!dateTime) return 'NONE';
+			if (!dateTime) return '`NONE`';
 			const date = new Date(dateTime);
 			return date.toLocaleString('en-US', {
 				month: 'long',
@@ -192,7 +193,20 @@ export default class extends Command {
 						matchClassName = event.summary && event.summary.toLowerCase().includes(className.toLowerCase());
 					}
 
-					// Location type filter
+					// Event date filter
+					if (eventDate) {
+						const formattedEventDate = formatDateTime(event.start?.dateTime.toLowerCase());
+						matchEventDate = formattedEventDate && formattedEventDate.toLowerCase().includes(eventDate.toLowerCase());
+					}
+
+					// Day of the week filter
+					if (dayOfWeek) {
+						const eventDate = new Date(event.start?.dateTime || event.start?.date);
+						const eventDayOfWeek = eventDate.getDay();
+						matchDayOfWeek = eventDayOfWeek === daysOfWeekMap[dayOfWeek];
+					}
+
+					// Location type filter (In-Person or Virtual)
 					if (locationType) {
 						if (locationType === 'IP') {
 							matchLocationType = event.summary && event.summary.toLowerCase().includes('in person');
@@ -204,18 +218,6 @@ export default class extends Command {
 					// Event holder name filter
 					if (eventHolder) {
 						matchEventHolder = event.summary && event.summary.toLowerCase().includes(eventHolder.toLowerCase());
-					}
-
-					// Date filter
-					if (eventDate) {
-						const [month, day] = eventDate.toLowerCase().split(' ');
-						matchEventDate = event.start?.dateTime?.includes(`${month} ${day}`);
-					}
-
-					// Day of week filter
-					if (dayOfWeek) {
-						const eventDayOfWeek = new Date(event.start?.dateTime).toLocaleString('en-US', { weekday: 'long' }).toLowerCase();
-						matchDayOfWeek = eventDayOfWeek === dayOfWeek;
 					}
 
 					return matchClassName && matchLocationType && matchEventHolder && matchEventDate && matchDayOfWeek;
@@ -233,7 +235,7 @@ export default class extends Command {
 					eventType: (event.summary.split('-'))[2],
 					start: formatDateTime(event.start?.dateTime || event.start?.date),
 					end: formatDateTime(event.end?.dateTime || event.end?.date),
-					location: event.location || 'NONE',
+					location: event.location || '`NONE`',
 				}));
 
 				// Display to the user with 3 events per page with a prev/next button to look through
