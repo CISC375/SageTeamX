@@ -75,9 +75,9 @@ export default class extends Command {
 			const key = keys.installed || keys.web;
 			const payload = JSON.stringify({
 				type: 'authorized_user',
-				client_id: key.client_id,
-				client_secret: key.client_secret,
-				refresh_token: client.credentials.refresh_token,
+				clientId: key.client_id,
+				clientSecret: key.client_secret,
+				refreshToken: client.credentials.refresh_token,
 			});
 			await fs.writeFile(TOKEN_PATH, payload);
 		}
@@ -192,20 +192,7 @@ export default class extends Command {
 						matchClassName = event.summary && event.summary.toLowerCase().includes(className.toLowerCase());
 					}
 
-					// Event date filter
-					if (eventDate) {
-						const formattedEventDate = formatDateTime(event.start?.dateTime.toLowerCase());
-						matchEventDate = formattedEventDate && formattedEventDate.toLowerCase().includes(eventDate.toLowerCase());
-					}
-
-					// Day of the week filter
-					if (dayOfWeek) {
-						const eventDate = new Date(event.start?.dateTime || event.start?.date);
-						const eventDayOfWeek = eventDate.getDay();
-						matchDayOfWeek = eventDayOfWeek === daysOfWeekMap[dayOfWeek];
-					}
-
-					// Location type filter (In-Person or Virtual)
+					// Location type filter
 					if (locationType) {
 						if (locationType === 'IP') {
 							matchLocationType = event.summary && event.summary.toLowerCase().includes('in person');
@@ -217,6 +204,18 @@ export default class extends Command {
 					// Event holder name filter
 					if (eventHolder) {
 						matchEventHolder = event.summary && event.summary.toLowerCase().includes(eventHolder.toLowerCase());
+					}
+
+					// Date filter
+					if (eventDate) {
+						const [month, day] = eventDate.toLowerCase().split(' ');
+						matchEventDate = event.start?.dateTime?.includes(`${month} ${day}`);
+					}
+
+					// Day of week filter
+					if (dayOfWeek) {
+						const eventDayOfWeek = new Date(event.start?.dateTime).toLocaleString('en-US', { weekday: 'long' }).toLowerCase();
+						matchDayOfWeek = eventDayOfWeek === dayOfWeek;
 					}
 
 					return matchClassName && matchLocationType && matchEventHolder && matchEventDate && matchDayOfWeek;
