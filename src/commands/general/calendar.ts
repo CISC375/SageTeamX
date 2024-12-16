@@ -1,4 +1,4 @@
-import {
+import{
 	ChatInputCommandInteraction,
 	ButtonBuilder,
 	ButtonStyle,
@@ -31,7 +31,26 @@ import {
 		description: 'Enter "IP" for In-Person or "V" for Virtual events',
 		required: false,
 	  },
+	  {
+		type: ApplicationCommandOptionType.String,
+		name: 'eventholder',
+		description: 'Enter the name of the event holder you are looking for.',
+		required: false,
+	  },
+	  {
+		type: ApplicationCommandOptionType.String,
+		name: 'eventdate',
+		description: 'Enter the name of the date you are looking for with: [month name] [day] (eg., "december 12").',
+		required: false,
+	  },
+	  {
+		type: ApplicationCommandOptionType.String,
+		name: 'dayofweek',
+		description: 'Enter the day of the week to filter events (e.g., "Monday")',
+		required: false,
+	  }
 	];
+
   
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
 	  const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
@@ -82,9 +101,14 @@ import {
 	  // Get the class name and location type arguments (if any)
 	  const className = interaction.options.getString('classname') || '';
 	  const locationType = interaction.options.getString('locationtype')?.toUpperCase() || '';
+	  const eventHolder = interaction.options.getString('eventholder')|| '';
+	  const eventDate = interaction.options.getString('eventdate')|| '';
+	  const dayOfWeek = interaction.options.getString('dayofweek')?.toLowerCase() || '';
   
 	  // Regex to validate that the class name starts with 'cisc' followed by exactly 3 digits
 	  const classNameRegex = /^cisc\d{3}$/i;
+	  //validates the date format to make sure it is valid input
+	  const dateRegex = /^(?:january|february|march|april|may|june|july|august|september|october|november|december) (\d{1,2})$/;
   
 	  // Validate class name format
 	  if (className && !classNameRegex.test(className)) {
@@ -94,11 +118,28 @@ import {
 		});
 		return;
 	  }
-  
+	  //map to get the day of the week from the date
+	  const daysOfWeekMap: { [key: string]: number } = {
+		sunday: 0,
+		monday: 1,
+		tuesday: 2,
+		wednesday: 3,
+		thursday: 4,
+		friday: 5,
+		saturday: 6,
+	  };
+
 	  // Validate locationType input ("IP" for In-Person, "V" for Virtual)
 	  if (locationType && !['IP', 'V'].includes(locationType)) {
 		await interaction.reply({
 		  content: 'Invalid location type. Please enter "IP" for In-Person or "V" for Virtual events.',
+		  ephemeral: true, // Only visible to the user who entered the command
+		});
+		return;
+	  }
+	  if (eventDate && !dateRegex.test(eventDate)) {
+		await interaction.reply({
+		  content: 'Invalid date format. Please enter a date starting with "month" followed by 1-2 digits (e.g., "december 9").',
 		  ephemeral: true, // Only visible to the user who entered the command
 		});
 		return;
@@ -125,15 +166,30 @@ import {
 			return;
 		  }
   
-		  // If className is provided, filter events by it
+		  // filters are provided, filter events by it
 		  const filteredEvents = events.filter((event) => {
 			let matchClassName = true;
 			let matchLocationType = true;
+			let matchEventHolder = true;
+			let matchEventDate = true;
+			let matchDayOfWeek = true;
   
 			// Class name filter
 			if (className) {
 			  matchClassName = event.summary && event.summary.toLowerCase().includes(className.toLowerCase());
 			}
+			//event date filter
+			if (eventDate) {
+				const formattedEventDate = formatDateTime(event.start?.dateTime.toLowerCase());
+				matchEventDate = formattedEventDate && formattedEventDate.toLowerCase().includes(eventDate.toLowerCase());
+			  }
+			
+			   // Day of the week filter
+  			if (dayOfWeek) {
+    		const eventDate = new Date(event.start?.dateTime || event.start?.date);
+    		const eventDayOfWeek = eventDate.getDay();
+    		matchDayOfWeek = eventDayOfWeek === daysOfWeekMap[dayOfWeek];
+  			}
   
 			// Location type filter (In-Person or Virtual)
 			if (locationType) {
@@ -143,8 +199,12 @@ import {
 				matchLocationType = event.summary && event.summary.toLowerCase().includes('virtual');
 			  }
 			}
+			//event holder name filter
+			if (eventHolder) {
+				matchEventHolder = event.summary && event.summary.toLowerCase().includes(eventHolder.toLowerCase());
+			  }
   
-			return matchClassName && matchLocationType;
+			return matchClassName && matchLocationType && matchEventHolder && matchEventDate && matchDayOfWeek;
 		  });
   
 		  if (filteredEvents.length === 0) {
