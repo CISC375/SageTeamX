@@ -1,9 +1,26 @@
-**Hi!**
+Hi NewComer!
 
 My name is Victoria Nikolaeva, I am the Team X Engineering Manager for the Fall 2024! 
 This project is all abouot helping students get the help they need through the Sage Bot in UDCISC Discord.
-
 Our project focuses on a calendar command that allows pulls the events from a google calendar and will display
 it to the user who calls the command.
 
 I wanted to give you some helpful advise when working on this project!
+
+To ensure that everything works when you pull there are 2 items you will have to set up:
+1) A Personal Bot
+2) Your own Database
+
+During the developement of our run with this project, we created a fake google calendar with office hours,
+I want to be nice so here is the calendar link that should allow you to just add it to your manger's calendar (make sure to use school email for this)
+https://calendar.google.com/calendar/u/0?cid=Y19kZDI4YTk5NzdkYTUyNjg5NjEyNjI3ZDc4NjY1NGU5OTE0ZDM1MzI0ZjdmY2ZjOTI4YTdhYWIyOTRhNGE3Y2UzQGdyb3VwLmNhbGVuZGFyLmdvb2dsZS5jb20
+
+^ If you don't want to use this, make sure to update your calendar's ID in the files to ensure a connection between the two
+
+Also, please make sure you are pushing into the correct repository!!! Too many times, my developers try to push our changes into the Main Sage Repo.
+Plus, you should estalish some early on documentation of how your branches, comments, and codebase would look like and try to establish a well
+maintained project board
+
+Overall, I wish you luck!
+
+From Team X of 2024!
