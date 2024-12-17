@@ -1,0 +1,49 @@
+Documentation for /calendar command
+
+Setting up Google Calendar API: https://developers.google.com/calendar/api/quickstart/nodejs
+
+Using the above guide you will be able to create a project in Google Cloud and set up an OAuth2.0
+From there you will be able to download the client secret. It will be a JSON file which you should place at the root of your folder.
+
+
+
+Persistent Errors:
+ 
+Node.js Typescript version error:
+
+node_modules/discord.js/typings/index.d.ts(1255,21): error TS1139: Type parameter declaration expected. node_modules/discord.js/typings/index.d.ts(1255,27): error TS1435: Unknown keyword or identifier. Did you mean 'type'? node_modules/discord.js/typings/index.d.ts(1255,32): error TS1068: Unexpected token. A constructor, method, accessor, or property was expected. node_modules/discord.js/typings/index.d.ts(1256,9): error TS1005: ')' expected. node_modules/discord.js/typings/index.d.ts(1256,11): error TS1068: Unexpected token. A constructor, method, accessor, or property was expected. node_modules/discord.js/typings/index.d.ts(1257,13): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1258,18): error TS1109: Expression expected. node_modules/discord.js/typings/index.d.ts(1258,29): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1258,34): error TS1011: An element access expression should take an argument. node_modules/discord.js/typings/index.d.ts(1259,3): error TS1109: Expression expected. node_modules/discord.js/typings/index.d.ts(1259,4): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1273,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1273,21): error TS1109: Expression expected. node_modules/discord.js/typings/index.d.ts(1273,32): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1274,9): error TS1005: ')' expected. node_modules/discord.js/typings/index.d.ts(1275,13): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1275,14): error TS1134: Variable declaration expected. node_modules/discord.js/typings/index.d.ts(1276,17): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1276,18): error TS1134: Variable declaration expected. node_modules/discord.js/typings/index.d.ts(1276,29): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1276,33): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1277,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1277,4): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1285,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1285,24): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1285,42): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1285,49): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1286,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1286,24): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1286,43): error TS1109: Expression expected. node_modules/discord.js/typings/index.d.ts(1286,53): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1287,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1287,25): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1287,43): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1287,50): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1288,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1288,25): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1288,44): error TS1109: Expression expected. node_modules/discord.js/typings/index.d.ts(1288,54): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1289,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1289,24): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1289,42): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1289,49): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1290,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1290,24): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1290,43): error TS1109: Expression expected. node_modules/discord.js/typings/index.d.ts(1290,53): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1291,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1291,22): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1291,40): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1291,47): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1292,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1292,22): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1292,41): error TS1109: Expression expected. node_modules/discord.js/typings/index.d.ts(1292,51): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1293,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1293,24): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1293,33): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1294,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1294,22): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1294,40): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1294,47): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1295,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1295,22): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1295,41): error TS1109: Expression expected. node_modules/discord.js/typings/index.d.ts(1295,51): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1296,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1296,28): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1296,46): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1296,53): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1297,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1298,9): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1299,14): error TS1109: Expression expected. node_modules/discord.js/typings/index.d.ts(1300,4): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1301,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1302,9): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1303,13): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1304,4): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1305,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1306,9): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1307,14): error TS1109: Expression expected. node_modules/discord.js/typings/index.d.ts(1308,4): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1309,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1309,25): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1309,43): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1309,50): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1310,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1310,25): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1310,44): error TS1109: Expression expected. node_modules/discord.js/typings/index.d.ts(1310,54): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1311,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1311,28): error TS1005: ',' expected. node_modules/discord.js/typings/index.d.ts(1311,35): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1312,3): error TS1128: Declaration or statement expected. node_modules/discord.js/typings/index.d.ts(1312,29): error TS1109: Expression expected. node_modules/discord.js/typings/index.d.ts(1312,39): error TS1005: ';' expected. node_modules/discord.js/typings/index.d.ts(1313,1): error TS1128: Declaration or statement expected.
+
+Fix:
+
+npm install typescript@latest
+npm install @google-cloud/local-auth
+npm install googleapis
+
+
+Common Error 2 
+
+/Users/tommy/Desktop/School/CISC375/SageTeamX/dist/src/pieces/messageCount.js:53
+    if (user.curExp < user.levelExp) {
+             ^
+
+TypeError: Cannot read properties of null (reading 'curExp')
+    at handleExpDetract (/Users/tommy/Desktop/School/CISC375/SageTeamX/dist/src/pieces/messageCount.js:53:14)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+Node.js v23.2.0
+
+
+Workaround:
+Use different command than calendar first, then use calendar command 
+
+
+
+Common Error 3
+
+
+Fix:
+This is a persistent error, have not been able to solve 
+
+Common Error 4
+When you have a Calendar Token Expires Error
+	Make sure to delete the token.json and then run it again.
