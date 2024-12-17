@@ -1,0 +1,19 @@
+Here is what we got done:
+
+- We autherized the connection between the Google API calendar system and the Discord Bot connection
+- We manage to get events pulled from said calendar into the bot's memeory
+- We have a parsing system that helps organize the events and is the basics of the filter system
+- We have a basic filter system that looks for courseID, Day of the Week, Date, Location Type (Virtual/In-Person), etc. (check out the code for more)
+- We wanted a better UI for it but ran out of time for it
+- We have the basics of the notification system with the logic and the majority of the code, but there is a current bug we could not figure out
+   (It should be documented in the code)
+- We can display the pulled, parsed information into a easy UI friendly design of 3 events per a page, that while stay within 5 minutes before bot deactivates
+- There is a database that is currently connected and gets the inofrmation, though it has not been fully tested out yet.
+- There is minor error-handling but not alot of intensive testing to try to push the barrier
+- We got multi-platorm command to work but it requires a first time authetication which means the user has to use it on a desktop first before using their mobile device
+    ( This is something we wished we had more time to develope on to see other ways to get it done)
+- We have a privacy barrier by letting the bot make it into a private DM instead of publi viewing
+-This is all done under the idea that there will be one unified calendar for the entire CISC Department
+
+That's pretty much should be it! Hope you got some ideas from this or at least know where you stand with everything!
+Thank you!
