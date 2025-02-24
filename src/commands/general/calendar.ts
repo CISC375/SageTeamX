@@ -128,12 +128,16 @@ export default class extends Command {
 		 * MongoDB connection variables. This is where you would add in the connection string to your own MongoDB database, as well as establishing 
 		 * the collection you want the events to be saved to within that database. It is currently set up to store events in the database of the bot
 		 * which is running this command (Lineages), but feel free to make a specific database for the events or switch to your bot's database. 
-		 */
+		 
 
 		const connString = process.env.DB_CONN_STRING;
 		const client = await MongoClient.connect(connString);
 		const db = client.db('Lineages');
-		const eventsCollection = db.collection('events');
+		const eventsCollection = db.collection('events'); 
+
+		This code might not be entirely neccessary, but I'll keep it here just in case
+
+		*/
 
 		// Get the class name and location type arguments (if any)
 		const className = interaction.options.getString('classname') || '';
@@ -209,7 +213,7 @@ export default class extends Command {
 				}
 				/**
 				 * before filtering the events, we store every single one in MongoDB. 
-				 */
+				   This code might not be entirely neccessary, but I'll keep it here just in case
 
 				for (const event of events) {
 					const eventParts = event.summary.split('-');
@@ -235,6 +239,8 @@ export default class extends Command {
 						console.error('Error storing event in database:', dbError);
 					}
 				}
+
+				*/
 				
 
 				// Filters are provided, filter events by the ones given by user
