@@ -45,6 +45,7 @@
 		"discord.js": "^14.16.3",
 		"dotenv": "^16.4.7",
 		"googleapis": "^105.0.0",
+		"@discordjs/node-pre-gyp": "0.4.5",
 		"module-alias": "^2.2.2",
 		"moment": "^2.29.1",
 		"mongodb": "^3.6.3",

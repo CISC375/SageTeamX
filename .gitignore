@@ -10,6 +10,7 @@ config.ts
 
 #google credentials
 credentials.json
+token.json
 
 # Logs
 logs
