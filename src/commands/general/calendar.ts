@@ -11,7 +11,7 @@ import {
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
 import { MongoClient } from 'mongodb';
-import event from '@root/src/models/calEvent';
+//import event from '@root/src/models/calEvent';
 
 
 const fs = require('fs').promises;
