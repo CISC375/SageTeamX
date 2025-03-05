@@ -20,6 +20,12 @@ export default class extends Command {
 	options: ApplicationCommandOptionData[] =
 	[
 		{
+			name: 'classname',
+			description: 'Course ID',
+			type: ApplicationCommandOptionType.String,
+			required: true
+		},
+		{
 			name: 'offset',
 			description: 'How long in advance',
 			type: ApplicationCommandOptionType.String,
@@ -44,9 +50,15 @@ export default class extends Command {
 			singleEvents: true,
 			orderBy: 'startTime',
 		});
+		const className = interaction.options.getString('classname');
 		const events = res.data.items || [];
+		const filteredEvents = events.filter((event) => {
+			if (event.summary.toLowerCase().includes(className.toLowerCase())) {
+				return event;
+			}
+		})
 		
-		let offset: number;
+		let offset: number = 0;
 		const rawOffset: string = interaction.options.getString('offset');
 		if (rawOffset) {
 			offset = parse(rawOffset);
@@ -56,11 +68,11 @@ export default class extends Command {
 			.setCustomId('test')
 			.setPlaceholder('Make a selection')
 			.setMaxValues(1)
-			.addOptions(events.slice(0, 25).map((event) => 
+			.addOptions(filteredEvents.map((event, index: number) => 
 				new StringSelectMenuOptionBuilder()
 					.setLabel(event.summary)
 					.setDescription("Test")
-					.setValue(event.start.dateTime)
+					.setValue(event.start.dateTime + index.toString())	
 			)
 		);
 
@@ -77,7 +89,7 @@ export default class extends Command {
 		})
 
 		collector.on('collect', (interaction) => {
-			dateNNumber = new Date(interaction.values[0]).getTime() - offset;
+			dateNNumber = new Date(interaction.values[0].slice(0, -1)).getTime() - offset;
 			remindDate = new Date(dateNNumber);
 			const reminder: Reminder = {
 				owner: interaction.user.id,
@@ -86,7 +98,7 @@ export default class extends Command {
 				expires: remindDate,
 				repeat
 			};
-			interaction.reply({ content: `I'll remind you about that at ${reminderTime(reminder)} Here is the event: ${events[0]?.start?.dateTime}.`, ephemeral: true });
+			interaction.reply({ content: `I'll remind you about that at ${reminderTime(reminder)}.`, ephemeral: true });
 			interaction.client.mongo.collection(DB.REMINDERS).insertOne(reminder);
 		})
 	}
