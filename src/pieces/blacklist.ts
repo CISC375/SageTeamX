@@ -2,7 +2,8 @@ import { BLACKLIST } from '@root/config';
 import { Client, Message } from 'discord.js';
 
 // I stole these from https://github.com/powercord-org/powercord-backend/blob/my-awesome-branch/packages/boat/src/modules/mod/automod.ts#L52
-const CLEANER = /[\u200B-\u200F\u2060-\u2063\uFEFF\u00AD\u180E]|[\u0300-\u036f]|[\u202A-\u202E]|[/\\]/g;
+const CLEANER
+	= /[\u200B-\u200F\u2060-\u2063\uFEFF\u00AD\u180E]|[\u0300-\u036f]|[\u202A-\u202E]|[/\\]/g;
 const NORMALIZE: [RegExp, string][] = [
 	[/Α|А|₳|Ꭿ|Ꭺ|Λ|@|🅰|🅐|\uD83C\uDDE6/g, 'A'],
 	[/Β|В|в|฿|₿|Ᏸ|Ᏼ|🅱|🅑|\uD83C\uDDE7/g, 'B'],
@@ -81,7 +82,7 @@ const NORMALIZE: [RegExp, string][] = [
 
 async function register(bot: Client): Promise<void> {
 	bot.on('messageCreate', async (msg) => {
-		filterMessages(msg).catch(async error => bot.emit('error', error));
+		filterMessages(msg).catch(async (error) => bot.emit('error', error));
 	});
 	bot.on('messageUpdate', async (_, msg) => {
 		// Handel partials
@@ -90,7 +91,7 @@ async function register(bot: Client): Promise<void> {
 		}
 		msg = msg as Message;
 
-		filterMessages(msg).catch(async error => bot.emit('error', error));
+		filterMessages(msg).catch(async (error) => bot.emit('error', error));
 	});
 }
 
@@ -99,7 +100,8 @@ async function filterMessages(msg: Message): Promise<Message | void> {
 	let attemptedBypass = false;
 	for (const [re, rep] of NORMALIZE) {
 		const cleanerString = normalizedMessage.replace(re, rep);
-		attemptedBypass = attemptedBypass || normalizedMessage !== cleanerString;
+		attemptedBypass
+			= attemptedBypass || normalizedMessage !== cleanerString;
 		normalizedMessage = cleanerString;
 	}
 
@@ -108,20 +110,29 @@ async function filterMessages(msg: Message): Promise<Message | void> {
 
 	const lowercaseMessage = msg.content.toLowerCase();
 	const cleanLowercaseMessage = cleanMessage.toLowerCase();
-	const cleanNormalizedLowercaseMessage = cleanNormalizedMessage.toLowerCase();
+	const cleanNormalizedLowercaseMessage
+		= cleanNormalizedMessage.toLowerCase();
 
 	for (const word of BLACKLIST) {
 		const simpleContains = lowercaseMessage.includes(word);
-		if (simpleContains || cleanLowercaseMessage.includes(word) || cleanNormalizedLowercaseMessage.includes(word)) {
+		if (
+			simpleContains
+			|| cleanLowercaseMessage.includes(word)
+			|| cleanNormalizedLowercaseMessage.includes(word)
+		) {
 			msg.delete();
 
-			return msg.author.send(`You used a restricted word. Please refrain from doing so again.`)
+			return msg.author
+				.send(
+					`You used a restricted word. Please refrain from doing so again.`
+				)
 				.catch(() => {
-					msg.author.send(`${msg.member}, you used a restricted word. Please refrain from doing so again.`);
+					msg.author.send(
+						`${msg.member}, you used a restricted word. Please refrain from doing so again.`
+					);
 				});
 		}
 	}
 }
-
 
 export default register;
