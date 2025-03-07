@@ -7,19 +7,18 @@ import {
 	EmbedBuilder,
 	ApplicationCommandOptionType,
 	ApplicationCommandStringOptionData,
-} from "discord.js";
-import { Command } from "@lib/types/Command";
-import "dotenv/config";
-import { MongoClient } from "mongodb";
+} from 'discord.js';
+import { Command } from '@lib/types/Command';
+import 'dotenv/config';
+import { MongoClient } from 'mongodb';
+import { authorize } from '../../lib/auth';
 //import event from '@root/src/models/calEvent';
 
-const fs = require("fs").promises;
-const path = require("path");
-const process = require("process");
-const { authenticate } = require("@google-cloud/local-auth");
-const { google } = require("googleapis");
+const path = require('path');
+const process = require('process');
+const { google } = require('googleapis');
 
-interface Event {
+interface Event{
 	eventId: string;
 	courseID: string;
 	instructor: string;
@@ -73,50 +72,9 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
+		const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
-
-		// Loads saved credentials if they exist
-		async function loadSavedCredentialsIfExist() {
-			try {
-				const content = await fs.readFile(TOKEN_PATH);
-				const credentials = JSON.parse(content);
-				return google.auth.fromJSON(credentials);
-			} catch {
-				return null;
-			}
-		}
-
-		// Saves calendar access token.json into its own folder when authenticating
-		async function saveCredentials(client) {
-			const content = await fs.readFile(CREDENTIALS_PATH);
-			const keys = JSON.parse(content);
-			const key = keys.installed || keys.web;
-			const payload = JSON.stringify({
-				type: "authorized_user",
-				client_id: key.client_id,
-				client_secret: key.client_secret,
-				refresh_token: client.credentials.refresh_token,
-			});
-			await fs.writeFile(TOKEN_PATH, payload);
-		}
-
-		// Loads the credentials that were authenticated by the user on their first use
-		async function authorize() {
-			let client = await loadSavedCredentialsIfExist();
-			if (client) {
-				return client;
-			}
-			client = await authenticate({
-				scopes: SCOPES,
-				keyfilePath: CREDENTIALS_PATH,
-			});
-			if (client.credentials) {
-				await saveCredentials(client);
-			}
-			return client;
-		}
 
 		// Formats the date and time for events
 		function formatDateTime(dateTime?: string): string {
@@ -134,13 +92,17 @@ export default class extends Command {
 		/**
 		 * MongoDB connection variables. This is where you would add in the connection string to your own MongoDB database, as well as establishing
 		 * the collection you want the events to be saved to within that database. It is currently set up to store events in the database of the bot
-		 * which is running this command (Lineages), but feel free to make a specific database for the events or switch to your bot's database.
-		 */
+		 * which is running this command (Lineages), but feel free to make a specific database for the events or switch to your bot's database. 
+		 
 
 		const connString = process.env.DB_CONN_STRING;
 		const client = await MongoClient.connect(connString);
-		const db = client.db("Lineages");
-		const eventsCollection = db.collection("events");
+		const db = client.db('Lineages');
+		const eventsCollection = db.collection('events'); 
+
+		This code might not be entirely neccessary, but I'll keep it here just in case
+
+		*/
 
 		// Get the class name and location type arguments (if any)
 		const className = interaction.options.getString("classname") || "";
@@ -229,8 +191,8 @@ export default class extends Command {
 					return;
 				}
 				/**
-				 * before filtering the events, we store every single one in MongoDB.
-				 */
+				 * before filtering the events, we store every single one in MongoDB. 
+				   This code might not be entirely neccessary, but I'll keep it here just in case
 
 				for (const event of events) {
 					const eventParts = event.summary.split("-");
@@ -266,6 +228,9 @@ export default class extends Command {
 						);
 					}
 				}
+
+				*/
+				
 
 				// Filters are provided, filter events by the ones given by user
 				const filteredEvents = events.filter((event) => {
@@ -518,8 +483,8 @@ export default class extends Command {
 		}
 
 		try {
-			await interaction.reply("Authenticating and fetching events...");
-			const auth = await authorize();
+			await interaction.reply('Authenticating and fetching events...');
+			const auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
 			await listEvents(auth, interaction, className, locationType);
 		} catch (err) {
 			console.error(err);
