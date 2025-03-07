@@ -183,7 +183,7 @@ export default class extends Command {
 				const result = await i.client.mongo
 					.collection(DB.REMINDERS)
 					.insertOne(reminder);
-				activeReminderId = result.insertedId.toString();
+				activeReminderId = result.insertedId;
 
 				// Build Cancel button row
 				const cancelButton = new ButtonBuilder()
