@@ -19,7 +19,7 @@ const path = require("path");
 const process = require("process");
 const { google } = require("googleapis");
 import parse from "parse-duration";
-import { authorize } from "./auth";
+import { authorize } from "../../lib/auth";
 
 export default class extends Command {
 	name = "calreminder";
@@ -113,6 +113,12 @@ export default class extends Command {
 				)
 			);
 
+		// 3) Set Reminder button
+		const setReminder = new ButtonBuilder()
+			.setCustomId('set_reminder')
+			.setLabel('Set Reminder')
+			.setStyle(ButtonStyle.Success);
+
 		// Create action rows for the dropdowns
 		const row1 =
 			new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
@@ -123,9 +129,11 @@ export default class extends Command {
 				offsetMenu
 			);
 
+		const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(setReminder);
+		
 		// Send ephemeral message with both dropdowns
 		const replyMessage = await interaction.reply({
-			components: [row1, row2],
+			components: [row1, row2, row3],
 			ephemeral: true,
 		});
 
@@ -150,72 +158,75 @@ export default class extends Command {
 				chosenOffset = rawOffsetStr === "0" ? 0 : parse(rawOffsetStr);
 				await i.deferUpdate();
 			}
-
-			if (chosenEvent && chosenOffset !== null) {
-				const dateObj = new Date(chosenEvent.start.dateTime);
-				const remindDate = new Date(dateObj.getTime() - chosenOffset);
-
-				// Check if it's already in the past
-				if (remindDate.getTime() <= Date.now()) {
-					await i.editReply({
-						content:
-							"That reminder time is in the past. No reminder was set.",
-						components: [],
-					});
-					collector.stop();
-					return;
-				}
-
-				// Build more detailed reminder text
-				const eventInfo = `${
-					chosenEvent.summary
-				}\nStarts at: ${dateObj.toLocaleString()}`;
-
-				// Create reminder in DB
-				const reminder: Reminder = {
-					owner: i.user.id,
-					content: eventInfo,
-					mode: "public",
-					expires: remindDate,
-					repeat: null,
-				};
-
-				const result = await i.client.mongo
-					.collection(DB.REMINDERS)
-					.insertOne(reminder);
-				activeReminderId = result.insertedId;
-
-				// Build Cancel button row
-				const cancelButton = new ButtonBuilder()
-					.setCustomId("cancel_reminder")
-					.setLabel("Cancel Reminder")
-					.setStyle(ButtonStyle.Danger);
-
-				const buttonRow =
-					new ActionRowBuilder<ButtonBuilder>().addComponents(
-						cancelButton
-					);
-
-				// Update ephemeral message with final reminder text + Cancel button
-				await i.editReply({
-					content: `Your reminder is set!\nI'll remind you at **${reminderTime(
-						reminder
-					)}** about:\n\`\`\`\n${reminder.content}\n\`\`\``,
-					components: [buttonRow],
-				});
-
-				collector.stop();
-			}
 		});
 
-		// Button collector for Cancel
+		// Button collector for Cancel and Set Reminder
 		const buttonCollector = replyMessage.createMessageComponentCollector({
 			componentType: ComponentType.Button,
 			time: 300_000, // 5 minutes
 		});
 
 		buttonCollector.on("collect", async (btnInt) => {
-			if (btnInt.customId === "cancel_reminder") {
+			if (btnInt.customId === "set_reminder") {
+				await btnInt.deferUpdate();
+				if (chosenEvent && chosenEvent !== null) {
+					const dateObj = new Date(chosenEvent.start.dateTime);
+					const remindDate = new Date(dateObj.getTime() - chosenOffset);
+
+					// Check if it's already in the past
+					if (remindDate.getTime() <= Date.now()) {
+						await btnInt.editReply({
+							content:
+								"That reminder time is in the past. No reminder was set.",
+							components: [],
+						});
+						collector.stop();
+						buttonCollector.stop;
+						return;
+					}
+
+					// Build more detailed reminder text
+					const eventInfo = `${
+						chosenEvent.summary
+					}\nStarts at: ${dateObj.toLocaleString()}`;
+
+					// Create reminder in DB
+					const reminder: Reminder = {
+						owner: btnInt.user.id,
+						content: eventInfo,
+						mode: "public",
+						expires: remindDate,
+						repeat: null,
+					};
+
+					const result = await btnInt.client.mongo
+						.collection(DB.REMINDERS)
+						.insertOne(reminder);
+					activeReminderId = result.insertedId;
+
+					// Build Cancel button row
+					const cancelButton = new ButtonBuilder()
+						.setCustomId("cancel_reminder")
+						.setLabel("Cancel Reminder")
+						.setStyle(ButtonStyle.Danger);
+
+					const buttonRow =
+						new ActionRowBuilder<ButtonBuilder>().addComponents(
+							cancelButton
+						);
+
+					// Update ephemeral message with final reminder text + Cancel button
+					await btnInt.editReply({
+						content: `Your reminder is set!\nI'll remind you at **${reminderTime(
+							reminder
+						)}** about:\n\`\`\`\n${reminder.content}\n\`\`\``,
+						components: [buttonRow],
+					});
+
+					collector.stop();
+				}
+			}
+			else if (btnInt.customId === "cancel_reminder") {
 				if (activeReminderId) {
 					// Remove from DB
 					await btnInt.client.mongo

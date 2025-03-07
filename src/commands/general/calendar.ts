@@ -11,7 +11,7 @@ import {
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
 import { MongoClient } from 'mongodb';
-import { authorize } from './auth';
+import { authorize } from '../../lib/auth';
 //import event from '@root/src/models/calEvent';
 
 const path = require('path');
