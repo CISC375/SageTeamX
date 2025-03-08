@@ -7,6 +7,7 @@ import {
 	EmbedBuilder,
 	ApplicationCommandOptionType,
 	ApplicationCommandStringOptionData,
+	ComponentType,
 } from 'discord.js';
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
@@ -72,6 +73,18 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
+		function generateEmbed(newEvents, currentPage): EmbedBuilder {
+			const embed = new EmbedBuilder().setTitle("Test");
+			newEvents[currentPage].forEach(event => {
+				embed.addFields({
+					name: `**${event.summary}**`, 
+					value: `Date: ${new Date(event.start.dateTime).toLocaleDateString()}
+							Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}
+							Location: ${event.location ? event.location : "`NONE`"}\n`
+				});
+			});
+			return embed;
+		}
 		// Fetch Calendar events
 		const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
@@ -98,21 +111,36 @@ export default class extends Command {
 				temp = [];
 			}
 		});
-		console.log(newEvents);
+		console.log(newEvents.length);
 		console.log(newEvents[0]);
 		
 		// Display events in embed
-		const embed = new EmbedBuilder().setTitle("Test");
-		newEvents[0].forEach(event => {
-			embed.addFields({
-				name: `**${event.summary}**`, 
-				value: `Date: ${new Date(event.start.dateTime).toLocaleDateString()}
-						Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}
-						Location: ${event.location ? event.location : "`NONE`"}\n`
-			});
-		});
+		const embed = generateEmbed(newEvents, 0);
+
+		const nextButton = new ButtonBuilder()
+			.setCustomId('next')
+			.setLabel('Next')
+			.setStyle(ButtonStyle.Primary);
 		
-		(await interaction.user.createDM()).send({embeds: [embed]})
+		const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(nextButton);
+
+		// Send message
+		const message = (await interaction.user.createDM()).send({embeds: [embed], components:[buttonRow]})
+
+		const buttonCollector = (await message).createMessageComponentCollector({
+			componentType: ComponentType.Button,
+			time: 60_000
+		});
+
+		let currentPage: number = 0;
+		buttonCollector.on('collect', async (btnInt) => {
+			btnInt.deferUpdate();
+			if (btnInt.customId === 'next') {
+				currentPage++;
+				const newEmbed = generateEmbed(newEvents, currentPage);
+				(await message).edit({embeds: [newEmbed], components: [buttonRow]});
+			}
+		})
 	}
 }
 
