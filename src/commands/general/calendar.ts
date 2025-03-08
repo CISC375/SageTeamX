@@ -31,8 +31,7 @@ interface Event{
 }
 export default class extends Command {
 	name = "calendar";
-	description =
-		"Retrieve calendar events over the next 10 days with pagination, optionally filter";
+	description = "Retrieve calendar events over the next 10 days with pagination, optionally filter";
 
 	// All available filters that someone can add and they are not required
 	options: ApplicationCommandStringOptionData[] = [
@@ -135,10 +134,10 @@ export default class extends Command {
 
 		console.log(newEvents.length);
 		console.log(newEvents[0]);
+		
+		// Generate intial embed and buttons
 		let maxPage: number = newEvents.length;
 		let currentPage: number = 0;
-
-		// Generate intial embed and buttons
 		const embed = generateEmbed(newEvents, currentPage, maxPage);
 		const buttonRow = generateButtons(currentPage, maxPage);
 
@@ -149,6 +148,7 @@ export default class extends Command {
 			components: [buttonRow]
 		});
 
+		// Create button collector for message
 		const buttonCollector = message.createMessageComponentCollector({
 			time: 300000
 		});
