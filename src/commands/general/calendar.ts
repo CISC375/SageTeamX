@@ -73,8 +73,8 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		function generateEmbed(newEvents, currentPage): EmbedBuilder {
-			const embed = new EmbedBuilder().setTitle("Test");
+		function generateEmbed(newEvents, currentPage: number, maxPage: number): EmbedBuilder {
+			const embed = new EmbedBuilder().setTitle(`Events - ${currentPage + 1} of ${maxPage}`);
 			newEvents[currentPage].forEach(event => {
 				embed.addFields({
 					name: `**${event.summary}**`, 
@@ -85,6 +85,27 @@ export default class extends Command {
 			});
 			return embed;
 		}
+		function generateButtons(currentPage: number, maxPage: number): ActionRowBuilder<ButtonBuilder> {
+			const nextButton = new ButtonBuilder()
+				.setCustomId('next')
+				.setLabel('Next')
+				.setStyle(ButtonStyle.Primary)
+				.setDisabled(currentPage + 1 === maxPage);
+			
+			const prevButton = new ButtonBuilder()
+				.setCustomId('prev')
+				.setLabel('Previous')
+				.setStyle(ButtonStyle.Primary)
+				.setDisabled(currentPage === 0);
+			
+			const done = new ButtonBuilder()
+				.setCustomId('done')
+				.setLabel('Done')
+				.setStyle(ButtonStyle.Danger);
+		
+			return new ActionRowBuilder<ButtonBuilder>().addComponents(prevButton, nextButton, done);
+		}
+		
 		// Fetch Calendar events
 		const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
@@ -94,7 +115,7 @@ export default class extends Command {
 		const response = await calendar.events.list({
 			calendarId: 'c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com',
     		timeMin: new Date().toISOString(),
-    		maxResults: 10,
+    		maxResults: 100,
     		singleEvents: true,
     		orderBy: 'startTime',
 		});
@@ -111,36 +132,44 @@ export default class extends Command {
 				temp = [];
 			}
 		});
+
 		console.log(newEvents.length);
 		console.log(newEvents[0]);
-		
-		// Display events in embed
-		const embed = generateEmbed(newEvents, 0);
+		let maxPage: number = newEvents.length;
+		let currentPage: number = 0;
 
-		const nextButton = new ButtonBuilder()
-			.setCustomId('next')
-			.setLabel('Next')
-			.setStyle(ButtonStyle.Primary);
-		
-		const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(nextButton);
+		// Generate intial embed and buttons
+		const embed = generateEmbed(newEvents, currentPage, maxPage);
+		const buttonRow = generateButtons(currentPage, maxPage);
 
 		// Send message
-		const message = (await interaction.user.createDM()).send({embeds: [embed], components:[buttonRow]})
-
-		const buttonCollector = (await message).createMessageComponentCollector({
-			componentType: ComponentType.Button,
-			time: 60_000
+		const dm = await interaction.user.createDM()
+		const message = await dm.send({
+			embeds: [embed],
+			components: [buttonRow]
 		});
 
-		let currentPage: number = 0;
+		const buttonCollector = message.createMessageComponentCollector({
+			time: 300000
+		});
+
 		buttonCollector.on('collect', async (btnInt) => {
 			btnInt.deferUpdate();
 			if (btnInt.customId === 'next') {
 				currentPage++;
-				const newEmbed = generateEmbed(newEvents, currentPage);
-				(await message).edit({embeds: [newEmbed], components: [buttonRow]});
 			}
-		})
+			else if (btnInt.customId === 'prev') {
+				currentPage--;
+			}
+			else {
+				message.delete();
+				buttonCollector.stop()
+				return;
+			}
+			const newEmbed = generateEmbed(newEvents, currentPage, maxPage);
+			const newButtonRow = generateButtons(currentPage, maxPage);
+			message.edit({embeds: [newEmbed], components: [newButtonRow]});
+		});
 	}
 }
 
