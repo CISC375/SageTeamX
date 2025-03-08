@@ -72,11 +72,49 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
+		// Fetch Calendar events
 		const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
+		const auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
+		const calendar = google.calendar({ version: "v3", auth });
+		const response = await calendar.events.list({
+			calendarId: 'c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com',
+    		timeMin: new Date().toISOString(),
+    		maxResults: 10,
+    		singleEvents: true,
+    		orderBy: 'startTime',
+		});
+		const events = response.data.items || [];
 
-		// Formats the date and time for events
+		// Put events into a 2D array
+		const eventsPerPage: number = 3; // Modify this value to change the number of events per page
+		let newEvents = [];
+		let i = 0;
+		let temp = [];
+		events.forEach((event, index: number) => {
+			temp.push(event);
+			if (index !== 0 && index % eventsPerPage === 0) {
+				newEvents.push(temp);
+				temp = [];
+				i++;
+			}
+		});
+		console.log(newEvents);
+		console.log(newEvents[0]);
+		
+		// Display events in embed
+		const embed = new EmbedBuilder()
+			.setTitle("Test");
+		newEvents[0].forEach(event => {
+			embed.addFields({name: `${event.summary}`, value: `${event.summary}`});
+		});
+		(await interaction.user.createDM()).send({embeds: [embed]})
+	}
+}
+
+/*
+// Formats the date and time for events
 		function formatDateTime(dateTime?: string): string {
 			if (!dateTime) return "`NONE`";
 			const date = new Date(dateTime);
@@ -102,7 +140,7 @@ export default class extends Command {
 
 		This code might not be entirely neccessary, but I'll keep it here just in case
 
-		*/
+		
 
 		// Get the class name and location type arguments (if any)
 		const className = interaction.options.getString("classname") || "";
@@ -229,7 +267,7 @@ export default class extends Command {
 					}
 				}
 
-				*/
+				
 				
 
 				// Filters are provided, filter events by the ones given by user
@@ -490,5 +528,4 @@ export default class extends Command {
 			console.error(err);
 			await interaction.followUp("An error occurred.");
 		}
-	}
-}
+*/
