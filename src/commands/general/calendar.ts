@@ -90,25 +90,28 @@ export default class extends Command {
 		// Put events into a 2D array
 		const eventsPerPage: number = 3; // Modify this value to change the number of events per page
 		let newEvents = [];
-		let i = 0;
 		let temp = [];
 		events.forEach((event, index: number) => {
 			temp.push(event);
-			if (index !== 0 && index % eventsPerPage === 0) {
+			if ((index + 1) % eventsPerPage === 0) {
 				newEvents.push(temp);
 				temp = [];
-				i++;
 			}
 		});
 		console.log(newEvents);
 		console.log(newEvents[0]);
 		
 		// Display events in embed
-		const embed = new EmbedBuilder()
-			.setTitle("Test");
+		const embed = new EmbedBuilder().setTitle("Test");
 		newEvents[0].forEach(event => {
-			embed.addFields({name: `${event.summary}`, value: `${event.summary}`});
+			embed.addFields({
+				name: `**${event.summary}**`, 
+				value: `Date: ${new Date(event.start.dateTime).toLocaleDateString()}
+						Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}
+						Location: ${event.location ? event.location : "`NONE`"}\n`
+			});
 		});
+		
 		(await interaction.user.createDM()).send({embeds: [embed]})
 	}
 }
