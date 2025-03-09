@@ -81,52 +81,61 @@ export default class extends Command {
 			const eventHolder: string = interaction.options.getString('eventholder')?.toLowerCase();
 			const eventDate: string = interaction.options.getString('eventdate')
 			const dayOfWeek: string = interaction.options.getString('dayofweek')?.toLowerCase();
+			
 			const newLocationType: 'in person' | 'virtual' | '' = locationType ? (locationType === 'ip' ? 'in person' : 'virtual') : '';
-			const newEventDate: string = eventDate ? new Date(eventDate).toLocaleDateString() : '';
+			const newEventDate: string = eventDate ? new Date(eventDate + ' 2025').toLocaleDateString() : '';
 			const daysOfWeek: string[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
 			let temp = [];
 			let filteredEvents = [];
-			let eventsInTemp = 0;
+
+			// Flags for each property 
 			let classNameFlag: boolean = false;
 			let locationTypeFlag: boolean = false;
 			let eventHolderFlag: boolean = false;
 			let eventDateFlag: boolean = false;
 			let dayOfWeekFlag: boolean = false;
+		
+			// Error flags
+			let classNameErrorFlag: boolean = false;
+			let locationTypeErrorFlag: boolean = false;
+			let eventHolderErrorFlag: boolean = false;
+			let eventDateErrorFlag: boolean = false;
+			let dayOfWeekErrorFlag: boolean = false;
 			events.forEach((event) => {
 				const lowerCaseSummary: string = event.summary.toLowerCase();
 				const currentEventDate: Date = new Date(event.start.dateTime);
-				if ((!className || lowerCaseSummary.includes(className)) && 
-					(!newLocationType || lowerCaseSummary.includes(newLocationType)) && 
-					(!eventHolder || lowerCaseSummary.includes(eventHolder)) && 
-					(!newEventDate || currentEventDate.toLocaleDateString() === newEventDate) &&
-					(!dayOfWeek || daysOfWeek[currentEventDate.getDay()] === dayOfWeek)) {
+
+				classNameErrorFlag = classNameErrorFlag || (classNameFlag = !className || lowerCaseSummary.includes(className));
+				locationTypeErrorFlag = locationTypeErrorFlag || (locationTypeFlag = !newLocationType || lowerCaseSummary.includes(newLocationType));
+				eventHolderErrorFlag = eventHolderErrorFlag ||( eventHolderFlag = !eventHolder || lowerCaseSummary.includes(eventHolder));
+				eventDateErrorFlag = eventDateErrorFlag || (eventDateFlag = !newEventDate || currentEventDate.toLocaleDateString() === newEventDate);
+				dayOfWeekErrorFlag = dayOfWeekErrorFlag || (dayOfWeekFlag = !dayOfWeek || daysOfWeek[currentEventDate.getDay()] === dayOfWeek);
+
+				if (classNameFlag && locationTypeFlag && eventHolderFlag && eventDateFlag && dayOfWeekFlag) {
 					temp.push(event);
-					eventsInTemp++;
-					if (eventsInTemp % eventsPerPage === 0) {
+					if (temp.length % eventsPerPage === 0) {
 						filteredEvents.push(temp);
 						temp = [];
 					}
 				}
-				classNameFlag = lowerCaseSummary.includes(className) ? true : false;
-				locationTypeFlag = lowerCaseSummary.includes(newLocationType);
-				eventHolderFlag = lowerCaseSummary.includes(eventHolder);
-				eventDateFlag = currentEventDate.toLocaleDateString() === newEventDate;
-				dayOfWeekFlag = daysOfWeek[currentEventDate.getDay()] === dayOfWeek;
 			});
 
+			temp.length ? filteredEvents.push(temp) : 0;
+
+			// Handle wrong input
 			if (filteredEvents.length === 0) {
 				let errorMessage = '';
 
-				if (dayOfWeek && dayOfWeekFlag) {
+				if (dayOfWeek && !dayOfWeekErrorFlag) {
 					errorMessage = `Invalid day of the week: **${dayOfWeek}**. Please enter a valid day (e.g., "Monday").`;
-				} else if (eventDate && !eventDateFlag) {
+				} else if (newEventDate !== '' && !eventDateErrorFlag) {
 					errorMessage = `Invalid date format: **${eventDate}**. Please enter a date in the format **"Month Day"** (e.g., "December 9").`;
-				} else if (locationType && !locationTypeFlag) {
+				} else if (locationType && !locationTypeErrorFlag) {
 					errorMessage = `Invalid location type: **${locationType}**. Please enter **"IP"** for In-Person or **"V"** for Virtual.`;
-				} else if (eventHolder && eventHolderFlag) {
+				} else if (eventHolder && !eventHolderErrorFlag) {
 					errorMessage = `No office hours found for instructor: **${eventHolder}**. They may not have scheduled any office hours.`;
-				} else if (className && !classNameFlag) {
+				} else if (className && !classNameErrorFlag) {
 					errorMessage = `No office hours found for course: **${className}**. Please check back later or contact the instructor.`;
 				} else {
 					errorMessage = "No office hours match your search criteria.";
@@ -141,9 +150,6 @@ export default class extends Command {
 						eventDate || "N/A"
 					}, DayOfWeek: ${dayOfWeek || "N/A"}`
 				);
-
-				await interaction.followUp({content: errorMessage, ephemeral: true});
-				return;
 			}
 			
 			return filteredEvents;
@@ -188,8 +194,6 @@ export default class extends Command {
 		}
 
 		/**********************************************************************************************************************************************************************************************/
-		
-		await interaction.reply({content: "Gettings events", ephemeral: true});
 
 		// Fetch Calendar events
 		const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
@@ -209,6 +213,9 @@ export default class extends Command {
 		// Filter events into a 2D array
 		const eventsPerPage: number = 3; // Modify this value to change the number of events per page
 		const filteredEvents = await filter(events, eventsPerPage);
+		if (!filteredEvents.length) {
+			return;
+		}
 		
 		// Generate intial embed and buttons
 		let maxPage: number = filteredEvents.length;
