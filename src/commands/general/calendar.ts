@@ -72,20 +72,35 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		function filter (events, eventsPerPage: number) {
-			const className = interaction.options.getString('classname')?.toLowerCase();
-			const locationType = interaction.options.getString('locationtype')?.toLowerCase();
-			const eventHolder = interaction.options.getString('eventholder')?.toLowerCase();
-			const newLocationType = locationType ? (locationType === 'ip' ? 'in person' : 'virtual') : '';
+		/** Helper Functions **/
+
+		// Filters calendar events based on various parameters
+		async function filter(events, eventsPerPage: number) {
+			const className: string = interaction.options.getString('classname')?.toLowerCase();
+			const locationType: string = interaction.options.getString('locationtype')?.toLowerCase();
+			const eventHolder: string = interaction.options.getString('eventholder')?.toLowerCase();
+			const eventDate: string = interaction.options.getString('eventdate')
+			const dayOfWeek: string = interaction.options.getString('dayofweek')?.toLowerCase();
+			const newLocationType: 'in person' | 'virtual' | '' = locationType ? (locationType === 'ip' ? 'in person' : 'virtual') : '';
+			const newEventDate: string = eventDate ? new Date(eventDate).toLocaleDateString() : '';
+			const daysOfWeek: string[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
 			let temp = [];
 			let filteredEvents = [];
 			let eventsInTemp = 0;
+			let classNameFlag: boolean = false;
+			let locationTypeFlag: boolean = false;
+			let eventHolderFlag: boolean = false;
+			let eventDateFlag: boolean = false;
+			let dayOfWeekFlag: boolean = false;
 			events.forEach((event) => {
 				const lowerCaseSummary: string = event.summary.toLowerCase();
+				const currentEventDate: Date = new Date(event.start.dateTime);
 				if ((!className || lowerCaseSummary.includes(className)) && 
 					(!newLocationType || lowerCaseSummary.includes(newLocationType)) && 
-					(!eventHolder || lowerCaseSummary.includes(eventHolder))) {
+					(!eventHolder || lowerCaseSummary.includes(eventHolder)) && 
+					(!newEventDate || currentEventDate.toLocaleDateString() === newEventDate) &&
+					(!dayOfWeek || daysOfWeek[currentEventDate.getDay()] === dayOfWeek)) {
 					temp.push(event);
 					eventsInTemp++;
 					if (eventsInTemp % eventsPerPage === 0) {
@@ -93,10 +108,48 @@ export default class extends Command {
 						temp = [];
 					}
 				}
+				classNameFlag = lowerCaseSummary.includes(className) ? true : false;
+				locationTypeFlag = lowerCaseSummary.includes(newLocationType);
+				eventHolderFlag = lowerCaseSummary.includes(eventHolder);
+				eventDateFlag = currentEventDate.toLocaleDateString() === newEventDate;
+				dayOfWeekFlag = daysOfWeek[currentEventDate.getDay()] === dayOfWeek;
 			});
+
+			if (filteredEvents.length === 0) {
+				let errorMessage = '';
+
+				if (dayOfWeek && dayOfWeekFlag) {
+					errorMessage = `Invalid day of the week: **${dayOfWeek}**. Please enter a valid day (e.g., "Monday").`;
+				} else if (eventDate && !eventDateFlag) {
+					errorMessage = `Invalid date format: **${eventDate}**. Please enter a date in the format **"Month Day"** (e.g., "December 9").`;
+				} else if (locationType && !locationTypeFlag) {
+					errorMessage = `Invalid location type: **${locationType}**. Please enter **"IP"** for In-Person or **"V"** for Virtual.`;
+				} else if (eventHolder && eventHolderFlag) {
+					errorMessage = `No office hours found for instructor: **${eventHolder}**. They may not have scheduled any office hours.`;
+				} else if (className && !classNameFlag) {
+					errorMessage = `No office hours found for course: **${className}**. Please check back later or contact the instructor.`;
+				} else {
+					errorMessage = "No office hours match your search criteria.";
+				}
+
+				console.warn(
+					`Missing data: ${errorMessage} - Filters: Class: ${
+						className || "N/A"
+					}, LocationType: ${
+						locationType || "N/A"
+					}, EventHolder: ${eventHolder || "N/A"}, EventDate: ${
+						eventDate || "N/A"
+					}, DayOfWeek: ${dayOfWeek || "N/A"}`
+				);
+
+				await interaction.followUp({content: errorMessage, ephemeral: true});
+				return;
+			}
 			
 			return filteredEvents;
 		}
+
+		// Generates the embed for displaying events
 		function generateEmbed(filteredEvents, currentPage: number, maxPage: number): EmbedBuilder {
 			const embed = new EmbedBuilder()
 				.setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
@@ -111,6 +164,8 @@ export default class extends Command {
 			});
 			return embed;
 		}
+
+		// Generates the buttons for changing pages
 		function generateButtons(currentPage: number, maxPage: number): ActionRowBuilder<ButtonBuilder> {
 			const nextButton = new ButtonBuilder()
 				.setCustomId('next')
@@ -131,7 +186,11 @@ export default class extends Command {
 		
 			return new ActionRowBuilder<ButtonBuilder>().addComponents(prevButton, nextButton, done);
 		}
+
+		/**********************************************************************************************************************************************************************************************/
 		
+		await interaction.reply({content: "Gettings events", ephemeral: true});
+
 		// Fetch Calendar events
 		const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
@@ -149,7 +208,7 @@ export default class extends Command {
 
 		// Filter events into a 2D array
 		const eventsPerPage: number = 3; // Modify this value to change the number of events per page
-		const filteredEvents = filter(events, eventsPerPage);
+		const filteredEvents = await filter(events, eventsPerPage);
 		
 		// Generate intial embed and buttons
 		let maxPage: number = filteredEvents.length;
