@@ -195,6 +195,12 @@ export default class extends Command {
 
 		/**********************************************************************************************************************************************************************************************/
 
+		// Inital Reply
+		await interaction.reply({
+			content: 'Authenticating and fetching events...',
+			ephemeral: true
+		});
+
 		// Fetch Calendar events
 		const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
@@ -223,14 +229,14 @@ export default class extends Command {
 		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
 		const buttonRow = generateButtons(currentPage, maxPage);
 
-		// Send message
+		// Send main message
 		const dm = await interaction.user.createDM()
 		const message = await dm.send({
 			embeds: [embed],
 			components: [buttonRow]
 		});
 
-		// Create button collector for message
+		// Create button collector for main message
 		const buttonCollector = message.createMessageComponentCollector({
 			time: 300000
 		});
