@@ -72,9 +72,36 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		function generateEmbed(newEvents, currentPage: number, maxPage: number): EmbedBuilder {
-			const embed = new EmbedBuilder().setTitle(`Events - ${currentPage + 1} of ${maxPage}`);
-			newEvents[currentPage].forEach(event => {
+		function filter (events, eventsPerPage: number) {
+			const className = interaction.options.getString('classname')?.toLowerCase();
+			const locationType = interaction.options.getString('locationtype')?.toLowerCase();
+			const eventHolder = interaction.options.getString('eventholder')?.toLowerCase();
+			const newLocationType = locationType ? (locationType === 'ip' ? 'in person' : 'virtual') : '';
+
+			let temp = [];
+			let filteredEvents = [];
+			let eventsInTemp = 0;
+			events.forEach((event) => {
+				const lowerCaseSummary: string = event.summary.toLowerCase();
+				if ((!className || lowerCaseSummary.includes(className)) && 
+					(!newLocationType || lowerCaseSummary.includes(newLocationType)) && 
+					(!eventHolder || lowerCaseSummary.includes(eventHolder))) {
+					temp.push(event);
+					eventsInTemp++;
+					if (eventsInTemp % eventsPerPage === 0) {
+						filteredEvents.push(temp);
+						temp = [];
+					}
+				}
+			});
+			
+			return filteredEvents;
+		}
+		function generateEmbed(filteredEvents, currentPage: number, maxPage: number): EmbedBuilder {
+			const embed = new EmbedBuilder()
+				.setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
+				.setColor('Green');
+			filteredEvents[currentPage].forEach(event => {
 				embed.addFields({
 					name: `**${event.summary}**`, 
 					value: `Date: ${new Date(event.start.dateTime).toLocaleDateString()}
@@ -120,25 +147,14 @@ export default class extends Command {
 		});
 		const events = response.data.items || [];
 
-		// Put events into a 2D array
+		// Filter events into a 2D array
 		const eventsPerPage: number = 3; // Modify this value to change the number of events per page
-		let newEvents = [];
-		let temp = [];
-		events.forEach((event, index: number) => {
-			temp.push(event);
-			if ((index + 1) % eventsPerPage === 0) {
-				newEvents.push(temp);
-				temp = [];
-			}
-		});
-
-		console.log(newEvents.length);
-		console.log(newEvents[0]);
+		const filteredEvents = filter(events, eventsPerPage);
 		
 		// Generate intial embed and buttons
-		let maxPage: number = newEvents.length;
+		let maxPage: number = filteredEvents.length;
 		let currentPage: number = 0;
-		const embed = generateEmbed(newEvents, currentPage, maxPage);
+		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
 		const buttonRow = generateButtons(currentPage, maxPage);
 
 		// Send message
@@ -162,13 +178,20 @@ export default class extends Command {
 				currentPage--;
 			}
 			else {
-				message.delete();
+				message.edit({
+					embeds: [],
+					components: [],
+					content: 'Calendar Deleted'
+				})
 				buttonCollector.stop()
 				return;
 			}
-			const newEmbed = generateEmbed(newEvents, currentPage, maxPage);
+			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
 			const newButtonRow = generateButtons(currentPage, maxPage);
-			message.edit({embeds: [newEmbed], components: [newButtonRow]});
+			message.edit({
+				embeds: [newEmbed], 
+				components: [newButtonRow]
+			});
 		});
 	}
 }
