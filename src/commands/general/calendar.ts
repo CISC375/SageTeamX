@@ -90,28 +90,43 @@ export default class extends Command {
 			let filteredEvents = [];
 
 			// Flags for each property 
-			let classNameFlag: boolean = false;
-			let locationTypeFlag: boolean = false;
-			let eventHolderFlag: boolean = false;
-			let eventDateFlag: boolean = false;
-			let dayOfWeekFlag: boolean = false;
+			let classNameFlag: boolean = true;
+			let locationTypeFlag: boolean = true;
+			let eventHolderFlag: boolean = true;
+			let eventDateFlag: boolean = true;
+			let dayOfWeekFlag: boolean = true;
 		
 			// Error flags
-			let classNameErrorFlag: boolean = false;
-			let locationTypeErrorFlag: boolean = false;
-			let eventHolderErrorFlag: boolean = false;
-			let eventDateErrorFlag: boolean = false;
-			let dayOfWeekErrorFlag: boolean = false;
+			let classNameErrorFlag: boolean = true;
+			let locationTypeErrorFlag: boolean = true;
+			let eventHolderErrorFlag: boolean = true;
+			let eventDateErrorFlag: boolean = true;
+			let dayOfWeekErrorFlag: boolean = true;
 			events.forEach((event) => {
 				const lowerCaseSummary: string = event.summary.toLowerCase();
 				const currentEventDate: Date = new Date(event.start.dateTime);
 
-				classNameErrorFlag = classNameErrorFlag || (classNameFlag = !className || lowerCaseSummary.includes(className));
-				locationTypeErrorFlag = locationTypeErrorFlag || (locationTypeFlag = !newLocationType || lowerCaseSummary.includes(newLocationType));
-				eventHolderErrorFlag = eventHolderErrorFlag ||( eventHolderFlag = !eventHolder || lowerCaseSummary.includes(eventHolder));
-				eventDateErrorFlag = eventDateErrorFlag || (eventDateFlag = !newEventDate || currentEventDate.toLocaleDateString() === newEventDate);
-				dayOfWeekErrorFlag = dayOfWeekErrorFlag || (dayOfWeekFlag = !dayOfWeek || daysOfWeek[currentEventDate.getDay()] === dayOfWeek);
-
+				if (className) {
+					classNameFlag = lowerCaseSummary.includes(className);
+					classNameErrorFlag ||= classNameFlag;
+				}
+				if (locationType) {
+					locationTypeFlag = lowerCaseSummary.includes(newLocationType);
+					locationTypeErrorFlag ||= locationTypeFlag;
+				}
+				if (eventHolder) {
+					eventHolderFlag = lowerCaseSummary.includes(eventHolder);
+					eventHolderErrorFlag ||= eventHolderFlag;
+				}
+				if (eventDate) {
+					eventDateFlag = currentEventDate.toLocaleDateString() === newEventDate;
+					eventDateErrorFlag ||= eventDateFlag;
+				}
+				if (dayOfWeek) {
+					dayOfWeekFlag = daysOfWeek[currentEventDate.getDay()] === dayOfWeek
+					dayOfWeekErrorFlag ||= dayOfWeekFlag;
+				}
+				
 				if (classNameFlag && locationTypeFlag && eventHolderFlag && eventDateFlag && dayOfWeekFlag) {
 					temp.push(event);
 					if (temp.length % eventsPerPage === 0) {
