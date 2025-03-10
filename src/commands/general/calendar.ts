@@ -39,19 +39,6 @@ export default class extends Command {
 	options: ApplicationCommandStringOptionData[] = [
 		{
 			type: ApplicationCommandOptionType.String,
-			name: "classname",
-			description:
-				'Enter the class name to filter events (e.g., "cisc123")',
-			required: false,
-		},
-		{
-			type: ApplicationCommandOptionType.String,
-			name: "locationtype",
-			description: 'Enter "IP" for In-Person or "V" for Virtual events',
-			required: false,
-		},
-		{
-			type: ApplicationCommandOptionType.String,
 			name: "eventholder",
 			description:
 				"Enter the name of the event holder you are looking for.",
@@ -77,13 +64,11 @@ export default class extends Command {
 		/** Helper Functions **/
 
 		// Filters calendar events based on various parameters
-		async function filter(events, eventsPerPage: number, classNames: string[]) {
-			const locationType: string = interaction.options.getString('locationtype')?.toLowerCase();
+		async function filter(events, eventsPerPage: number, classNames: string[], locationTypes: string[]) {
 			const eventHolder: string = interaction.options.getString('eventholder')?.toLowerCase();
 			const eventDate: string = interaction.options.getString('eventdate');
 			const dayOfWeek: string = interaction.options.getString('dayofweek')?.toLowerCase();
 			
-			const newLocationType: 'in person' | 'virtual' | '' = locationType ? (locationType === 'ip' ? 'in person' : 'virtual') : '';
 			const newEventDate: string = eventDate ? new Date(eventDate + ' 2025').toLocaleDateString() : '';
 			const daysOfWeek: string[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
@@ -111,8 +96,8 @@ export default class extends Command {
 					classNameFlag = classNames.some(className => lowerCaseSummary.includes(className));
 					classNameErrorFlag ||= classNameFlag;
 				}
-				if (locationType) {
-					locationTypeFlag = lowerCaseSummary.includes(newLocationType);
+				if (locationTypes.length) {
+					locationTypeFlag = locationTypes.some(locationType => lowerCaseSummary.includes(locationType));
 					locationTypeErrorFlag ||= locationTypeFlag;
 				}
 				if (eventHolder) {
@@ -147,8 +132,6 @@ export default class extends Command {
 					errorMessage = `Invalid day of the week: **${dayOfWeek}**. Please enter a valid day (e.g., "Monday").`;
 				} else if (newEventDate !== '' && !eventDateErrorFlag) {
 					errorMessage = `Invalid date format: **${eventDate}**. Please enter a date in the format **"Month Day"** (e.g., "December 9").`;
-				} else if (locationType && !locationTypeErrorFlag) {
-					errorMessage = `Invalid location type: **${locationType}**. Please enter **"IP"** for In-Person or **"V"** for Virtual.`;
 				} else if (eventHolder && !eventHolderErrorFlag) {
 					errorMessage = `No office hours found for instructor: **${eventHolder}**. They may not have scheduled any office hours.`;
 				} else {
@@ -199,6 +182,7 @@ export default class extends Command {
 
 		function generateFilterMessage() {
 			const classNames = ['CISC106', 'CISC108', 'CISC181', 'CISC210', 'CISC220', 'CISC260', 'CISC275'];
+			const locationTypes = ['In Person', 'Virtual']
 			
 			const classNameMenu = new StringSelectMenuBuilder()
 				.setCustomId('class_name_menu')
@@ -210,8 +194,22 @@ export default class extends Command {
 						.setLabel(className)
 						.setValue(className.toLowerCase())
 				}));
+
+			const locationTypeMenu = new StringSelectMenuBuilder()
+				.setCustomId('location_type_menu')
+				.setMinValues(0)
+				.setMaxValues(locationTypes.length)
+				.setPlaceholder('Select Location Type')
+				.addOptions(locationTypes.map((locationType) => {
+					return new StringSelectMenuOptionBuilder()
+						.setLabel(locationType)
+						.setValue(locationType.toLowerCase())
+			}));
 			
-			return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(classNameMenu)
+			const row1 = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(classNameMenu);
+			const row2 = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(locationTypeMenu);
+			const components = [row1, row2];
+			return components;
 		}
 
 		/**********************************************************************************************************************************************************************************************/
@@ -239,7 +237,7 @@ export default class extends Command {
 
 		// Filter events into a 2D array
 		const eventsPerPage: number = 3; // Modify this value to change the number of events per page
-		let filteredEvents = await filter(events, eventsPerPage, []);
+		let filteredEvents = await filter(events, eventsPerPage, [], []);
 		if (!filteredEvents.length) {
 			return;
 		}
@@ -257,12 +255,11 @@ export default class extends Command {
 			components: [buttonRow]
 		});
 
-
-		const test = generateFilterMessage();
 		// Send filter message
+		const components = generateFilterMessage();
 		const filterMessage = await dm.send({
 			content: "**Select Filters:**",
-			components: [test]
+			components: components
 		});
 
 		// Create button collector for main message
@@ -270,6 +267,7 @@ export default class extends Command {
 			time: 300000
 		});
 
+		// Create dropdown collector for filters
 		const menuCollector = filterMessage.createMessageComponentCollector({
 			componentType: ComponentType.StringSelect,
 			time: 300000
@@ -301,11 +299,17 @@ export default class extends Command {
 			});
 		});
 
+		let newClassNames: string[] = [];
+		let newLocationTypes: string[] = [];
 		menuCollector.on('collect', async (i) => {
 			i.deferUpdate();
 			if (i.customId === 'class_name_menu') {
-				filteredEvents = await filter(events, eventsPerPage, i.values);
+				newClassNames = i.values;
 			}
+			else if (i.customId === 'location_type_menu') {
+				newLocationTypes = i.values;
+			}
+			filteredEvents = await filter(events, eventsPerPage, newClassNames, newLocationTypes);
 			currentPage = 0;
 			maxPage = filteredEvents.length;
 			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
