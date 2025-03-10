@@ -8,6 +8,8 @@ import {
 	ApplicationCommandOptionType,
 	ApplicationCommandStringOptionData,
 	ComponentType,
+	StringSelectMenuBuilder,
+	StringSelectMenuOptionBuilder,
 } from 'discord.js';
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
@@ -75,11 +77,10 @@ export default class extends Command {
 		/** Helper Functions **/
 
 		// Filters calendar events based on various parameters
-		async function filter(events, eventsPerPage: number) {
-			const className: string = interaction.options.getString('classname')?.toLowerCase();
+		async function filter(events, eventsPerPage: number, classNames: string[]) {
 			const locationType: string = interaction.options.getString('locationtype')?.toLowerCase();
 			const eventHolder: string = interaction.options.getString('eventholder')?.toLowerCase();
-			const eventDate: string = interaction.options.getString('eventdate')
+			const eventDate: string = interaction.options.getString('eventdate');
 			const dayOfWeek: string = interaction.options.getString('dayofweek')?.toLowerCase();
 			
 			const newLocationType: 'in person' | 'virtual' | '' = locationType ? (locationType === 'ip' ? 'in person' : 'virtual') : '';
@@ -106,8 +107,8 @@ export default class extends Command {
 				const lowerCaseSummary: string = event.summary.toLowerCase();
 				const currentEventDate: Date = new Date(event.start.dateTime);
 
-				if (className) {
-					classNameFlag = lowerCaseSummary.includes(className);
+				if (classNames.length) {
+					classNameFlag = classNames.some(className => lowerCaseSummary.includes(className));
 					classNameErrorFlag ||= classNameFlag;
 				}
 				if (locationType) {
@@ -150,21 +151,9 @@ export default class extends Command {
 					errorMessage = `Invalid location type: **${locationType}**. Please enter **"IP"** for In-Person or **"V"** for Virtual.`;
 				} else if (eventHolder && !eventHolderErrorFlag) {
 					errorMessage = `No office hours found for instructor: **${eventHolder}**. They may not have scheduled any office hours.`;
-				} else if (className && !classNameErrorFlag) {
-					errorMessage = `No office hours found for course: **${className}**. Please check back later or contact the instructor.`;
 				} else {
 					errorMessage = "No office hours match your search criteria.";
 				}
-
-				console.warn(
-					`Missing data: ${errorMessage} - Filters: Class: ${
-						className || "N/A"
-					}, LocationType: ${
-						locationType || "N/A"
-					}, EventHolder: ${eventHolder || "N/A"}, EventDate: ${
-						eventDate || "N/A"
-					}, DayOfWeek: ${dayOfWeek || "N/A"}`
-				);
 			}
 			
 			return filteredEvents;
@@ -208,6 +197,23 @@ export default class extends Command {
 			return new ActionRowBuilder<ButtonBuilder>().addComponents(prevButton, nextButton, done);
 		}
 
+		function generateFilterMessage() {
+			const classNames = ['CISC106', 'CISC108', 'CISC181', 'CISC210', 'CISC220', 'CISC260', 'CISC275'];
+			
+			const classNameMenu = new StringSelectMenuBuilder()
+				.setCustomId('class_name_menu')
+				.setMinValues(0)
+				.setMaxValues(classNames.length)
+				.setPlaceholder('Select Classes')
+				.addOptions(classNames.map((className) => {
+					return new StringSelectMenuOptionBuilder()
+						.setLabel(className)
+						.setValue(className.toLowerCase())
+				}));
+			
+			return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(classNameMenu)
+		}
+
 		/**********************************************************************************************************************************************************************************************/
 
 		// Inital Reply
@@ -233,7 +239,7 @@ export default class extends Command {
 
 		// Filter events into a 2D array
 		const eventsPerPage: number = 3; // Modify this value to change the number of events per page
-		const filteredEvents = await filter(events, eventsPerPage);
+		let filteredEvents = await filter(events, eventsPerPage, []);
 		if (!filteredEvents.length) {
 			return;
 		}
@@ -251,8 +257,21 @@ export default class extends Command {
 			components: [buttonRow]
 		});
 
+
+		const test = generateFilterMessage();
+		// Send filter message
+		const filterMessage = await dm.send({
+			content: "**Select Filters:**",
+			components: [test]
+		});
+
 		// Create button collector for main message
 		const buttonCollector = message.createMessageComponentCollector({
+			time: 300000
+		});
+
+		const menuCollector = filterMessage.createMessageComponentCollector({
+			componentType: ComponentType.StringSelect,
 			time: 300000
 		});
 
@@ -271,8 +290,24 @@ export default class extends Command {
 					content: 'Calendar Deleted'
 				})
 				buttonCollector.stop()
+				menuCollector.stop();
 				return;
 			}
+			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
+			const newButtonRow = generateButtons(currentPage, maxPage);
+			message.edit({
+				embeds: [newEmbed], 
+				components: [newButtonRow]
+			});
+		});
+
+		menuCollector.on('collect', async (i) => {
+			i.deferUpdate();
+			if (i.customId === 'class_name_menu') {
+				filteredEvents = await filter(events, eventsPerPage, i.values);
+			}
+			currentPage = 0;
+			maxPage = filteredEvents.length;
 			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
 			const newButtonRow = generateButtons(currentPage, maxPage);
 			message.edit({
