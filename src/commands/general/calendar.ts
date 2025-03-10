@@ -7,18 +7,18 @@ import {
 	EmbedBuilder,
 	ApplicationCommandOptionType,
 	ApplicationCommandStringOptionData,
-} from 'discord.js';
-import { Command } from '@lib/types/Command';
-import 'dotenv/config';
-import { MongoClient } from 'mongodb';
-import { authorize } from '../../lib/auth';
+} from "discord.js";
+import { Command } from "@lib/types/Command";
+import "dotenv/config";
+import { MongoClient } from "mongodb";
+import { authorize } from "../../lib/auth";
 //import event from '@root/src/models/calEvent';
 
-const path = require('path');
-const process = require('process');
-const { google } = require('googleapis');
+const path = require("path");
+const process = require("process");
+const { google } = require("googleapis");
 
-interface Event{
+interface Event {
 	eventId: string;
 	courseID: string;
 	instructor: string;
@@ -72,7 +72,7 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
+		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
 
@@ -230,7 +230,6 @@ export default class extends Command {
 				}
 
 				*/
-				
 
 				// Filters are provided, filter events by the ones given by user
 				const filteredEvents = events.filter((event) => {
@@ -337,7 +336,9 @@ export default class extends Command {
 						}, DayOfWeek: ${dayOfWeek || "N/A"}`
 					);
 
-					await interaction.followUp(errorMessage);
+					await interaction.editReply({
+						content: errorMessage,
+					});
 					return;
 				}
 
@@ -474,6 +475,9 @@ export default class extends Command {
 				collector.on("end", async () => {
 					await message.edit({ components: [] });
 				});
+				interaction.editReply({
+					content: "Events Retrieved Successfully! Check your DMs for the events!",
+				});
 			} catch (err) {
 				console.error(err);
 				await interaction.followUp(
@@ -483,7 +487,10 @@ export default class extends Command {
 		}
 
 		try {
-			await interaction.reply('Authenticating and fetching events...');
+			await interaction.reply({
+				content: "Authenticating and fetching events...",
+				ephemeral: true,
+			});
 			const auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
 			await listEvents(auth, interaction, className, locationType);
 		} catch (err) {
