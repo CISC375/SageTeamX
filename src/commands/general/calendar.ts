@@ -489,7 +489,7 @@ export default class extends Command {
 		try {
 			await interaction.reply({
 				content: "Authenticating and fetching events...",
-				ephemeral: true,
+				ephemeral: true, // Only visible to the user who entered the command
 			});
 			const auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
 			await listEvents(auth, interaction, className, locationType);
