@@ -7,6 +7,7 @@ import {
 	EmbedBuilder,
 	ApplicationCommandOptionType,
 	ApplicationCommandStringOptionData,
+	ComponentType,
 } from 'discord.js';
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
@@ -30,8 +31,7 @@ interface Event{
 }
 export default class extends Command {
 	name = "calendar";
-	description =
-		"Retrieve calendar events over the next 10 days with pagination, optionally filter";
+	description = "Retrieve calendar events over the next 10 days with pagination, optionally filter";
 
 	// All available filters that someone can add and they are not required
 	options: ApplicationCommandStringOptionData[] = [
@@ -72,11 +72,219 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
+		/** Helper Functions **/
+
+		// Filters calendar events based on various parameters
+		async function filter(events, eventsPerPage: number) {
+			const className: string = interaction.options.getString('classname')?.toLowerCase();
+			const locationType: string = interaction.options.getString('locationtype')?.toLowerCase();
+			const eventHolder: string = interaction.options.getString('eventholder')?.toLowerCase();
+			const eventDate: string = interaction.options.getString('eventdate')
+			const dayOfWeek: string = interaction.options.getString('dayofweek')?.toLowerCase();
+			
+			const newLocationType: 'in person' | 'virtual' | '' = locationType ? (locationType === 'ip' ? 'in person' : 'virtual') : '';
+			const newEventDate: string = eventDate ? new Date(eventDate + ' 2025').toLocaleDateString() : '';
+			const daysOfWeek: string[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+			let temp = [];
+			let filteredEvents = [];
+
+			// Flags for each property 
+			let classNameFlag: boolean = true;
+			let locationTypeFlag: boolean = true;
+			let eventHolderFlag: boolean = true;
+			let eventDateFlag: boolean = true;
+			let dayOfWeekFlag: boolean = true;
+		
+			// Error flags
+			let classNameErrorFlag: boolean = true;
+			let locationTypeErrorFlag: boolean = true;
+			let eventHolderErrorFlag: boolean = true;
+			let eventDateErrorFlag: boolean = true;
+			let dayOfWeekErrorFlag: boolean = true;
+			events.forEach((event) => {
+				const lowerCaseSummary: string = event.summary.toLowerCase();
+				const currentEventDate: Date = new Date(event.start.dateTime);
+
+				if (className) {
+					classNameFlag = lowerCaseSummary.includes(className);
+					classNameErrorFlag ||= classNameFlag;
+				}
+				if (locationType) {
+					locationTypeFlag = lowerCaseSummary.includes(newLocationType);
+					locationTypeErrorFlag ||= locationTypeFlag;
+				}
+				if (eventHolder) {
+					eventHolderFlag = lowerCaseSummary.includes(eventHolder);
+					eventHolderErrorFlag ||= eventHolderFlag;
+				}
+				if (eventDate) {
+					eventDateFlag = currentEventDate.toLocaleDateString() === newEventDate;
+					eventDateErrorFlag ||= eventDateFlag;
+				}
+				if (dayOfWeek) {
+					dayOfWeekFlag = daysOfWeek[currentEventDate.getDay()] === dayOfWeek
+					dayOfWeekErrorFlag ||= dayOfWeekFlag;
+				}
+				
+				if (classNameFlag && locationTypeFlag && eventHolderFlag && eventDateFlag && dayOfWeekFlag) {
+					temp.push(event);
+					if (temp.length % eventsPerPage === 0) {
+						filteredEvents.push(temp);
+						temp = [];
+					}
+				}
+			});
+
+			temp.length ? filteredEvents.push(temp) : 0;
+
+			// Handle wrong input
+			if (filteredEvents.length === 0) {
+				let errorMessage = '';
+
+				if (dayOfWeek && !dayOfWeekErrorFlag) {
+					errorMessage = `Invalid day of the week: **${dayOfWeek}**. Please enter a valid day (e.g., "Monday").`;
+				} else if (newEventDate !== '' && !eventDateErrorFlag) {
+					errorMessage = `Invalid date format: **${eventDate}**. Please enter a date in the format **"Month Day"** (e.g., "December 9").`;
+				} else if (locationType && !locationTypeErrorFlag) {
+					errorMessage = `Invalid location type: **${locationType}**. Please enter **"IP"** for In-Person or **"V"** for Virtual.`;
+				} else if (eventHolder && !eventHolderErrorFlag) {
+					errorMessage = `No office hours found for instructor: **${eventHolder}**. They may not have scheduled any office hours.`;
+				} else if (className && !classNameErrorFlag) {
+					errorMessage = `No office hours found for course: **${className}**. Please check back later or contact the instructor.`;
+				} else {
+					errorMessage = "No office hours match your search criteria.";
+				}
+
+				console.warn(
+					`Missing data: ${errorMessage} - Filters: Class: ${
+						className || "N/A"
+					}, LocationType: ${
+						locationType || "N/A"
+					}, EventHolder: ${eventHolder || "N/A"}, EventDate: ${
+						eventDate || "N/A"
+					}, DayOfWeek: ${dayOfWeek || "N/A"}`
+				);
+			}
+			
+			return filteredEvents;
+		}
+
+		// Generates the embed for displaying events
+		function generateEmbed(filteredEvents, currentPage: number, maxPage: number): EmbedBuilder {
+			const embed = new EmbedBuilder()
+				.setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
+				.setColor('Green');
+			filteredEvents[currentPage].forEach(event => {
+				embed.addFields({
+					name: `**${event.summary}**`, 
+					value: `Date: ${new Date(event.start.dateTime).toLocaleDateString()}
+							Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}
+							Location: ${event.location ? event.location : "`NONE`"}\n`
+				});
+			});
+			return embed;
+		}
+
+		// Generates the buttons for changing pages
+		function generateButtons(currentPage: number, maxPage: number): ActionRowBuilder<ButtonBuilder> {
+			const nextButton = new ButtonBuilder()
+				.setCustomId('next')
+				.setLabel('Next')
+				.setStyle(ButtonStyle.Primary)
+				.setDisabled(currentPage + 1 === maxPage);
+			
+			const prevButton = new ButtonBuilder()
+				.setCustomId('prev')
+				.setLabel('Previous')
+				.setStyle(ButtonStyle.Primary)
+				.setDisabled(currentPage === 0);
+			
+			const done = new ButtonBuilder()
+				.setCustomId('done')
+				.setLabel('Done')
+				.setStyle(ButtonStyle.Danger);
+		
+			return new ActionRowBuilder<ButtonBuilder>().addComponents(prevButton, nextButton, done);
+		}
+
+		/**********************************************************************************************************************************************************************************************/
+
+		// Inital Reply
+		await interaction.reply({
+			content: 'Authenticating and fetching events...',
+			ephemeral: true
+		});
+
+		// Fetch Calendar events
 		const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
+		const auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
+		const calendar = google.calendar({ version: "v3", auth });
+		const response = await calendar.events.list({
+			calendarId: 'c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com',
+    		timeMin: new Date().toISOString(),
+			timeMax: new Date(new Date().getTime() + 10 * 24 * 60 * 60 * 1000),
+    		singleEvents: true,
+    		orderBy: 'startTime',
+		});
+		const events = response.data.items || [];
 
-		// Formats the date and time for events
+		// Filter events into a 2D array
+		const eventsPerPage: number = 3; // Modify this value to change the number of events per page
+		const filteredEvents = await filter(events, eventsPerPage);
+		if (!filteredEvents.length) {
+			return;
+		}
+		
+		// Generate intial embed and buttons
+		let maxPage: number = filteredEvents.length;
+		let currentPage: number = 0;
+		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
+		const buttonRow = generateButtons(currentPage, maxPage);
+
+		// Send main message
+		const dm = await interaction.user.createDM()
+		const message = await dm.send({
+			embeds: [embed],
+			components: [buttonRow]
+		});
+
+		// Create button collector for main message
+		const buttonCollector = message.createMessageComponentCollector({
+			time: 300000
+		});
+
+		buttonCollector.on('collect', async (btnInt) => {
+			btnInt.deferUpdate();
+			if (btnInt.customId === 'next') {
+				currentPage++;
+			}
+			else if (btnInt.customId === 'prev') {
+				currentPage--;
+			}
+			else {
+				message.edit({
+					embeds: [],
+					components: [],
+					content: 'Calendar Deleted'
+				})
+				buttonCollector.stop()
+				return;
+			}
+			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
+			const newButtonRow = generateButtons(currentPage, maxPage);
+			message.edit({
+				embeds: [newEmbed], 
+				components: [newButtonRow]
+			});
+		});
+	}
+}
+
+/*
+// Formats the date and time for events
 		function formatDateTime(dateTime?: string): string {
 			if (!dateTime) return "`NONE`";
 			const date = new Date(dateTime);
@@ -102,7 +310,7 @@ export default class extends Command {
 
 		This code might not be entirely neccessary, but I'll keep it here just in case
 
-		*/
+		
 
 		// Get the class name and location type arguments (if any)
 		const className = interaction.options.getString("classname") || "";
@@ -229,7 +437,7 @@ export default class extends Command {
 					}
 				}
 
-				*/
+				
 				
 
 				// Filters are provided, filter events by the ones given by user
@@ -490,5 +698,4 @@ export default class extends Command {
 			console.error(err);
 			await interaction.followUp("An error occurred.");
 		}
-	}
-}
+*/
