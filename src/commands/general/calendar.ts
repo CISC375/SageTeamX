@@ -225,7 +225,7 @@ export default class extends Command {
 		const response = await calendar.events.list({
 			calendarId: 'c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com',
     		timeMin: new Date().toISOString(),
-    		maxResults: 100,
+			timeMax: new Date(new Date().getTime() + 10 * 24 * 60 * 60 * 1000),
     		singleEvents: true,
     		orderBy: 'startTime',
 		});
