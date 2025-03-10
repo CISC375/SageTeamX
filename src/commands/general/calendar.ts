@@ -182,7 +182,8 @@ export default class extends Command {
 
 		function generateFilterMessage() {
 			const classNames = ['CISC106', 'CISC108', 'CISC181', 'CISC210', 'CISC220', 'CISC260', 'CISC275'];
-			const locationTypes = ['In Person', 'Virtual']
+			const locationTypes = ['In Person', 'Virtual'];
+			const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 			
 			const classNameMenu = new StringSelectMenuBuilder()
 				.setCustomId('class_name_menu')
@@ -206,9 +207,21 @@ export default class extends Command {
 						.setValue(locationType.toLowerCase())
 			}));
 			
+			const dayOfWeekMenu = new StringSelectMenuBuilder()
+				.setCustomId('week_menu')
+				.setMinValues(0)
+				.setMaxValues(daysOfWeek.length)
+				.setPlaceholder('Select Days of Week')
+				.addOptions(daysOfWeek.map((dayOfWeek) => {
+					return new StringSelectMenuOptionBuilder()
+						.setLabel(dayOfWeek)
+						.setValue(dayOfWeek.toLowerCase())
+			}));
+
 			const row1 = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(classNameMenu);
 			const row2 = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(locationTypeMenu);
-			const components = [row1, row2];
+			const row3 = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(dayOfWeekMenu);
+			const components = [row1, row2, row3];
 			return components;
 		}
 
@@ -286,6 +299,10 @@ export default class extends Command {
 					embeds: [],
 					components: [],
 					content: 'Calendar Deleted'
+				});
+				filterMessage.edit({
+					components: [],
+					content: 'Filters Deleted'
 				})
 				buttonCollector.stop()
 				menuCollector.stop();
