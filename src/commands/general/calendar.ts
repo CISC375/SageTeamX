@@ -57,7 +57,7 @@ export default class extends Command {
 		/** Helper Functions **/
 
 		// Filters calendar events based on various parameters
-		async function filter(events, eventsPerPage: number, classNames: string[], locationTypes: string[], daysOfWeek: string[]) {
+		async function filterEvents(events, eventsPerPage: number, filters) {
 			const eventHolder: string = interaction.options.getString('eventholder')?.toLowerCase();
 			const eventDate: string = interaction.options.getString('eventdate');
 			
@@ -68,44 +68,30 @@ export default class extends Command {
 			let filteredEvents = [];
 
 			// Flags for each property 
-			let classNameFlag: boolean = true;
-			let locationTypeFlag: boolean = true;
+			let allFiltersFlags = true;
 			let eventHolderFlag: boolean = true;
 			let eventDateFlag: boolean = true;
-			let dayOfWeekFlag: boolean = true;
-		
-			// Error flags
-			let classNameErrorFlag: boolean = true;
-			let locationTypeErrorFlag: boolean = true;
-			let eventHolderErrorFlag: boolean = true;
-			let eventDateErrorFlag: boolean = true;
-			let dayOfWeekErrorFlag: boolean = true;
 			events.forEach((event) => {
 				const lowerCaseSummary: string = event.summary.toLowerCase();
 				const currentEventDate: Date = new Date(event.start.dateTime);
 
-				if (classNames.length) {
-					classNameFlag = classNames.some(className => lowerCaseSummary.includes(className));
-					classNameErrorFlag ||= classNameFlag;
-				}
-				if (locationTypes.length) {
-					locationTypeFlag = locationTypes.some(locationType => lowerCaseSummary.includes(locationType));
-					locationTypeErrorFlag ||= locationTypeFlag;
+				if (filters.length) {
+					filters.forEach((filter) => {
+						if (filter.newValues.length) {
+							filter.flag = filter.condition(filter.newValues, lowerCaseSummary, days, currentEventDate);
+						}
+					});
+					allFiltersFlags = filters.every(f => f.flag);
 				}
 				if (eventHolder) {
 					eventHolderFlag = lowerCaseSummary.includes(eventHolder);
-					eventHolderErrorFlag ||= eventHolderFlag;
 				}
 				if (eventDate) {
 					eventDateFlag = currentEventDate.toLocaleDateString() === newEventDate;
-					eventDateErrorFlag ||= eventDateFlag;
 				}
-				if (daysOfWeek.length) {
-					dayOfWeekFlag = daysOfWeek.some(dayOfWeek => days[currentEventDate.getDay()] === dayOfWeek);
-					dayOfWeekErrorFlag ||= dayOfWeekFlag;
-				}
+
 				
-				if (classNameFlag && locationTypeFlag && eventHolderFlag && eventDateFlag && dayOfWeekFlag) {
+				if (allFiltersFlags && eventHolderFlag && eventDateFlag) {
 					temp.push(event);
 					if (temp.length % eventsPerPage === 0) {
 						filteredEvents.push(temp);
@@ -115,20 +101,6 @@ export default class extends Command {
 			});
 
 			temp.length ? filteredEvents.push(temp) : 0;
-
-			// Handle wrong input
-			if (filteredEvents.length === 0) {
-				let errorMessage = '';
-
-				if (newEventDate !== '' && !eventDateErrorFlag) {
-					errorMessage = `Invalid date format: **${eventDate}**. Please enter a date in the format **"Month Day"** (e.g., "December 9").`;
-				} else if (eventHolder && !eventHolderErrorFlag) {
-					errorMessage = `No office hours found for instructor: **${eventHolder}**. They may not have scheduled any office hours.`;
-				} else {
-					errorMessage = "No office hours match your search criteria.";
-				}
-			}
-			
 			return filteredEvents;
 		}
 
@@ -170,13 +142,8 @@ export default class extends Command {
 			return new ActionRowBuilder<ButtonBuilder>().addComponents(prevButton, nextButton, done);
 		}
 
-		function generateFilterMessage() {
-			const filters = [
-				{customId: 'class_name_menu', placeholder: 'Select Classes', values: ['CISC106', 'CISC108', 'CISC181', 'CISC210', 'CISC220', 'CISC260', 'CISC275']},
-				{customId: 'location_type_menu', placeholder: 'Select Location Type', values: ['In Person', 'Virtual']},
-				{customId: 'week_menu', placeholder: 'Select Days of Week', values: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']}
-			];
-
+		// Generates message for filters
+		function generateFilterMessage(filters) {
 			const filterMenus = filters.map((filter) => {
 				return new StringSelectMenuBuilder()
 					.setCustomId(filter.customId)
@@ -221,7 +188,7 @@ export default class extends Command {
 
 		// Filter events into a 2D array
 		const eventsPerPage: number = 3; // Modify this value to change the number of events per page
-		let filteredEvents = await filter(events, eventsPerPage, [], [], []);
+		let filteredEvents = await filterEvents(events, eventsPerPage, []);
 		if (!filteredEvents.length) {
 			return;
 		}
@@ -240,7 +207,33 @@ export default class extends Command {
 		});
 
 		// Send filter message
-		const components = generateFilterMessage();
+		const filters = [
+			{
+				customId: 'class_name_menu', 
+				placeholder: 'Select Classes', 
+				values: ['CISC106', 'CISC108', 'CISC181', 'CISC210', 'CISC220', 'CISC260', 'CISC275'], 
+				newValues: [],
+				flag: true,
+				condition: (newValues: string[], summary?: string, days?: string[], eventDate?: Date) => newValues.some(value => summary.includes(value))
+			},
+			{
+				customId: 'location_type_menu', 
+				placeholder: 'Select Location Type', 
+				values: ['In Person', 'Virtual'], 
+				newValues: [],
+				flag: true,
+				condition: (newValues: string[], summary?: string, days?: string[], eventDate?: Date) => newValues.some(value => summary.includes(value))
+			},
+			{
+				customId: 'week_menu', 
+				placeholder: 'Select Days of Week', 
+				values: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], 
+				newValues: [],
+				flag: true,
+				condition: (newValues: string[], summary?: string, days?: string[], eventDate?: Date) => newValues.some(value => days[eventDate.getDay()] === value)
+			}
+		];
+		const components = generateFilterMessage(filters);
 		const filterMessage = await dm.send({
 			content: "**Select Filters:**",
 			components: components
@@ -287,21 +280,13 @@ export default class extends Command {
 			});
 		});
 
-		let newClassNames: string[] = [];
-		let newLocationTypes: string[] = [];
-		let newDaysOfWeek: string[] = [];
 		menuCollector.on('collect', async (i) => {
 			i.deferUpdate();
-			if (i.customId === 'class_name_menu') {
-				newClassNames = i.values;
+			const filter = filters.find((f) => f.customId === i.customId);
+			if (filter) {
+				filter.newValues = i.values;
 			}
-			else if (i.customId === 'location_type_menu') {
-				newLocationTypes = i.values;
-			}
-			else if (i.customId === 'week_menu') {
-				newDaysOfWeek = i.values;
-			}
-			filteredEvents = await filter(events, eventsPerPage, newClassNames, newLocationTypes, newDaysOfWeek);
+			filteredEvents = await filterEvents(events, eventsPerPage, filters);
 			currentPage = 0;
 			maxPage = filteredEvents.length;
 			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
