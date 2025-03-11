@@ -171,47 +171,28 @@ export default class extends Command {
 		}
 
 		function generateFilterMessage() {
-			const classNames = ['CISC106', 'CISC108', 'CISC181', 'CISC210', 'CISC220', 'CISC260', 'CISC275'];
-			const locationTypes = ['In Person', 'Virtual'];
-			const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-			
-			const classNameMenu = new StringSelectMenuBuilder()
-				.setCustomId('class_name_menu')
-				.setMinValues(0)
-				.setMaxValues(classNames.length)
-				.setPlaceholder('Select Classes')
-				.addOptions(classNames.map((className) => {
-					return new StringSelectMenuOptionBuilder()
-						.setLabel(className)
-						.setValue(className.toLowerCase())
+			const filters = [
+				{customId: 'class_name_menu', placeholder: 'Select Classes', values: ['CISC106', 'CISC108', 'CISC181', 'CISC210', 'CISC220', 'CISC260', 'CISC275']},
+				{customId: 'location_type_menu', placeholder: 'Select Location Type', values: ['In Person', 'Virtual']},
+				{customId: 'week_menu', placeholder: 'Select Days of Week', values: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']}
+			];
+
+			const filterMenus = filters.map((filter) => {
+				return new StringSelectMenuBuilder()
+					.setCustomId(filter.customId)
+					.setMinValues(0)
+					.setMaxValues(filter.values.length)
+					.setPlaceholder(filter.placeholder)
+					.addOptions(filter.values.map((value) => {
+						return new StringSelectMenuOptionBuilder()
+							.setLabel(value)
+							.setValue(value.toLowerCase())
 				}));
+			});
 
-			const locationTypeMenu = new StringSelectMenuBuilder()
-				.setCustomId('location_type_menu')
-				.setMinValues(0)
-				.setMaxValues(locationTypes.length)
-				.setPlaceholder('Select Location Type')
-				.addOptions(locationTypes.map((locationType) => {
-					return new StringSelectMenuOptionBuilder()
-						.setLabel(locationType)
-						.setValue(locationType.toLowerCase())
-			}));
-			
-			const dayOfWeekMenu = new StringSelectMenuBuilder()
-				.setCustomId('week_menu')
-				.setMinValues(0)
-				.setMaxValues(daysOfWeek.length)
-				.setPlaceholder('Select Days of Week')
-				.addOptions(daysOfWeek.map((dayOfWeek) => {
-					return new StringSelectMenuOptionBuilder()
-						.setLabel(dayOfWeek)
-						.setValue(dayOfWeek.toLowerCase())
-			}));
-
-			const row1 = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(classNameMenu);
-			const row2 = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(locationTypeMenu);
-			const row3 = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(dayOfWeekMenu);
-			const components = [row1, row2, row3];
+			const components = filterMenus.map((menu) => {
+				return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+			});
 			return components;
 		}
 
