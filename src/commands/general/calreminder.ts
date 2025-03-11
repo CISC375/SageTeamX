@@ -38,7 +38,18 @@ export default class extends Command {
 		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
-		const auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
+		let auth;
+		try {
+			auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
+		} catch (error) {
+			console.error("Google Calendar Authorization Error:", error);
+			await interaction.reply({
+				content:
+					"⚠️ Failed to authenticate with Google Calendar. Please try again later.",
+				ephemeral: true,
+			});
+			return;
+		}
 
 		// Fetch events
 		const now = new Date();
