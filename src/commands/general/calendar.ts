@@ -83,7 +83,6 @@ export default class extends Command {
 						}
 					});
 					allFiltersFlags = filters.every(f => f.flag);
-					console.log(allFiltersFlags);
 				}
 				if (eventHolder) {
 					eventHolderFlag = lowerCaseSummary.includes(eventHolder);
