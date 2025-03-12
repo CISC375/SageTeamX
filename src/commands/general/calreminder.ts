@@ -38,7 +38,18 @@ export default class extends Command {
 		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
-		const auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
+		let auth;
+		try {
+			auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
+		} catch (error) {
+			console.error("Google Calendar Authorization Error:", error);
+			await interaction.reply({
+				content:
+					"⚠️ Failed to authenticate with Google Calendar. Please try again later.",
+				ephemeral: true,
+			});
+			return;
+		}
 
 		// Fetch events
 		const now = new Date();
@@ -47,14 +58,25 @@ export default class extends Command {
 			now.getTime() + 10 * 24 * 60 * 60 * 1000
 		).toISOString();
 		const calendar = google.calendar({ version: "v3", auth });
-		const res = await calendar.events.list({
-			calendarId:
-				"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com",
-			timeMin,
-			timeMax,
-			singleEvents: true,
-			orderBy: "startTime",
-		});
+		let res;
+		try {
+			res = await calendar.events.list({
+				calendarId:
+					"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com",
+				timeMin,
+				timeMax,
+				singleEvents: true,
+				orderBy: "startTime",
+			});
+		} catch (error) {
+			console.error("Google Calendar API Error:", error);
+			await interaction.reply({
+				content:
+					"⚠️ Failed to retrieve calendar events. Please try again later.",
+				ephemeral: true,
+			});
+			return;
+		}
 
 		// Command input
 		const className = interaction.options.getString("classname");
@@ -115,8 +137,8 @@ export default class extends Command {
 
 		// 3) Set Reminder button
 		const setReminder = new ButtonBuilder()
-			.setCustomId('set_reminder')
-			.setLabel('Set Reminder')
+			.setCustomId("set_reminder")
+			.setLabel("Set Reminder")
 			.setStyle(ButtonStyle.Success);
 
 		// Create action rows for the dropdowns
@@ -129,8 +151,10 @@ export default class extends Command {
 				offsetMenu
 			);
 
-		const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(setReminder);
-		
+		const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+			setReminder
+		);
+
 		// Send ephemeral message with both dropdowns
 		const replyMessage = await interaction.reply({
 			components: [row1, row2, row3],
@@ -171,7 +195,9 @@ export default class extends Command {
 				await btnInt.deferUpdate();
 				if (chosenEvent && chosenEvent !== null) {
 					const dateObj = new Date(chosenEvent.start.dateTime);
-					const remindDate = new Date(dateObj.getTime() - chosenOffset);
+					const remindDate = new Date(
+						dateObj.getTime() - chosenOffset
+					);
 
 					// Check if it's already in the past
 					if (remindDate.getTime() <= Date.now()) {
@@ -225,8 +251,7 @@ export default class extends Command {
 
 					collector.stop();
 				}
-			}
-			else if (btnInt.customId === "cancel_reminder") {
+			} else if (btnInt.customId === "cancel_reminder") {
 				if (activeReminderId) {
 					// Remove from DB
 					await btnInt.client.mongo
