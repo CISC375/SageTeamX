@@ -17,11 +17,11 @@ import { MongoClient } from 'mongodb';
 import { authorize } from '../../lib/auth';
 //import event from '@root/src/models/calEvent';
 
-const path = require('path');
-const process = require('process');
-const { google } = require('googleapis');
+const path = require("path");
+const process = require("process");
+const { google } = require("googleapis");
 
-interface Event{
+interface Event {
 	eventId: string;
 	courseID: string;
 	instructor: string;
@@ -33,7 +33,8 @@ interface Event{
 }
 export default class extends Command {
 	name = "calendar";
-	description = "Retrieve calendar events over the next 10 days with pagination, optionally filter";
+	description =
+		"Retrieve calendar events over the next 10 days with pagination, optionally filter";
 
 	// All available filters that someone can add and they are not required
 	options: ApplicationCommandStringOptionData[] = [
@@ -133,25 +134,32 @@ export default class extends Command {
 		}
 
 		// Generates the buttons for changing pages
-		function generateButtons(currentPage: number, maxPage: number): ActionRowBuilder<ButtonBuilder> {
+		function generateButtons(
+			currentPage: number,
+			maxPage: number
+		): ActionRowBuilder<ButtonBuilder> {
 			const nextButton = new ButtonBuilder()
-				.setCustomId('next')
-				.setLabel('Next')
+				.setCustomId("next")
+				.setLabel("Next")
 				.setStyle(ButtonStyle.Primary)
 				.setDisabled(currentPage + 1 === maxPage);
-			
+
 			const prevButton = new ButtonBuilder()
-				.setCustomId('prev')
-				.setLabel('Previous')
+				.setCustomId("prev")
+				.setLabel("Previous")
 				.setStyle(ButtonStyle.Primary)
 				.setDisabled(currentPage === 0);
-			
+
 			const done = new ButtonBuilder()
-				.setCustomId('done')
-				.setLabel('Done')
+				.setCustomId("done")
+				.setLabel("Done")
 				.setStyle(ButtonStyle.Danger);
-		
-			return new ActionRowBuilder<ButtonBuilder>().addComponents(prevButton, nextButton, done);
+
+			return new ActionRowBuilder<ButtonBuilder>().addComponents(
+				prevButton,
+				nextButton,
+				done
+			);
 		}
 
 		// Generates message for filters
@@ -179,29 +187,53 @@ export default class extends Command {
 
 		// Inital Reply
 		await interaction.reply({
-			content: 'Authenticating and fetching events...',
-			ephemeral: true
+			content: "Authenticating and fetching events...",
+			ephemeral: true,
 		});
 
 		// Fetch Calendar events
-		const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
+		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
 		const auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
 		const calendar = google.calendar({ version: "v3", auth });
-		const response = await calendar.events.list({
-			calendarId: 'c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com',
-    		timeMin: new Date().toISOString(),
-    		timeMax: new Date(new Date().getTime() + 10 * 24 * 60 * 60 * 1000),
-    		singleEvents: true,
-    		orderBy: 'startTime',
-		});
-		const events = response.data.items || [];
+
+		let events = [];
+		try {
+			const response = await calendar.events.list({
+				calendarId:
+					"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com",
+				timeMin: new Date().toISOString(),
+				timeMax: new Date(
+					new Date().getTime() + 10 * 24 * 60 * 60 * 1000
+				),
+				singleEvents: true,
+				orderBy: "startTime",
+			});
+			events = response.data.items || [];
+		} catch (error) {
+			console.error("Google Calendar API Error:", error);
+			await interaction.followUp({
+				content:
+					"⚠️ Failed to retrieve calendar events due to an API issue. Please try again later.",
+				ephemeral: true,
+			});
+			return;
+		}
 
 		// Filter events into a 2D array
 		const eventsPerPage: number = 3; // Modify this value to change the number of events per page
 		let filteredEvents = await filterEvents(events, eventsPerPage, []);
-		
+		if (!filteredEvents.length) {
+			// add error handling
+			await interaction.followUp({
+				content:
+					"No matching events found based on your filters. Please adjust your search criteria.",
+				ephemeral: true,
+			});
+			return;
+		}
+
 		// Generate intial embed and buttons
 		let maxPage: number = filteredEvents.length;
 		let currentPage: number = 0;
@@ -209,11 +241,22 @@ export default class extends Command {
 		const buttonRow = generateButtons(currentPage, maxPage);
 
 		// Send main message
-		const dm = await interaction.user.createDM()
-		const message = await dm.send({
-			embeds: [embed],
-			components: [buttonRow]
-		});
+		const dm = await interaction.user.createDM();
+		let message;
+		try {
+			message = await dm.send({
+				embeds: [embed],
+				components: [buttonRow],
+			});
+		} catch (error) {
+			console.error("Failed to send DM:", error);
+			await interaction.followUp({
+				content:
+					"⚠️ I couldn't send you a DM. Please check your privacy settings.",
+				ephemeral: true,
+			});
+			return;
+		}
 
 		// Send filter message
 		const filters = [
@@ -242,15 +285,29 @@ export default class extends Command {
 				condition: (newValues: string[], summary?: string, days?: string[], eventDate?: Date) => newValues.some(value => days[eventDate.getDay()] === value)
 			}
 		];
-		const components = generateFilterMessage(filters);
-		const filterMessage = await dm.send({
-			content: "**Select Filters:**",
-			components: components
-		});
+		const flterComponents = generateFilterMessage(filters);
+
+		// Send filter message
+		let filterMessage;
+		try {
+			filterMessage = await dm.send({
+				content: "**Select Filters:**",
+				components: flterComponents
+			});
+	
+		} catch (error) {
+			console.error("Failed to send DM:", error);
+			await interaction.followUp({
+				content:
+					"⚠️ I couldn't send you a DM. Please check your privacy settings.",
+				ephemeral: true,
+			});
+			return;
+		}
 
 		// Create button collector for main message
 		const buttonCollector = message.createMessageComponentCollector({
-			time: 300000
+			time: 300000,
 		});
 
 		// Create dropdown collector for filters
@@ -259,34 +316,49 @@ export default class extends Command {
 			time: 300000
 		});
 
-		buttonCollector.on('collect', async (btnInt) => {
-			btnInt.deferUpdate();
-			if (btnInt.customId === 'next') {
-				currentPage++;
-			}
-			else if (btnInt.customId === 'prev') {
-				currentPage--;
-			}
-			else {
-				message.edit({
-					embeds: [],
-					components: [],
-					content: 'Calendar Deleted'
+		buttonCollector.on("collect", async (btnInt) => {
+			try {
+				await btnInt.deferUpdate();
+				if (btnInt.customId === "next") {
+					if (currentPage + 1 >= maxPage) return;
+					currentPage++;
+				} else if (btnInt.customId === "prev") {
+					if (currentPage === 0) return;
+					currentPage--;
+				} else {
+					await message.edit({
+						embeds: [],
+						components: [],
+						content: "📅 Calendar session closed.",
+					});
+					await filterMessage.edit({
+						embeds: [],
+						components: [],
+						content: "Filters closed.",
+					});
+					buttonCollector.stop();
+					menuCollector.stop();
+					return;
+				}
+
+				const newEmbed = generateEmbed(
+					filteredEvents,
+					currentPage,
+					maxPage
+				);
+				const newButtonRow = generateButtons(currentPage, maxPage);
+				await message.edit({
+					embeds: [newEmbed],
+					components: [newButtonRow],
 				});
-				filterMessage.edit({
-					components: [],
-					content: 'Filters Deleted'
-				})
-				buttonCollector.stop()
-				menuCollector.stop();
-				return;
+			} catch (error) {
+				console.error("Button Collector Error:", error);
+				await btnInt.followUp({
+					content:
+						"⚠️ An error occurred while navigating through events. Please try again.",
+					ephemeral: true,
+				});
 			}
-			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-			const newButtonRow = generateButtons(currentPage, maxPage);
-			message.edit({
-				embeds: [newEmbed], 
-				components: [newButtonRow]
-			});
 		});
 
 		menuCollector.on('collect', async (i) => {
