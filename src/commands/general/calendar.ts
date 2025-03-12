@@ -77,11 +77,13 @@ export default class extends Command {
 
 				if (filters.length) {
 					filters.forEach((filter) => {
+						filter.flag = true;
 						if (filter.newValues.length) {
 							filter.flag = filter.condition(filter.newValues, lowerCaseSummary, days, currentEventDate);
 						}
 					});
 					allFiltersFlags = filters.every(f => f.flag);
+					console.log(allFiltersFlags);
 				}
 				if (eventHolder) {
 					eventHolderFlag = lowerCaseSummary.includes(eventHolder);
@@ -90,7 +92,6 @@ export default class extends Command {
 					eventDateFlag = currentEventDate.toLocaleDateString() === newEventDate;
 				}
 
-				
 				if (allFiltersFlags && eventHolderFlag && eventDateFlag) {
 					temp.push(event);
 					if (temp.length % eventsPerPage === 0) {
@@ -106,17 +107,29 @@ export default class extends Command {
 
 		// Generates the embed for displaying events
 		function generateEmbed(filteredEvents, currentPage: number, maxPage: number): EmbedBuilder {
-			const embed = new EmbedBuilder()
-				.setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
-				.setColor('Green');
-			filteredEvents[currentPage].forEach(event => {
-				embed.addFields({
-					name: `**${event.summary}**`, 
-					value: `Date: ${new Date(event.start.dateTime).toLocaleDateString()}
-							Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}
-							Location: ${event.location ? event.location : "`NONE`"}\n`
+			let embed: EmbedBuilder;
+			if (filteredEvents.length) {
+				embed = new EmbedBuilder()
+					.setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
+					.setColor('Green');
+				filteredEvents[currentPage].forEach(event => {
+					embed.addFields({
+						name: `**${event.summary}**`, 
+						value: `Date: ${new Date(event.start.dateTime).toLocaleDateString()}
+								Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}
+								Location: ${event.location ? event.location : "`NONE`"}\n`
+					});
 				});
-			});
+			}
+			else {
+				embed = new EmbedBuilder()
+					.setTitle(`No Events`)
+					.setColor(`Green`)
+					.addFields({
+						name: `No events for the selected filters`,
+						value: `Please select different filters`
+					});
+			}
 			return embed;
 		}
 
@@ -189,9 +202,6 @@ export default class extends Command {
 		// Filter events into a 2D array
 		const eventsPerPage: number = 3; // Modify this value to change the number of events per page
 		let filteredEvents = await filterEvents(events, eventsPerPage, []);
-		if (!filteredEvents.length) {
-			return;
-		}
 		
 		// Generate intial embed and buttons
 		let maxPage: number = filteredEvents.length;
