@@ -15,6 +15,7 @@ import { Command } from '@lib/types/Command';
 import 'dotenv/config';
 import { MongoClient } from 'mongodb';
 import { authorize } from '../../lib/auth';
+import * as fs from 'fs';
 //import event from '@root/src/models/calEvent';
 
 const path = require("path");
@@ -190,7 +191,7 @@ export default class extends Command {
 		}
 
 		function downloadCalendar(events) {
-			const formattedEvents = events.map((event) => {
+			const formattedEvents: string[] = events.map((event) => {
 				const newEvent = 
 				{
 					UID: event.iCalUID,
@@ -201,8 +202,22 @@ export default class extends Command {
 					DESCRIPTION: '',
 					LOCATION:( event.location ? event.location : 'NONE'),
 				}
-				return newEvent;
+				const icsFormatted = 
+				`BEGIN:VEVENT
+				UID:${newEvent.UID}
+				DTSTAMP:${newEvent.DTSTAMP}
+				DTSTART:${newEvent.DTSTART}
+				DTEND:${newEvent.DTEND}
+				SUMMARY:${newEvent.SUMMARY}
+				DESCRIPTION:${newEvent.DESCRIPTION}
+				LOCATION:${newEvent.LOCATION}
+				STATUS:CONFIRMED
+				END:VEVENT
+				`.replace(/\t/g, '');
+				return icsFormatted;
 			});
+			
+			fs.writeFileSync('./events.ics', formattedEvents[0]);
 		}
 
 		/**********************************************************************************************************************************************************************************************/
@@ -234,7 +249,6 @@ export default class extends Command {
 			});
 			events = response.data.items || [];
 			console.log(events[0]);
-			downloadCalendar(events);
 		} catch (error) {
 			console.error("Google Calendar API Error:", error);
 			await interaction.followUp({
@@ -349,7 +363,13 @@ export default class extends Command {
 				} else if (btnInt.customId === "prev") {
 					if (currentPage === 0) return;
 					currentPage--;
-				} else {
+				}
+				else if (btnInt.customId === 'download_Cal') {
+					downloadCalendar(events);
+					const filePath = path.join('./events.ics');
+					dm.send({files: [filePath]});
+				}
+				else {
 					await message.edit({
 						embeds: [],
 						components: [],
