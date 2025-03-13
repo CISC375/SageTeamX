@@ -155,10 +155,16 @@ export default class extends Command {
 				.setLabel("Done")
 				.setStyle(ButtonStyle.Danger);
 
+			const downloadCal = new ButtonBuilder()
+				.setCustomId("download_Cal")
+				.setLabel("Download Calendar")
+				.setStyle(ButtonStyle.Success);
+
 			return new ActionRowBuilder<ButtonBuilder>().addComponents(
 				prevButton,
 				nextButton,
-				done
+				done,
+				downloadCal
 			);
 		}
 
