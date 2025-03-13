@@ -216,8 +216,14 @@ export default class extends Command {
 				`.replace(/\t/g, '');
 				return icsFormatted;
 			});
-			
-			fs.writeFileSync('./events.ics', formattedEvents[0]);
+			const calendar = 
+			`BEGIN:VCALENDAR
+			VERSION:2.0
+			PRODID:-//YourBot//Discord Calendar//EN
+			${formattedEvents.join('')}
+			END:VCALENDAR`.replace(/\t/g, '');
+
+			fs.writeFileSync('./events.ics', calendar);
 		}
 
 		/**********************************************************************************************************************************************************************************************/
