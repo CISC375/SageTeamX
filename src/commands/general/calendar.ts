@@ -189,6 +189,22 @@ export default class extends Command {
 			return components;
 		}
 
+		function downloadCalendar(events) {
+			const formattedEvents = events.map((event) => {
+				const newEvent = 
+				{
+					UID: event.iCalUID,
+					DTSTAMP: event.updated.replace(/[-:.]/g, ''),
+					DTSTART: new Date(event.start.dateTime).toISOString().replace(/[-:.]/g, ''),
+					DTEND: new Date(event.end.dateTime).toISOString().replace(/[-:.]/g, ''),
+					SUMMARY: event.summary,
+					DESCRIPTION: '',
+					LOCATION:( event.location ? event.location : 'NONE'),
+				}
+				return newEvent;
+			});
+		}
+
 		/**********************************************************************************************************************************************************************************************/
 
 		// Inital Reply
@@ -217,6 +233,8 @@ export default class extends Command {
 				orderBy: "startTime",
 			});
 			events = response.data.items || [];
+			console.log(events[0]);
+			downloadCalendar(events);
 		} catch (error) {
 			console.error("Google Calendar API Error:", error);
 			await interaction.followUp({
