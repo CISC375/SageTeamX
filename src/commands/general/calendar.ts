@@ -190,8 +190,9 @@ export default class extends Command {
 			return components;
 		}
 
-		function downloadCalendar(events) {
-			const formattedEvents: string[] = events.map((event) => {
+		async function downloadCalendar(events, calendar, auth) {
+			let test: Map<string, string> = new Map<string, string>();
+			const formattedEvents: string[] = await Promise.all(events.map(async (event) => {
 				const newEvent = 
 				{
 					UID: event.iCalUID,
@@ -202,6 +203,26 @@ export default class extends Command {
 					DESCRIPTION: '',
 					LOCATION:( event.location ? event.location : 'NONE'),
 				}
+				let recurenceRule: string;
+				if (event.recurringEventId) {
+					recurenceRule = test.get(event.recurringEventId);
+					console.log(recurenceRule);
+					if (recurenceRule === undefined) {
+						const parentEvent = await calendar.events.get({
+							auth: auth,
+							calendarId: 'c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com',
+							eventId: event.recurringEventId,
+						  });
+						recurenceRule = parentEvent.data.recurrence[0];
+						console.log(recurenceRule);
+						recurenceRule ? test.set(event.recurringEventId, recurenceRule) : 0; 
+						console.log(test.get(event.recurringEventId));
+					}
+					else {
+						return '';
+					}
+				}
+
 				const icsFormatted = 
 				`BEGIN:VEVENT
 				UID:${newEvent.UID}
@@ -212,18 +233,20 @@ export default class extends Command {
 				DESCRIPTION:${newEvent.DESCRIPTION}
 				LOCATION:${newEvent.LOCATION}
 				STATUS:CONFIRMED
+				${recurenceRule ? recurenceRule : ''}
 				END:VEVENT
 				`.replace(/\t/g, '');
 				return icsFormatted;
-			});
-			const calendar = 
+			}));
+
+			const icsCalendar = 
 			`BEGIN:VCALENDAR
 			VERSION:2.0
 			PRODID:-//YourBot//Discord Calendar//EN
 			${formattedEvents.join('')}
 			END:VCALENDAR`.replace(/\t/g, '');
 
-			fs.writeFileSync('./events.ics', calendar);
+			fs.writeFileSync('./events.ics', icsCalendar);
 		}
 
 		/**********************************************************************************************************************************************************************************************/
@@ -371,7 +394,7 @@ export default class extends Command {
 					currentPage--;
 				}
 				else if (btnInt.customId === 'download_Cal') {
-					downloadCalendar(events);
+					await downloadCalendar(events, calendar, auth);
 					const filePath = path.join('./events.ics');
 					dm.send({files: [filePath]});
 				}
