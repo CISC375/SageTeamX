@@ -193,24 +193,17 @@ export default class extends Command {
 		async function downloadCalendar(events, calendar, auth) {
 			const test: Map<string, string> = new Map<string, string>();
 			const formattedEvents: string[] = [];
-			const uniqueEventIds: Set<string> = new Set<string>();
-			events.forEach((event) => {
-				if (event.recurringEventId && !uniqueEventIds.has(event.recurringEventId)) {
-					uniqueEventIds.add(event.recurringEventId);
-				}
-			});
-			await Promise.all(
-				Array.from(uniqueEventIds).map(async (uniqueEventId) => {
+			
+			await Promise.all(events.map(async (event) => {
+				if (event.recurringEventId) {
 					const parentEvent = await calendar.events.get({
-						auth,
-						calendarId: 'c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com',
-						eventId: uniqueEventId,
+						auth: auth,
+						calendarId: "c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com",
+						eventId: event.recurringEventId,
 					});
-					if (parentEvent.data.recurrence) {
-						test.set(uniqueEventId, parentEvent.data.recurrence[0]);
-					}
-				})
-			);
+					parentEvent.data.recurrence ? test.set(event.recurringEventId, parentEvent.data.recurrence[0]) : 0;
+				}
+			}));
 			for (const event of events) {
 				let append: boolean = false;
 				const newEvent = 
@@ -218,8 +211,8 @@ export default class extends Command {
 					UID: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
 					CREATED: new Date(event.created).toISOString().replace(/[-:.]/g, ''),
 					DTSTAMP: event.updated.replace(/[-:.]/g, ''),
-					DTSTART: new Date(event.start.dateTime).toISOString().replace(/[-:.]/g, ''),
-					DTEND: new Date(event.end.dateTime).toISOString().replace(/[-:.]/g, ''),
+					DTSTART: `TZID=${event.start.timeZone}:${event.start.dateTime.replace(/[-:.]/g, '')}`,
+					DTEND: `TZID=${event.end.timeZone}:${event.end.dateTime.replace(/[-:.]/g, '')}`,
 					SUMMARY: event.summary,
 					DESCRIPTION: '',
 					LOCATION:( event.location ? event.location : 'NONE'),
@@ -242,8 +235,8 @@ export default class extends Command {
 					UID:${newEvent.UID}
 					CREATED:${newEvent.CREATED}
 					DTSTAMP:${newEvent.DTSTAMP}
-					DTSTART:${newEvent.DTSTART}
-					DTEND:${newEvent.DTEND}
+					DTSTART;${newEvent.DTSTART}
+					DTEND;${newEvent.DTEND}
 					SUMMARY:${newEvent.SUMMARY}
 					DESCRIPTION:${newEvent.DESCRIPTION}
 					LOCATION:${newEvent.LOCATION}
@@ -414,7 +407,8 @@ export default class extends Command {
 				else if (btnInt.customId === 'download_Cal') {
 					await downloadCalendar(events, calendar, auth);
 					const filePath = path.join('./events.ics');
-					dm.send({files: [filePath]});
+					await dm.send({files: [filePath]});
+					fs.unlinkSync('./events.ics');
 				}
 				else {
 					await message.edit({
