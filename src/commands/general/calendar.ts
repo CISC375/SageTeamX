@@ -191,11 +191,32 @@ export default class extends Command {
 		}
 
 		async function downloadCalendar(events, calendar, auth) {
-			let test: Map<string, string> = new Map<string, string>();
-			const formattedEvents: string[] = await Promise.all(events.map(async (event) => {
+			const test: Map<string, string> = new Map<string, string>();
+			const formattedEvents: string[] = [];
+			const uniqueEventIds: Set<string> = new Set<string>();
+			events.forEach((event) => {
+				if (event.recurringEventId && !uniqueEventIds.has(event.recurringEventId)) {
+					uniqueEventIds.add(event.recurringEventId);
+				}
+			});
+			await Promise.all(
+				Array.from(uniqueEventIds).map(async (uniqueEventId) => {
+					const parentEvent = await calendar.events.get({
+						auth,
+						calendarId: 'c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com',
+						eventId: uniqueEventId,
+					});
+					if (parentEvent.data.recurrence) {
+						test.set(uniqueEventId, parentEvent.data.recurrence[0]);
+					}
+				})
+			);
+			for (const event of events) {
+				let append: boolean = false;
 				const newEvent = 
 				{
-					UID: event.iCalUID,
+					UID: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+					CREATED: new Date(event.created).toISOString().replace(/[-:.]/g, ''),
 					DTSTAMP: event.updated.replace(/[-:.]/g, ''),
 					DTSTART: new Date(event.start.dateTime).toISOString().replace(/[-:.]/g, ''),
 					DTEND: new Date(event.end.dateTime).toISOString().replace(/[-:.]/g, ''),
@@ -206,38 +227,33 @@ export default class extends Command {
 				let recurenceRule: string;
 				if (event.recurringEventId) {
 					recurenceRule = test.get(event.recurringEventId);
-					console.log(recurenceRule);
-					if (recurenceRule === undefined) {
-						const parentEvent = await calendar.events.get({
-							auth: auth,
-							calendarId: 'c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com',
-							eventId: event.recurringEventId,
-						  });
-						recurenceRule = parentEvent.data.recurrence[0];
-						console.log(recurenceRule);
-						recurenceRule ? test.set(event.recurringEventId, recurenceRule) : 0; 
-						console.log(test.get(event.recurringEventId));
-					}
-					else {
-						return '';
+					if (recurenceRule) {
+						append = true; 
+						test.delete(event.recurringEventId);
 					}
 				}
+				else {
+					append = true;
+				}
 
-				const icsFormatted = 
-				`BEGIN:VEVENT
-				UID:${newEvent.UID}
-				DTSTAMP:${newEvent.DTSTAMP}
-				DTSTART:${newEvent.DTSTART}
-				DTEND:${newEvent.DTEND}
-				SUMMARY:${newEvent.SUMMARY}
-				DESCRIPTION:${newEvent.DESCRIPTION}
-				LOCATION:${newEvent.LOCATION}
-				STATUS:CONFIRMED
-				${recurenceRule ? recurenceRule : ''}
-				END:VEVENT
-				`.replace(/\t/g, '');
-				return icsFormatted;
-			}));
+				if (append) {
+					const icsFormatted = 
+					`BEGIN:VEVENT
+					UID:${newEvent.UID}
+					CREATED:${newEvent.CREATED}
+					DTSTAMP:${newEvent.DTSTAMP}
+					DTSTART:${newEvent.DTSTART}
+					DTEND:${newEvent.DTEND}
+					SUMMARY:${newEvent.SUMMARY}
+					DESCRIPTION:${newEvent.DESCRIPTION}
+					LOCATION:${newEvent.LOCATION}
+					STATUS:CONFIRMED
+					${recurenceRule ? recurenceRule : ''}
+					END:VEVENT
+					`.replace(/\t/g, '');
+					formattedEvents.push(icsFormatted);
+				}
+			};
 
 			const icsCalendar = 
 			`BEGIN:VCALENDAR
@@ -277,7 +293,9 @@ export default class extends Command {
 				orderBy: "startTime",
 			});
 			events = response.data.items || [];
-			console.log(events[0]);
+			// events.forEach(event => {
+			// 	console.log(`Summary: ${event.summary}, Start Time: ${event.start.dateTime}, Recurring ID: ${event.recurringEventId}`);
+			// });
 		} catch (error) {
 			console.error("Google Calendar API Error:", error);
 			await interaction.followUp({
