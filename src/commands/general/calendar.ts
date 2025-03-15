@@ -204,7 +204,7 @@ export default class extends Command {
 					parentEvent.data.recurrence ? test.set(event.recurringEventId, parentEvent.data.recurrence[0]) : 0;
 				}
 			}));
-			for (const event of events) {
+			events.forEach((event) => {
 				let append: boolean = false;
 				const newEvent = 
 				{
@@ -246,7 +246,7 @@ export default class extends Command {
 					`.replace(/\t/g, '');
 					formattedEvents.push(icsFormatted);
 				}
-			};
+			});
 
 			const icsCalendar = 
 			`BEGIN:VCALENDAR
@@ -286,9 +286,6 @@ export default class extends Command {
 				orderBy: "startTime",
 			});
 			events = response.data.items || [];
-			// events.forEach(event => {
-			// 	console.log(`Summary: ${event.summary}, Start Time: ${event.start.dateTime}, Recurring ID: ${event.recurringEventId}`);
-			// });
 		} catch (error) {
 			console.error("Google Calendar API Error:", error);
 			await interaction.followUp({
