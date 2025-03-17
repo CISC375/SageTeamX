@@ -414,9 +414,17 @@ export default class extends Command {
 					currentPage--;
 				}
 				else if (btnInt.customId === 'download_Cal') {
-					await downloadCalendar(filteredEvents, calendar, auth);
-					const filePath = path.join('./events.ics');
-					await dm.send({files: [filePath]});
+					const downloadMessage = await dm.send({content: 'Downloading Calendar...'});
+					try {
+						await downloadCalendar(filteredEvents, calendar, auth);
+						const filePath = path.join('./events.ics');
+						await downloadMessage.edit({
+							content: '', 
+							files: [filePath]
+						});
+					} catch {
+						await downloadMessage.edit({content: '⚠️ Failed to download events'});
+					}
 					fs.unlinkSync('./events.ics');
 				}
 				else {
