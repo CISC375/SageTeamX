@@ -168,7 +168,7 @@ export default class extends Command {
 				"**Arguments:**\n" +
 				"`classname`: Enter the class name (e.g., 'cisc123') to filter by course.\n" +
 				"`locationtype`: Enter 'IP' for In-Person events or 'V' for Virtual events.\n" +
-				"`eventholder`: Enter the event holder's name (e.g., instructor) to filter by instructor.\n" +
+				"`eventholder`: Enter the event holder's name (e.g., 'John Smith') to filter by instructor.\n" +
 				"`eventdate`: Enter a date in the format (e.g., 'December 9') to filter events by date.\n" +
 				"`dayofweek`: Enter the day of the week (e.g., 'Monday') to filter events by the day.\n\n" +
 				"**Filtering Events:**\n" +
