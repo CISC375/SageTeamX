@@ -174,7 +174,7 @@ export default class extends Command {
 				"**Filtering Events:**\n" +
 				"A filtering option is offered in your DMs after the command is sent.\n" +
 				"If you don't add any filters, all events over the next 10 days will be returned.\n\n" +
-				"Use `/calendar` with appropriate filters to get started!",
+				"Use `/calendar` with appropriate arguments to get started!",
 			  ephemeral: true, 
 			});
 			return;  // Prevents authentication attempt
