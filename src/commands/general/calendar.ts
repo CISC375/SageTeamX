@@ -76,6 +76,8 @@ export default class extends Command {
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
 
+				
+
 		// Formats the date and time for events
 		function formatDateTime(dateTime?: string): string {
 			if (!dateTime) return "`NONE`";
@@ -159,6 +161,19 @@ export default class extends Command {
 			});
 			return;
 		}
+
+		if (!className && !locationType && !eventHolder && !eventDate && !dayOfWeek) {
+			await interaction.reply({
+			  content: "Please provide filters to search for calendar events. Use the following options:\n" +
+					   "`classname` (e.g., 'cisc123')\n" +
+					   "`locationtype` ('IP' for In-Person or 'V' for Virtual)\n" +
+					   "`eventholder` (e.g., the instructor's name)\n" +
+					   "`eventdate` (e.g., 'december 9')\n" +
+					   "`dayofweek` (e.g., 'Monday')",
+			  ephemeral: true, 
+			});
+			return;  // Prevents authentication attempt
+		  }
 
 		async function listEvents(
 			auth,
