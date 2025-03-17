@@ -164,12 +164,17 @@ export default class extends Command {
 
 		if (!className && !locationType && !eventHolder && !eventDate && !dayOfWeek) {
 			await interaction.reply({
-			  content: "Please provide filters to search for calendar events. Use the following options:\n" +
-					   "`classname` (e.g., 'cisc123')\n" +
-					   "`locationtype` ('IP' for In-Person or 'V' for Virtual)\n" +
-					   "`eventholder` (e.g., the instructor's name)\n" +
-					   "`eventdate` (e.g., 'december 9')\n" +
-					   "`dayofweek` (e.g., 'Monday')",
+				content: "To search for calendar events, use **one or more** of the following filters:\n\n" +
+				"**Arguments:**\n" +
+				"`classname`: Enter the class name (e.g., 'cisc123') to filter by course.\n" +
+				"`locationtype`: Enter 'IP' for In-Person events or 'V' for Virtual events.\n" +
+				"`eventholder`: Enter the event holder's name (e.g., instructor) to filter by instructor.\n" +
+				"`eventdate`: Enter a date in the format (e.g., 'December 9') to filter events by date.\n" +
+				"`dayofweek`: Enter the day of the week (e.g., 'Monday') to filter events by the day.\n\n" +
+				"**Filtering Events:**\n" +
+				"A filtering option is offered in your DMs after the command is sent.\n" +
+				"If you don't add any filters, all events over the next 10 days will be returned.\n\n" +
+				"Use `/calendar` with appropriate filters to get started!",
 			  ephemeral: true, 
 			});
 			return;  // Prevents authentication attempt
