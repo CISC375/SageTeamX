@@ -137,13 +137,14 @@ export default class extends Command {
 		// Generates the buttons for changing pages
 		function generateButtons(
 			currentPage: number,
-			maxPage: number
+			maxPage: number,
+			filteredEvents
 		): ActionRowBuilder<ButtonBuilder> {
 			const nextButton = new ButtonBuilder()
 				.setCustomId("next")
 				.setLabel("Next")
 				.setStyle(ButtonStyle.Primary)
-				.setDisabled(currentPage + 1 === maxPage);
+				.setDisabled(currentPage + 1 >= maxPage);
 
 			const prevButton = new ButtonBuilder()
 				.setCustomId("prev")
@@ -151,21 +152,22 @@ export default class extends Command {
 				.setStyle(ButtonStyle.Primary)
 				.setDisabled(currentPage === 0);
 
+			const downloadCal = new ButtonBuilder()
+			.setCustomId("download_Cal")
+			.setLabel("Download Calendar")
+			.setStyle(ButtonStyle.Success)
+			.setDisabled(filteredEvents.length === 0);
+
 			const done = new ButtonBuilder()
 				.setCustomId("done")
 				.setLabel("Done")
 				.setStyle(ButtonStyle.Danger);
 
-			const downloadCal = new ButtonBuilder()
-				.setCustomId("download_Cal")
-				.setLabel("Download Calendar")
-				.setStyle(ButtonStyle.Success);
-
 			return new ActionRowBuilder<ButtonBuilder>().addComponents(
 				prevButton,
 				nextButton,
+				downloadCal,
 				done,
-				downloadCal
 			);
 		}
 
@@ -194,6 +196,7 @@ export default class extends Command {
 			const test: Map<string, string> = new Map<string, string>();
 			const formattedEvents: string[] = [];
 			
+			// Find all recurring event IDs and put them into a map
 			await Promise.all(filteredEvents.map(async (eventArray) => {
 				await Promise.all(eventArray.map(async (event) => {
 					if (event.recurringEventId) {
@@ -207,10 +210,11 @@ export default class extends Command {
 				}));
 			}));
 
+			// Create calendar event object for 
 			filteredEvents.forEach((eventArray) => {
 				eventArray.forEach((event) => {
 					let append: boolean = false;
-					const newEvent = 
+					const iCalEvent = 
 					{
 						UID: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
 						CREATED: new Date(event.created).toISOString().replace(/[-:.]/g, ''),
@@ -221,6 +225,8 @@ export default class extends Command {
 						DESCRIPTION: '',
 						LOCATION:( event.location ? event.location : 'NONE'),
 					}
+
+					// Make sure recurring events are not put in twice
 					let recurenceRule: string;
 					if (event.recurringEventId) {
 						recurenceRule = test.get(event.recurringEventId);
@@ -236,14 +242,14 @@ export default class extends Command {
 					if (append) {
 						const icsFormatted = 
 						`BEGIN:VEVENT
-						UID:${newEvent.UID}
-						CREATED:${newEvent.CREATED}
-						DTSTAMP:${newEvent.DTSTAMP}
-						DTSTART;${newEvent.DTSTART}
-						DTEND;${newEvent.DTEND}
-						SUMMARY:${newEvent.SUMMARY}
-						DESCRIPTION:${newEvent.DESCRIPTION}
-						LOCATION:${newEvent.LOCATION}
+						UID:${iCalEvent.UID}
+						CREATED:${iCalEvent.CREATED}
+						DTSTAMP:${iCalEvent.DTSTAMP}
+						DTSTART;${iCalEvent.DTSTART}
+						DTEND;${iCalEvent.DTEND}
+						SUMMARY:${iCalEvent.SUMMARY}
+						DESCRIPTION:${iCalEvent.DESCRIPTION}
+						LOCATION:${iCalEvent.LOCATION}
 						STATUS:CONFIRMED
 						${recurenceRule ? recurenceRule : ''}
 						END:VEVENT
@@ -253,7 +259,7 @@ export default class extends Command {
 				});
 			});
 			
-
+			// Create 
 			const icsCalendar = 
 			`BEGIN:VCALENDAR
 			VERSION:2.0
@@ -319,7 +325,7 @@ export default class extends Command {
 		let maxPage: number = filteredEvents.length;
 		let currentPage: number = 0;
 		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
-		const buttonRow = generateButtons(currentPage, maxPage);
+		const buttonRow = generateButtons(currentPage, maxPage, filteredEvents);
 
 		// Send main message
 		const dm = await interaction.user.createDM();
@@ -434,7 +440,7 @@ export default class extends Command {
 					currentPage,
 					maxPage
 				);
-				const newButtonRow = generateButtons(currentPage, maxPage);
+				const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents);
 				await message.edit({
 					embeds: [newEmbed],
 					components: [newButtonRow],
@@ -459,7 +465,7 @@ export default class extends Command {
 			currentPage = 0;
 			maxPage = filteredEvents.length;
 			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-			const newButtonRow = generateButtons(currentPage, maxPage);
+			const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents);
 			message.edit({
 				embeds: [newEmbed], 
 				components: [newButtonRow]
