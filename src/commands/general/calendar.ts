@@ -403,7 +403,7 @@ export default class extends Command {
 			time: 300000
 		});
 
-		buttonCollector.on("collect", async (btnInt) => {
+	buttonCollector.on("collect", async (btnInt) => {
 			try {
 				await btnInt.deferUpdate();
 				if (btnInt.customId === "next") {
