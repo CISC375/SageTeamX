@@ -15,6 +15,7 @@ import { Command } from "@lib/types/Command";
 import "dotenv/config";
 import { MongoClient } from "mongodb";
 import { authorize } from "../../lib/auth";
+
 //import event from '@root/src/models/calEvent';
 
 const path = require("path");
@@ -302,15 +303,38 @@ export default class extends Command {
 		const auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
 		const calendar = google.calendar({ version: "v3", auth });
 
-		// List of Google Calendar IDs to fetch events from
-		const calendarIds = [
-			"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com", // Replace with actual calendar IDs
-			"bzlatin@udel.edu",
-		];
+		const MONGO_URI = process.env.DB_CONN_STRING || "";
+		const DB_NAME = "CalendarDatabase";
+		const COLLECTION_NAME = "calendarIds";
+
+		// Hardcoded Master Google Calendar ID (Always Included)
+		const MASTER_CALENDAR_ID =
+			"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com";
+
+		// Function to fetch stored Google Calendar IDs from MongoDB
+		async function fetchCalendarIds() {
+			const client = new MongoClient(MONGO_URI);
+			await client.connect();
+			const db = client.db(DB_NAME);
+			const collection = db.collection(COLLECTION_NAME);
+
+			const calendarDocs = await collection.find().toArray();
+			await client.close();
+
+			// Extract IDs from database & ensure master ID is always included
+			const calendarIds = calendarDocs.map((doc) => doc.calendarId);
+			if (!calendarIds.includes(MASTER_CALENDAR_ID)) {
+				calendarIds.push(MASTER_CALENDAR_ID);
+			}
+			return calendarIds;
+		}
 
 		let events = [];
 
 		try {
+			// Fetch calendar IDs dynamically + include the master ID
+			const calendarIds = await fetchCalendarIds();
+
 			// Fetch events from each calendar
 			for (const calendarId of calendarIds) {
 				const response = await calendar.events.list({
@@ -329,7 +353,7 @@ export default class extends Command {
 				}
 			}
 
-			// Sort events by start time across all calendars
+			// Sort events by start time
 			events.sort(
 				(a, b) =>
 					new Date(a.start?.dateTime || a.start?.date).getTime() -
