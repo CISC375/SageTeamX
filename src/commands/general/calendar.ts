@@ -115,14 +115,13 @@ export default class extends Command {
 						if (filter.newValues.length) {
 							filter.flag = filter.condition(
 								filter.newValues,
-								lowerCaseSummary,
-								days,
-								currentEventDate
+								event
 							);
 						}
 					});
 					allFiltersFlags = filters.every((f) => f.flag);
 				}
+
 				if (eventHolder) {
 					eventHolderFlag = lowerCaseSummary.includes(eventHolder);
 				}
@@ -171,9 +170,10 @@ export default class extends Command {
 				embed = new EmbedBuilder()
 					.setTitle(`No Events`)
 					.setColor(`Green`)
+					.setTitle("No Events Found")
 					.addFields({
-						name: `No events for the selected filters`,
-						value: `Please select different filters`,
+						name: "Try adjusting your filters",
+						value: "No events match your selections, please change them!",
 					});
 			}
 			return embed;
@@ -211,10 +211,21 @@ export default class extends Command {
 		// Generates message for filters
 		function generateFilterMessage(filters) {
 			const filterMenus = filters.map((filter) => {
+				if (filter.values.length === 0) {
+					// Either skip building the menu...
+					// return null; // (you'd then filter out null below)
+
+					// Or add a placeholder option:
+					filter.values.push("No Data Available");
+				}
 				return new StringSelectMenuBuilder()
 					.setCustomId(filter.customId)
 					.setMinValues(0)
-					.setMaxValues(filter.values.length)
+					.setMaxValues(
+						filter.values.length > 0
+							? filter.values.length // allow picking as many as exist
+							: 1 // fallback to 1 if empty
+					)
 					.setPlaceholder(filter.placeholder)
 					.addOptions(
 						filter.values.map((value) => {
@@ -243,30 +254,53 @@ export default class extends Command {
 		// Send filter message
 		const filters = [
 			{
-				customId: "class_name_menu",
-				placeholder: "Select Classes",
-				values: [],
+				customId: "calendar_menu",
+				placeholder: "Select Calendar",
+				values: [], // Filled with calendar names from the DB
 				newValues: [],
 				flag: true,
-				condition: (
-					newValues: string[],
-					summary?: string,
-					days?: string[],
-					eventDate?: Date
-				) => newValues.some((value) => summary.includes(value)),
+				condition: (newValues, event) => {
+					// Check the event’s calendarName property
+					const calendarName =
+						event.calendarName?.toLowerCase() || "";
+					// For partial matches: use .includes(...)
+					// For exact matches: use (calendarName === value)
+					return newValues.some((value) =>
+						calendarName.includes(value.toLowerCase())
+					);
+				},
+			},
+			{
+				customId: "class_name_menu",
+				placeholder: "Select Classes",
+				values: [], // Dynamically updated
+				newValues: [],
+				flag: true,
+				condition: (newValues, event) => {
+					// Check the event.summary property
+					const summary = event.summary?.toLowerCase() || "";
+					return newValues.some((value) =>
+						summary.includes(value.toLowerCase())
+					);
+				},
 			},
 			{
 				customId: "location_type_menu",
 				placeholder: "Select Location Type",
-				values: ["In Person", "Virtual"],
+				values: ["In Person", "Virtual"], // Example
 				newValues: [],
 				flag: true,
-				condition: (
-					newValues: string[],
-					summary?: string,
-					days?: string[],
-					eventDate?: Date
-				) => newValues.some((value) => summary.includes(value)),
+				condition: (newValues, event) => {
+					// Example: assume "In Person" or "Virtual" might appear in event.location (or event.summary)
+					const locString =
+						event.location?.toLowerCase() ||
+						event.summary?.toLowerCase() ||
+						"";
+					// If you want to treat "In Person" or "Virtual" as a substring match:
+					return newValues.some((value) =>
+						locString.includes(value.toLowerCase())
+					);
+				},
 			},
 			{
 				customId: "week_menu",
@@ -282,15 +316,22 @@ export default class extends Command {
 				],
 				newValues: [],
 				flag: true,
-				condition: (
-					newValues: string[],
-					summary?: string,
-					days?: string[],
-					eventDate?: Date
-				) =>
-					newValues.some(
-						(value) => days[eventDate.getDay()] === value
-					),
+				condition: (newValues, event) => {
+					// Convert event.start.dateTime into a weekday
+					if (!event.start?.dateTime) return false; // if there's no dateTime at all
+					const dt = new Date(event.start.dateTime);
+					const weekdayIndex = dt.getDay(); // 0 = Sunday, 1 = Monday, etc.
+					const dayName = [
+						"Sunday",
+						"Monday",
+						"Tuesday",
+						"Wednesday",
+						"Thursday",
+						"Friday",
+						"Saturday",
+					][weekdayIndex];
+					return newValues.some((value) => value === dayName);
+				},
 			},
 		];
 
@@ -312,7 +353,8 @@ export default class extends Command {
 			"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com";
 
 		// Function to fetch stored Google Calendar IDs from MongoDB
-		async function fetchCalendarIds() {
+		/** Fetch Calendar IDs & Names **/
+		async function fetchCalendars() {
 			const client = new MongoClient(MONGO_URI);
 			await client.connect();
 			const db = client.db(DB_NAME);
@@ -321,34 +363,54 @@ export default class extends Command {
 			const calendarDocs = await collection.find().toArray();
 			await client.close();
 
-			// Extract IDs from database & ensure master ID is always included
-			const calendarIds = calendarDocs.map((doc) => doc.calendarId);
-			if (!calendarIds.includes(MASTER_CALENDAR_ID)) {
-				calendarIds.push(MASTER_CALENDAR_ID);
+			// Include master calendar always
+			const calendars = calendarDocs.map((doc) => ({
+				calendarId: doc.calendarId,
+				calendarName: doc.calendarName || "Unnamed Calendar",
+			}));
+
+			// Ensure Master Calendar is always included
+			if (!calendars.some((c) => c.calendarId === MASTER_CALENDAR_ID)) {
+				calendars.push({
+					calendarId: MASTER_CALENDAR_ID,
+					calendarName: "Master Calendar",
+				});
 			}
-			return calendarIds;
+
+			return calendars;
 		}
 
 		let events = [];
 
 		try {
-			// Fetch calendar IDs dynamically + include the master ID
-			const calendarIds = await fetchCalendarIds();
+			const calendars = await fetchCalendars();
 
-			// Fetch events from each calendar
-			for (const calendarId of calendarIds) {
+			// Let’s pick out the "calendar_menu" from your filters
+			const calendarMenu = filters.find(
+				(f) => f.customId === "calendar_menu"
+			);
+			if (calendarMenu) {
+				// Fill the dropdown with the names
+				calendarMenu.values = calendars.map((c) => c.calendarName);
+			}
+
+			// For all calendarIds, attach the name to each fetched event
+			for (const cal of calendars) {
 				const response = await calendar.events.list({
-					calendarId: calendarId,
+					calendarId: cal.calendarId,
 					timeMin: new Date().toISOString(),
 					timeMax: new Date(
-						new Date().getTime() + 10 * 24 * 60 * 60 * 1000
+						Date.now() + 10 * 24 * 60 * 60 * 1000
 					).toISOString(),
 					singleEvents: true,
 					orderBy: "startTime",
 				});
 
-				// Add events from this calendar to the combined events list
 				if (response.data.items) {
+					// Tag each event with its source calendar name
+					response.data.items.forEach((event) => {
+						event.calendarName = cal.calendarName;
+					});
 					events.push(...response.data.items);
 				}
 			}
