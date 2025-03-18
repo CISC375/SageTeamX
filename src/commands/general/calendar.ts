@@ -15,6 +15,7 @@ import { Command } from '@lib/types/Command';
 import 'dotenv/config';
 import { MongoClient } from 'mongodb';
 import { authorize } from '../../lib/auth';
+import * as fs from 'fs';
 //import event from '@root/src/models/calEvent';
 
 const path = require("path");
@@ -136,19 +137,26 @@ export default class extends Command {
 		// Generates the buttons for changing pages
 		function generateButtons(
 			currentPage: number,
-			maxPage: number
+			maxPage: number,
+			filteredEvents
 		): ActionRowBuilder<ButtonBuilder> {
 			const nextButton = new ButtonBuilder()
 				.setCustomId("next")
 				.setLabel("Next")
 				.setStyle(ButtonStyle.Primary)
-				.setDisabled(currentPage + 1 === maxPage);
+				.setDisabled(currentPage + 1 >= maxPage);
 
 			const prevButton = new ButtonBuilder()
 				.setCustomId("prev")
 				.setLabel("Previous")
 				.setStyle(ButtonStyle.Primary)
 				.setDisabled(currentPage === 0);
+
+			const downloadCal = new ButtonBuilder()
+			.setCustomId("download_Cal")
+			.setLabel("Download Calendar")
+			.setStyle(ButtonStyle.Success)
+			.setDisabled(filteredEvents.length === 0);
 
 			const done = new ButtonBuilder()
 				.setCustomId("done")
@@ -158,7 +166,8 @@ export default class extends Command {
 			return new ActionRowBuilder<ButtonBuilder>().addComponents(
 				prevButton,
 				nextButton,
-				done
+				downloadCal,
+				done,
 			);
 		}
 
@@ -181,6 +190,84 @@ export default class extends Command {
 				return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
 			});
 			return components;
+		}
+
+		async function downloadCalendar(filteredEvents, calendar, auth) {
+			const test: Map<string, string> = new Map<string, string>();
+			const formattedEvents: string[] = [];
+			
+			// Find all recurring event IDs and put them into a map
+			await Promise.all(filteredEvents.map(async (eventArray) => {
+				await Promise.all(eventArray.map(async (event) => {
+					if (event.recurringEventId) {
+						const parentEvent = await calendar.events.get({
+							auth: auth,
+							calendarId: "c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com",
+							eventId: event.recurringEventId,
+						});
+						parentEvent.data.recurrence ? test.set(event.recurringEventId, parentEvent.data.recurrence[0]) : 0;
+					}
+				}));
+			}));
+
+			// Create calendar event object for 
+			filteredEvents.forEach((eventArray) => {
+				eventArray.forEach((event) => {
+					let append: boolean = false;
+					const iCalEvent = 
+					{
+						UID: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+						CREATED: new Date(event.created).toISOString().replace(/[-:.]/g, ''),
+						DTSTAMP: event.updated.replace(/[-:.]/g, ''),
+						DTSTART: `TZID=${event.start.timeZone}:${event.start.dateTime.replace(/[-:.]/g, '')}`,
+						DTEND: `TZID=${event.end.timeZone}:${event.end.dateTime.replace(/[-:.]/g, '')}`,
+						SUMMARY: event.summary,
+						DESCRIPTION: '',
+						LOCATION:( event.location ? event.location : 'NONE'),
+					}
+
+					// Make sure recurring events are not put in twice
+					let recurenceRule: string;
+					if (event.recurringEventId) {
+						recurenceRule = test.get(event.recurringEventId);
+						if (recurenceRule) {
+							append = true; 
+							test.delete(event.recurringEventId);
+						}
+					}
+					else {
+						append = true;
+					}
+	
+					if (append) {
+						const icsFormatted = 
+						`BEGIN:VEVENT
+						UID:${iCalEvent.UID}
+						CREATED:${iCalEvent.CREATED}
+						DTSTAMP:${iCalEvent.DTSTAMP}
+						DTSTART;${iCalEvent.DTSTART}
+						DTEND;${iCalEvent.DTEND}
+						SUMMARY:${iCalEvent.SUMMARY}
+						DESCRIPTION:${iCalEvent.DESCRIPTION}
+						LOCATION:${iCalEvent.LOCATION}
+						STATUS:CONFIRMED
+						${recurenceRule ? recurenceRule : ''}
+						END:VEVENT
+						`.replace(/\t/g, '');
+						formattedEvents.push(icsFormatted);
+					}
+				});
+			});
+			
+			// Create 
+			const icsCalendar = 
+			`BEGIN:VCALENDAR
+			VERSION:2.0
+			PRODID:-//YourBot//Discord Calendar//EN
+			${formattedEvents.join('')}
+			END:VCALENDAR`.replace(/\t/g, '');
+
+			fs.writeFileSync('./events.ics', icsCalendar);
 		}
 
 		/**********************************************************************************************************************************************************************************************/
@@ -238,7 +325,7 @@ export default class extends Command {
 		let maxPage: number = filteredEvents.length;
 		let currentPage: number = 0;
 		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
-		const buttonRow = generateButtons(currentPage, maxPage);
+		const buttonRow = generateButtons(currentPage, maxPage, filteredEvents);
 
 		// Send main message
 		const dm = await interaction.user.createDM();
@@ -316,7 +403,7 @@ export default class extends Command {
 			time: 300000
 		});
 
-		buttonCollector.on("collect", async (btnInt) => {
+	buttonCollector.on("collect", async (btnInt) => {
 			try {
 				await btnInt.deferUpdate();
 				if (btnInt.customId === "next") {
@@ -325,7 +412,22 @@ export default class extends Command {
 				} else if (btnInt.customId === "prev") {
 					if (currentPage === 0) return;
 					currentPage--;
-				} else {
+				}
+				else if (btnInt.customId === 'download_Cal') {
+					const downloadMessage = await dm.send({content: 'Downloading Calendar...'});
+					try {
+						await downloadCalendar(filteredEvents, calendar, auth);
+						const filePath = path.join('./events.ics');
+						await downloadMessage.edit({
+							content: '', 
+							files: [filePath]
+						});
+					} catch {
+						await downloadMessage.edit({content: '⚠️ Failed to download events'});
+					}
+					fs.unlinkSync('./events.ics');
+				}
+				else {
 					await message.edit({
 						embeds: [],
 						components: [],
@@ -346,7 +448,7 @@ export default class extends Command {
 					currentPage,
 					maxPage
 				);
-				const newButtonRow = generateButtons(currentPage, maxPage);
+				const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents);
 				await message.edit({
 					embeds: [newEmbed],
 					components: [newButtonRow],
@@ -371,7 +473,7 @@ export default class extends Command {
 			currentPage = 0;
 			maxPage = filteredEvents.length;
 			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-			const newButtonRow = generateButtons(currentPage, maxPage);
+			const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents);
 			message.edit({
 				embeds: [newEmbed], 
 				components: [newButtonRow]
