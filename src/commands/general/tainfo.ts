@@ -7,6 +7,8 @@ import {
 	ActionRowBuilder,
 	ComponentType,
 	StringSelectMenuInteraction,
+	Embed,
+	EmbedBuilder,
 } from "discord.js";
 import { Command } from "@lib/types/Command";
 import "dotenv/config";
@@ -142,11 +144,12 @@ export default class extends Command {
 					// Extract unique event holders
 					const eventHolders = Array.from(
 						new Set(
-							filteredEvents.map((event) =>
-								event.summary.split("-")[1]?.trim()
-							)
+							filteredEvents.map((event) => ({
+								name: event.summary.split("-")[1]?.trim(),
+								email: event.creator?.email,
+							}))
 						)
-					).filter(Boolean);
+					).filter((holder: { name?: string; email?: string }) => holder.name && holder.email);
 
 					if (eventHolders.length === 0) {
 						await i.editReply({
@@ -155,15 +158,21 @@ export default class extends Command {
 						return;
 					}
 
+					// Format the list of TAs
+					const taInfoList = eventHolders
+					.map((holder: { name: string; email: string }) => `**Name:** ${holder.name} **Email:** ${holder.email}`)
+					.join("\n\n");
+
+					const embed = new EmbedBuilder()
+						.setTitle(`TAs for course **${className}**`)
+						.setDescription(taInfoList)
+						.setColor("#0099ff")
+
 					// Send DM with list of TAs
 					const dm = await interaction.user.createDM();
 					let message;
 					try {
-						message = await dm.send({
-							content: `TAs for course **${className}**:\n${eventHolders.join(
-								"\n"
-							)}`,
-						});
+						message = await dm.send({ embeds: [embed] });
 						await i.editReply({
 							content: `I have sent you a DM with the TA information for **${className}**.`,
 						});
