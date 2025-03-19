@@ -80,8 +80,8 @@ export default class extends Command {
 
 		// Command input
 		const className = interaction.options.getString("classname");
-		const events = res.data.items || [];
-
+		const events = res.data.items || [];	
+		
 		// Filter events
 		const filteredEvents = events.filter((event) =>
 			event.summary.toLowerCase().includes(className.toLowerCase())
@@ -101,7 +101,7 @@ export default class extends Command {
 			.setPlaceholder("Select an event")
 			.setMaxValues(1)
 			.addOptions(
-				filteredEvents.map((event, index: number) => {
+				filteredEvents.slice(0, 25).map((event, index: number) => {
 					const label = event.summary;
 					const description = `Starts at: ${new Date(
 						event.start.dateTime
