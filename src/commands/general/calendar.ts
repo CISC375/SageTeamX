@@ -51,7 +51,7 @@ export default class extends Command {
 			name: "eventdate",
 			description: 'Enter the date (e.g., "December 12").',
 			required: false,
-		}
+		},
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -59,37 +59,74 @@ export default class extends Command {
 
 		// Filters calendar events based on slash command inputs and filter dropdown selections.
 		async function filterEvents(events, eventsPerPage: number, filters) {
-			const eventHolder: string = interaction.options.getString('eventholder')?.toLowerCase();
-			const eventDate: string = interaction.options.getString('eventdate');
-			// Use current year if not specified
-			const newEventDate: string = eventDate ? new Date(eventDate + ' ' + new Date().getFullYear()).toLocaleDateString() : '';
-			const days: string[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+			const eventHolder: string = interaction.options
+				.getString("eventholder")
+				?.toLowerCase();
+			const eventDate: string =
+				interaction.options.getString("eventdate");
+
+			const newEventDate: string = eventDate
+				? new Date(eventDate + " 2025").toLocaleDateString()
+				: "";
+			const days: string[] = [
+				"sunday",
+				"monday",
+				"tuesday",
+				"wednesday",
+				"thursday",
+				"friday",
+				"saturday",
+			];
 
 			let temp = [];
 			let filteredEvents = [];
 
+			// Flags for each property
+			let allFiltersFlags = true;
+			let eventHolderFlag: boolean = true;
+			let eventDateFlag: boolean = true;
 			events.forEach((event) => {
 				const lowerCaseSummary: string = event.summary.toLowerCase();
+
+				// Extract class name (works for "CISC108-..." and "CISC374010")
+				const classNameMatch = lowerCaseSummary.match(/cisc\d+/i);
+				const extractedClassName = classNameMatch
+					? classNameMatch[0].toUpperCase()
+					: "";
+
+				// Add class name to filters dynamically
+				const classFilter = filters.find(
+					(f) => f.customId === "class_name_menu"
+				);
+				if (
+					extractedClassName &&
+					classFilter &&
+					!classFilter.values.includes(extractedClassName)
+				) {
+					classFilter.values.push(extractedClassName);
+				}
+
 				const currentEventDate: Date = new Date(event.start.dateTime);
 
-				// Process each filter dropdown (if any values selected)
-				let allFiltersFlags = true;
-				filters.forEach((filter) => {
-					filter.flag = true;
-					if (filter.newValues.length) {
-						filter.flag = filter.condition(filter.newValues, lowerCaseSummary, days, currentEventDate);
-					}
-				});
-				allFiltersFlags = filters.every(f => f.flag);
+				if (filters.length) {
+					filters.forEach((filter) => {
+						filter.flag = true;
+						if (filter.newValues.length) {
+							filter.flag = filter.condition(
+								filter.newValues,
+								event
+							);
+						}
+					});
+					allFiltersFlags = filters.every((f) => f.flag);
+				}
 
-				// Evaluate slash command inputs
-				let eventHolderFlag = true;
-				let eventDateFlag = true;
 				if (eventHolder) {
 					eventHolderFlag = lowerCaseSummary.includes(eventHolder);
 				}
 				if (eventDate) {
-					eventDateFlag = currentEventDate.toLocaleDateString() === newEventDate;
+					eventDateFlag =
+						currentEventDate.toLocaleDateString() === newEventDate;
 				}
 
 				if (allFiltersFlags && eventHolderFlag && eventDateFlag) {
@@ -104,30 +141,38 @@ export default class extends Command {
 			return filteredEvents;
 		}
 
-		// Generates the embed for displaying events on the current page.
-		function generateEmbed(filteredEvents, currentPage: number, maxPage: number): EmbedBuilder {
+		// Generates the embed for displaying events
+		function generateEmbed(
+			filteredEvents,
+			currentPage: number,
+			maxPage: number
+		): EmbedBuilder {
 			let embed: EmbedBuilder;
 			if (filteredEvents.length && filteredEvents[currentPage] && filteredEvents[currentPage].length) {
 				embed = new EmbedBuilder()
-					.setTitle(`Events - Page ${currentPage + 1} of ${maxPage}`)
-					.setColor('Green');
-				filteredEvents[currentPage].forEach((event, idx) => {
+					.setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
+					.setColor("Green");
+				filteredEvents[currentPage].forEach((event) => {
 					embed.addFields({
 						name: `**${event.summary}**`,
-						value: `Date: ${new Date(event.start.dateTime).toLocaleDateString()}
-Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}
-Location: ${event.location ? event.location : "NONE"}
-Email: ${event.creator.email || "NA"}
-(Select Button: #${idx + 1})`
+						value: `Date: ${new Date(
+							event.start.dateTime
+						).toLocaleDateString()}
+								Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(
+							event.end.dateTime
+						).toLocaleTimeString()}
+								Location: ${event.location ? event.location : "`NONE`"}
+								email:${event.creator.email}\n`,
 					});
 				});
 			} else {
 				embed = new EmbedBuilder()
 					.setTitle(`No Events`)
-					.setColor("Green")
+					.setColor(`Green`)
+					.setTitle("No Events Found")
 					.addFields({
-						name: `No events for the selected filters`,
-						value: `Please select different filters`
+						name: "Try adjusting your filters",
+						value: "No events match your selections, please change them!",
 					});
 			}
 			return embed;
@@ -170,19 +215,34 @@ Email: ${event.creator.email || "NA"}
 		// Generates filter dropdown menus.
 		function generateFilterMessage(filters) {
 			const filterMenus = filters.map((filter) => {
+				if (filter.values.length === 0) {
+					// Either skip building the menu...
+					// return null; // (you'd then filter out null below)
+
+					// Or add a placeholder option:
+					filter.values.push("No Data Available");
+				}
 				return new StringSelectMenuBuilder()
 					.setCustomId(filter.customId)
 					.setMinValues(0)
-					.setMaxValues(filter.values.length)
+					.setMaxValues(
+						filter.values.length > 0
+							? filter.values.length // allow picking as many as exist
+							: 1 // fallback to 1 if empty
+					)
 					.setPlaceholder(filter.placeholder)
-					.addOptions(filter.values.map((value) => {
-						return new StringSelectMenuOptionBuilder()
-							.setLabel(value)
-							.setValue(value.toLowerCase());
-					}));
+					.addOptions(
+						filter.values.map((value) => {
+							return new StringSelectMenuOptionBuilder()
+								.setLabel(value)
+								.setValue(value.toLowerCase());
+						})
+					);
 			});
 			const components = filterMenus.map((menu) => {
-				return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+				return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+					menu
+				);
 			});
 			return components;
 		}
@@ -251,25 +311,175 @@ END:VCALENDAR
 			content: "Authenticating and fetching events...",
 			ephemeral: true,
 		});
+		// Send filter message
+		const filters = [
+			{
+				customId: "calendar_menu",
+				placeholder: "Select Calendar",
+				values: [], // Filled with calendar names from the DB
+				newValues: [],
+				flag: true,
+				condition: (newValues, event) => {
+					// Check the event’s calendarName property
+					const calendarName =
+						event.calendarName?.toLowerCase() || "";
+					// For partial matches: use .includes(...)
+					// For exact matches: use (calendarName === value)
+					return newValues.some((value) =>
+						calendarName.includes(value.toLowerCase())
+					);
+				},
+			},
+			{
+				customId: "class_name_menu",
+				placeholder: "Select Classes",
+				values: [], // Dynamically updated
+				newValues: [],
+				flag: true,
+				condition: (newValues, event) => {
+					// Check the event.summary property
+					const summary = event.summary?.toLowerCase() || "";
+					return newValues.some((value) =>
+						summary.includes(value.toLowerCase())
+					);
+				},
+			},
+			{
+				customId: "location_type_menu",
+				placeholder: "Select Location Type",
+				values: ["In Person", "Virtual"], // Example
+				newValues: [],
+				flag: true,
+				condition: (newValues, event) => {
+					// Example: assume "In Person" or "Virtual" might appear in event.location (or event.summary)
+					const locString = event.summary.toLowerCase();
+					// If you want to treat "In Person" or "Virtual" as a substring match:
+					return newValues.some((value) =>
+						locString.includes(value.toLowerCase())
+					);
+				},
+			},
+			{
+				customId: "week_menu",
+				placeholder: "Select Days of Week",
+				values: [
+					"Sunday",
+					"Monday",
+					"Tuesday",
+					"Wednesday",
+					"Thursday",
+					"Friday",
+					"Saturday",
+				],
+				newValues: [],
+				flag: true,
+				condition: (newValues, event) => {
+					// Convert event.start.dateTime into a weekday
+					if (!event.start?.dateTime) return false; // if there's no dateTime at all
+					const dt = new Date(event.start.dateTime);
+					const weekdayIndex = dt.getDay(); // 0 = Sunday, 1 = Monday, etc.
+					const dayName = [
+						"Sunday",
+						"Monday",
+						"Tuesday",
+						"Wednesday",
+						"Thursday",
+						"Friday",
+						"Saturday",
+					][weekdayIndex];
+					console.log(newValues);
+					console.log(dayName)
+					return newValues.some((value) => value.toLowerCase() === dayName.toLowerCase());
+				},
+			},
+		];
 
-		// Fetch Calendar events from Google Calendar.
+		// Fetch Calendar events
+		// Fetch Calendar events from multiple calendars
+		// Fetch Calendar events from multiple Google Calendars
 		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
 		const auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
 		const calendar = google.calendar({ version: "v3", auth });
 
+		const MONGO_URI = process.env.DB_CONN_STRING || "";
+		const DB_NAME = "CalendarDatabase";
+		const COLLECTION_NAME = "calendarIds";
+
+		// Hardcoded Master Google Calendar ID (Always Included)
+		const MASTER_CALENDAR_ID =
+			"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com";
+
+		// Function to fetch stored Google Calendar IDs from MongoDB
+		/** Fetch Calendar IDs & Names **/
+		async function fetchCalendars() {
+			const client = new MongoClient(MONGO_URI);
+			await client.connect();
+			const db = client.db(DB_NAME);
+			const collection = db.collection(COLLECTION_NAME);
+
+			const calendarDocs = await collection.find().toArray();
+			await client.close();
+
+			// Include master calendar always
+			const calendars = calendarDocs.map((doc) => ({
+				calendarId: doc.calendarId,
+				calendarName: doc.calendarName || "Unnamed Calendar",
+			}));
+
+			// Ensure Master Calendar is always included
+			if (!calendars.some((c) => c.calendarId === MASTER_CALENDAR_ID)) {
+				calendars.push({
+					calendarId: MASTER_CALENDAR_ID,
+					calendarName: "Master Calendar",
+				});
+			}
+
+			return calendars;
+		}
+
 		let events = [];
+
 		try {
-			const response = await calendar.events.list({
-				calendarId:
-					"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com",
-				timeMin: new Date().toISOString(),
-				timeMax: new Date(new Date().getTime() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-				singleEvents: true,
-				orderBy: "startTime",
-			});
-			events = response.data.items || [];
+			const calendars = await fetchCalendars();
+
+			// Let’s pick out the "calendar_menu" from your filters
+			const calendarMenu = filters.find(
+				(f) => f.customId === "calendar_menu"
+			);
+			if (calendarMenu) {
+				// Fill the dropdown with the names
+				calendarMenu.values = calendars.map((c) => c.calendarName);
+			}
+
+			// For all calendarIds, attach the name to each fetched event
+			for (const cal of calendars) {
+				const response = await calendar.events.list({
+					calendarId: cal.calendarId,
+					timeMin: new Date().toISOString(),
+					timeMax: new Date(
+						Date.now() + 10 * 24 * 60 * 60 * 1000
+					).toISOString(),
+					singleEvents: true,
+					orderBy: "startTime",
+				});
+
+				if (response.data.items) {
+					// Tag each event with its source calendar name
+					response.data.items.forEach((event) => {
+						event.calendarName = cal.calendarName;
+					});
+					events.push(...response.data.items);
+				}
+			}
+
+			// Sort events by start time
+			events.sort(
+				(a, b) =>
+					new Date(a.start?.dateTime || a.start?.date).getTime() -
+					new Date(b.start?.dateTime || b.start?.date).getTime()
+			);
 		} catch (error) {
 			console.error("Google Calendar API Error:", error);
 			await interaction.followUp({
@@ -280,9 +490,10 @@ END:VCALENDAR
 			return;
 		}
 
-		// Filter events into pages (2D array)
-		const eventsPerPage: number = 3; // Adjust as desired
-		let filteredEvents = await filterEvents(events, eventsPerPage, []);
+		// Continue using the existing filterEvents function
+		const eventsPerPage: number = 3;
+		let filteredEvents = await filterEvents(events, eventsPerPage, filters);
+
 		if (!filteredEvents.length) {
 			await interaction.followUp({
 				content:
@@ -330,35 +541,14 @@ END:VCALENDAR
 			});
 			return;
 		}
-
-		// Set up filter dropdown menus.
-		const filters = [
-			{
-				customId: 'class_name_menu',
-				placeholder: 'Select Classes',
-				values: ['CISC106', 'CISC108', 'CISC181', 'CISC210', 'CISC220', 'CISC260', 'CISC275'],
-				newValues: [],
-				flag: true,
-				condition: (newValues: string[], summary?: string) => newValues.some(value => summary.includes(value))
-			},
-			{
-				customId: 'week_menu',
-				placeholder: 'Select Days of Week',
-				values: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-				newValues: [],
-				flag: true,
-				condition: (newValues: string[], summary?: string, days?: string[], eventDate?: Date) =>
-					newValues.some(value => days[eventDate.getDay()].toLowerCase() === value.toLowerCase())
-			}
-		];
-		const flterComponents = generateFilterMessage(filters);
+		const filterComponents = generateFilterMessage(filters);
 
 		// Send filter message to prompt the user.
 		let filterMessage;
 		try {
 			filterMessage = await dm.send({
 				content: "**Select Filters:**",
-				components: flterComponents
+				components: filterComponents,
 			});
 		} catch (error) {
 			console.error("Failed to send DM:", error);
@@ -369,6 +559,11 @@ END:VCALENDAR
 			});
 			return;
 		}
+		// Refresh filter dropdown so newly detected classes appear
+		await filterMessage.edit({
+			content: "**Select Filters:**",
+			components: filterComponents,
+		});
 
 		// Create a button collector for the main message (for toggling, pagination, download, done).
 		const buttonCollector = message.createMessageComponentCollector({
@@ -378,7 +573,7 @@ END:VCALENDAR
 		// Create a collector for the filter dropdown menus.
 		const menuCollector = filterMessage.createMessageComponentCollector({
 			componentType: ComponentType.StringSelect,
-			time: 300000
+			time: 300000,
 		});
 
 		// Handle button interactions (toggle selection, pagination, download, done)
@@ -483,8 +678,7 @@ END:VCALENDAR
 			}
 		});
 
-		// Handle filter dropdown selections.
-		menuCollector.on('collect', async (i) => {
+		menuCollector.on("collect", async (i) => {
 			i.deferUpdate();
 			const filter = filters.find((f) => f.customId === i.customId);
 			if (filter) {
@@ -506,7 +700,7 @@ END:VCALENDAR
 			const newToggleRow = generateEventSelectButtons(filteredEvents, currentPage);
 			message.edit({
 				embeds: [newEmbed],
-				components: [newToggleRow, newButtonRow]
+				components: [newButtonRow],
 			});
 		});
 	}
