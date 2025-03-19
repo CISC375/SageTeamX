@@ -378,10 +378,7 @@ export default class extends Command {
 				flag: true,
 				condition: (newValues, event) => {
 					// Example: assume "In Person" or "Virtual" might appear in event.location (or event.summary)
-					const locString =
-						event.location?.toLowerCase() ||
-						event.summary?.toLowerCase() ||
-						"";
+					const locString = event.summary.toLowerCase();
 					// If you want to treat "In Person" or "Virtual" as a substring match:
 					return newValues.some((value) =>
 						locString.includes(value.toLowerCase())
@@ -416,7 +413,9 @@ export default class extends Command {
 						"Friday",
 						"Saturday",
 					][weekdayIndex];
-					return newValues.some((value) => value === dayName);
+					console.log(newValues);
+					console.log(dayName)
+					return newValues.some((value) => value.toLowerCase() === dayName.toLowerCase());
 				},
 			},
 		];
