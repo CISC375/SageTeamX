@@ -134,8 +134,8 @@ Email: ${event.creator.email || "NA"}
 		}
 
 		// Generates the pagination buttons (Previous, Next, Download Calendar, Done).
-		// Accepts an extra parameter "downloadEnabled" to control the Download button's state.
-		function generateButtons(currentPage: number, maxPage: number, filteredEvents, downloadEnabled: boolean): ActionRowBuilder<ButtonBuilder> {
+		// Accepts an extra parameter "downloadCount" to show the number of selected events.
+		function generateButtons(currentPage: number, maxPage: number, filteredEvents, downloadCount: number): ActionRowBuilder<ButtonBuilder> {
 			const nextButton = new ButtonBuilder()
 				.setCustomId("next")
 				.setLabel("Next")
@@ -150,9 +150,9 @@ Email: ${event.creator.email || "NA"}
 
 			const downloadCal = new ButtonBuilder()
 				.setCustomId("download_Cal")
-				.setLabel("Download Calendar")
+				.setLabel(`Download Calendar (${downloadCount})`)
 				.setStyle(ButtonStyle.Success)
-				.setDisabled(!downloadEnabled); // disabled if no events selected
+				.setDisabled(downloadCount === 0); // disabled if no events selected
 
 			const done = new ButtonBuilder()
 				.setCustomId("done")
@@ -309,8 +309,8 @@ END:VCALENDAR
 
 		// Generate initial embed, pagination buttons, and event toggle buttons.
 		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
-		// Pass "selectedEventsSet.size > 0" so Download button is initially disabled.
-		const buttonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size > 0);
+		// Pass the selected events count so Download button is initially disabled if count is 0.
+		const buttonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
 		const toggleRow = generateEventSelectButtons(filteredEvents, currentPage);
 
 		// Send main DM message with embed and two rows: toggle buttons and pagination buttons.
@@ -467,7 +467,7 @@ END:VCALENDAR
 
 				// Update the embed and both rows (toggle and pagination) after any interaction.
 				const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-				const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size > 0);
+				const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
 				const newToggleRow = generateEventSelectButtons(filteredEvents, currentPage);
 				await message.edit({
 					embeds: [newEmbed],
@@ -502,7 +502,7 @@ END:VCALENDAR
 				});
 			});
 			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-			const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size > 0);
+			const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
 			const newToggleRow = generateEventSelectButtons(filteredEvents, currentPage);
 			message.edit({
 				embeds: [newEmbed],
