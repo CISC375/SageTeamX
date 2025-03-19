@@ -16,10 +16,9 @@ import 'dotenv/config';
 import { MongoClient } from 'mongodb';
 import { authorize } from '../../lib/auth';
 import * as fs from 'fs';
-//import event from '@root/src/models/calEvent';
-
 const path = require("path");
 const process = require("process");
+
 const { google } = require("googleapis");
 
 interface Event {
@@ -31,26 +30,26 @@ interface Event {
 	end: string;
 	location: string;
 	locationType: string;
+	email: string;
 }
+
 export default class extends Command {
 	name = "calendar";
-	description =
-		"Retrieve calendar events over the next 10 days with pagination, optionally filter";
+	// Shortened description (<100 characters)
+	description = "Retrieve calendar events with pagination and filters";
 
-	// All available filters that someone can add and they are not required
+	// Slash command options for eventholder and eventdate
 	options: ApplicationCommandStringOptionData[] = [
 		{
 			type: ApplicationCommandOptionType.String,
 			name: "eventholder",
-			description:
-				"Enter the name of the event holder you are looking for.",
+			description: "Enter the event holder (e.g., class name).",
 			required: false,
 		},
 		{
 			type: ApplicationCommandOptionType.String,
 			name: "eventdate",
-			description:
-				'Enter the name of the date you are looking for with: [month name] [day] (eg., "december 12").',
+			description: 'Enter the date (e.g., "December 12").',
 			required: false,
 		},
 	];
@@ -58,7 +57,7 @@ export default class extends Command {
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
 		/** Helper Functions **/
 
-		// Filters calendar events based on various parameters
+		// Filters calendar events based on slash command inputs and filter dropdown selections.
 		async function filterEvents(events, eventsPerPage: number, filters) {
 			const eventHolder: string = interaction.options
 				.getString("eventholder")
@@ -138,8 +137,7 @@ export default class extends Command {
 					}
 				}
 			});
-
-			temp.length ? filteredEvents.push(temp) : 0;
+			if (temp.length) filteredEvents.push(temp);
 			return filteredEvents;
 		}
 
@@ -150,7 +148,7 @@ export default class extends Command {
 			maxPage: number
 		): EmbedBuilder {
 			let embed: EmbedBuilder;
-			if (filteredEvents.length) {
+			if (filteredEvents.length && filteredEvents[currentPage] && filteredEvents[currentPage].length) {
 				embed = new EmbedBuilder()
 					.setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
 					.setColor("Green");
@@ -163,7 +161,8 @@ export default class extends Command {
 								Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(
 							event.end.dateTime
 						).toLocaleTimeString()}
-								Location: ${event.location ? event.location : "`NONE`"}\n`,
+								Location: ${event.location ? event.location : "`NONE`"}
+								email:${event.creator.email}\n`,
 					});
 				});
 			} else {
@@ -179,12 +178,9 @@ export default class extends Command {
 			return embed;
 		}
 
-		// Generates the buttons for changing pages
-		function generateButtons(
-			currentPage: number,
-			maxPage: number,
-			filteredEvents
-		): ActionRowBuilder<ButtonBuilder> {
+		// Generates the pagination buttons (Previous, Next, Download Calendar, Done).
+		// Accepts an extra parameter "downloadCount" to show the number of selected events.
+		function generateButtons(currentPage: number, maxPage: number, filteredEvents, downloadCount: number): ActionRowBuilder<ButtonBuilder> {
 			const nextButton = new ButtonBuilder()
 				.setCustomId("next")
 				.setLabel("Next")
@@ -198,10 +194,10 @@ export default class extends Command {
 				.setDisabled(currentPage === 0);
 
 			const downloadCal = new ButtonBuilder()
-			.setCustomId("download_Cal")
-			.setLabel("Download Calendar")
-			.setStyle(ButtonStyle.Success)
-			.setDisabled(filteredEvents.length === 0);
+				.setCustomId("download_Cal")
+				.setLabel(`Download Calendar (${downloadCount})`)
+				.setStyle(ButtonStyle.Success)
+				.setDisabled(downloadCount === 0); // disabled if no events selected
 
 			const done = new ButtonBuilder()
 				.setCustomId("done")
@@ -212,11 +208,11 @@ export default class extends Command {
 				prevButton,
 				nextButton,
 				downloadCal,
-				done,
+				done
 			);
 		}
 
-		// Generates message for filters
+		// Generates filter dropdown menus.
 		function generateFilterMessage(filters) {
 			const filterMenus = filters.map((filter) => {
 				if (filter.values.length === 0) {
@@ -243,7 +239,6 @@ export default class extends Command {
 						})
 					);
 			});
-
 			const components = filterMenus.map((menu) => {
 				return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
 					menu
@@ -252,87 +247,66 @@ export default class extends Command {
 			return components;
 		}
 
-		async function downloadCalendar(filteredEvents, calendar, auth) {
-			const test: Map<string, string> = new Map<string, string>();
-			const formattedEvents: string[] = [];
-			
-			// Find all recurring event IDs and put them into a map
-			await Promise.all(filteredEvents.map(async (eventArray) => {
-				await Promise.all(eventArray.map(async (event) => {
-					if (event.recurringEventId) {
-						const parentEvent = await calendar.events.get({
-							auth: auth,
-							calendarId: "c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com",
-							eventId: event.recurringEventId,
-						});
-						parentEvent.data.recurrence ? test.set(event.recurringEventId, parentEvent.data.recurrence[0]) : 0;
-					}
-				}));
-			}));
-
-			// Create calendar event object for 
-			filteredEvents.forEach((eventArray) => {
-				eventArray.forEach((event) => {
-					let append: boolean = false;
-					const iCalEvent = 
-					{
-						UID: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
-						CREATED: new Date(event.created).toISOString().replace(/[-:.]/g, ''),
-						DTSTAMP: event.updated.replace(/[-:.]/g, ''),
-						DTSTART: `TZID=${event.start.timeZone}:${event.start.dateTime.replace(/[-:.]/g, '')}`,
-						DTEND: `TZID=${event.end.timeZone}:${event.end.dateTime.replace(/[-:.]/g, '')}`,
-						SUMMARY: event.summary,
-						DESCRIPTION: '',
-						LOCATION:( event.location ? event.location : 'NONE'),
-					}
-
-					// Make sure recurring events are not put in twice
-					let recurenceRule: string;
-					if (event.recurringEventId) {
-						recurenceRule = test.get(event.recurringEventId);
-						if (recurenceRule) {
-							append = true; 
-							test.delete(event.recurringEventId);
-						}
-					}
-					else {
-						append = true;
-					}
-	
-					if (append) {
-						const icsFormatted = 
-						`BEGIN:VEVENT
-						UID:${iCalEvent.UID}
-						CREATED:${iCalEvent.CREATED}
-						DTSTAMP:${iCalEvent.DTSTAMP}
-						DTSTART;${iCalEvent.DTSTART}
-						DTEND;${iCalEvent.DTEND}
-						SUMMARY:${iCalEvent.SUMMARY}
-						DESCRIPTION:${iCalEvent.DESCRIPTION}
-						LOCATION:${iCalEvent.LOCATION}
-						STATUS:CONFIRMED
-						${recurenceRule ? recurenceRule : ''}
-						END:VEVENT
-						`.replace(/\t/g, '');
-						formattedEvents.push(icsFormatted);
-					}
-				});
+		// Generates a row of toggle buttons – one for each event on the current page.
+		function generateEventSelectButtons(filteredEvents, currentPage: number) {
+			const row = new ActionRowBuilder<ButtonBuilder>();
+			if (!filteredEvents[currentPage] || !filteredEvents[currentPage].length) return row;
+			filteredEvents[currentPage].forEach((event, idx) => {
+				// Custom ID format: toggle-<currentPage>-<index>
+				row.addComponents(
+					new ButtonBuilder()
+						.setCustomId(`toggle-${currentPage}-${idx}`)
+						.setLabel(`Select #${idx + 1}`)
+						.setStyle(ButtonStyle.Secondary)
+				);
 			});
-			
-			// Create 
-			const icsCalendar = 
-			`BEGIN:VCALENDAR
-			VERSION:2.0
-			PRODID:-//YourBot//Discord Calendar//EN
-			${formattedEvents.join('')}
-			END:VCALENDAR`.replace(/\t/g, '');
+			return row;
+		}
+
+		// Downloads only the selected events by generating an ICS file.
+		async function downloadSelectedEvents(selectedEvents, calendar, auth) {
+			const formattedEvents: string[] = [];
+			selectedEvents.forEach((event) => {
+				const iCalEvent = {
+					UID: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+					CREATED: new Date(event.created).toISOString().replace(/[-:.]/g, ''),
+					DTSTAMP: event.updated.replace(/[-:.]/g, ''),
+					DTSTART: `TZID=${event.start.timeZone}:${event.start.dateTime.replace(/[-:.]/g, '')}`,
+					DTEND: `TZID=${event.end.timeZone}:${event.end.dateTime.replace(/[-:.]/g, '')}`,
+					SUMMARY: event.summary,
+					DESCRIPTION: `Contact Email: ${event.creator.email || 'NA'}`,
+					LOCATION: event.location ? event.location : 'NONE',
+				};
+
+				const icsFormatted =
+					`BEGIN:VEVENT
+UID:${iCalEvent.UID}
+CREATED:${iCalEvent.CREATED}
+DTSTAMP:${iCalEvent.DTSTAMP}
+DTSTART;${iCalEvent.DTSTART}
+DTEND;${iCalEvent.DTEND}
+SUMMARY:${iCalEvent.SUMMARY}
+DESCRIPTION:${iCalEvent.DESCRIPTION}
+LOCATION:${iCalEvent.LOCATION}
+STATUS:CONFIRMED
+END:VEVENT
+`.replace(/\t/g, '');
+				formattedEvents.push(icsFormatted);
+			});
+
+			const icsCalendar =
+				`BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//YourBot//Discord Calendar//EN
+${formattedEvents.join('')}
+END:VCALENDAR
+`.replace(/\t/g, '');
 
 			fs.writeFileSync('./events.ics', icsCalendar);
 		}
 
 		/**********************************************************************************************************************************************************************************************/
-
-		// Inital Reply
+		// Initial Reply to acknowledge the interaction (only once)
 		await interaction.reply({
 			content: "Authenticating and fetching events...",
 			ephemeral: true,
@@ -529,19 +503,34 @@ export default class extends Command {
 			return;
 		}
 
-		// Generate intial embed and buttons
 		let maxPage: number = filteredEvents.length;
 		let currentPage: number = 0;
-		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
-		const buttonRow = generateButtons(currentPage, maxPage, filteredEvents);
 
-		// Send main message
+		// Create state variables to track selected events.
+		// Keys are in the format "page-index"; eventMap holds the actual event objects.
+		const selectedEventsSet = new Set<string>();
+		const eventMap = {};
+
+		// Build the eventMap from filtered events.
+		filteredEvents.forEach((pageEvents, pIndex) => {
+			pageEvents.forEach((evt, eIndex) => {
+				eventMap[`${pIndex}-${eIndex}`] = evt;
+			});
+		});
+
+		// Generate initial embed, pagination buttons, and event toggle buttons.
+		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
+		// Pass the selected events count so Download button is initially disabled if count is 0.
+		const buttonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
+		const toggleRow = generateEventSelectButtons(filteredEvents, currentPage);
+
+		// Send main DM message with embed and two rows: toggle buttons and pagination buttons.
 		const dm = await interaction.user.createDM();
 		let message;
 		try {
 			message = await dm.send({
 				embeds: [embed],
-				components: [buttonRow],
+				components: [toggleRow, buttonRow],
 			});
 		} catch (error) {
 			console.error("Failed to send DM:", error);
@@ -554,7 +543,7 @@ export default class extends Command {
 		}
 		const filterComponents = generateFilterMessage(filters);
 
-		// Send filter message
+		// Send filter message to prompt the user.
 		let filterMessage;
 		try {
 			filterMessage = await dm.send({
@@ -576,42 +565,86 @@ export default class extends Command {
 			components: filterComponents,
 		});
 
-		// Create button collector for main message
+		// Create a button collector for the main message (for toggling, pagination, download, done).
 		const buttonCollector = message.createMessageComponentCollector({
 			time: 300000,
 		});
 
-		// Create dropdown collector for filters
+		// Create a collector for the filter dropdown menus.
 		const menuCollector = filterMessage.createMessageComponentCollector({
 			componentType: ComponentType.StringSelect,
 			time: 300000,
 		});
 
-	buttonCollector.on("collect", async (btnInt) => {
+		// Handle button interactions (toggle selection, pagination, download, done)
+		buttonCollector.on("collect", async (btnInt) => {
 			try {
 				await btnInt.deferUpdate();
-				if (btnInt.customId === "next") {
+				// Handle toggle button clicks.
+				if (btnInt.customId.startsWith("toggle-")) {
+					// Custom ID format: toggle-<page>-<index>
+					const parts = btnInt.customId.split("-");
+					const key = `${parts[1]}-${parts[2]}`;
+					const event = eventMap[key];
+					if (selectedEventsSet.has(key)) {
+						selectedEventsSet.delete(key);
+						// Send a temporary message indicating removal.
+						try {
+							const removeMsg = await dm.send(`Removed ${event.summary}`);
+							setTimeout(async () => {
+								try {
+									await removeMsg.delete();
+								} catch (err) {
+									console.error("Failed to delete removal message:", err);
+								}
+							}, 3000);
+						} catch (err) {
+							console.error("Error sending removal message:", err);
+						}
+					} else {
+						selectedEventsSet.add(key);
+						try {
+							const addMsg = await dm.send(`Added ${event.summary}`);
+							setTimeout(async () => {
+								try {
+									await addMsg.delete();
+								} catch (err) {
+									console.error("Failed to delete addition message:", err);
+								}
+							}, 3000);
+						} catch (err) {
+							console.error("Error sending addition message:", err);
+						}
+					}
+				} else if (btnInt.customId === "next") {
 					if (currentPage + 1 >= maxPage) return;
 					currentPage++;
 				} else if (btnInt.customId === "prev") {
 					if (currentPage === 0) return;
 					currentPage--;
-				}
-				else if (btnInt.customId === 'download_Cal') {
-					const downloadMessage = await dm.send({content: 'Downloading Calendar...'});
+				} else if (btnInt.customId === 'download_Cal') {
+					// When Download is pressed, include only selected events.
+					if (selectedEventsSet.size === 0) {
+						await dm.send("No events selected to download!");
+						return;
+					}
+					const selectedEvents = [];
+					selectedEventsSet.forEach((key) => {
+						if (eventMap[key]) selectedEvents.push(eventMap[key]);
+					});
+					const downloadMessage = await dm.send({ content: 'Downloading selected events...' });
 					try {
-						await downloadCalendar(filteredEvents, calendar, auth);
+						await downloadSelectedEvents(selectedEvents, calendar, auth);
 						const filePath = path.join('./events.ics');
 						await downloadMessage.edit({
-							content: '', 
+							content: '',
 							files: [filePath]
 						});
+						fs.unlinkSync('./events.ics');
 					} catch {
-						await downloadMessage.edit({content: '⚠️ Failed to download events'});
+						await downloadMessage.edit({ content: '⚠️ Failed to download events' });
 					}
-					fs.unlinkSync('./events.ics');
-				}
-				else {
+				} else if (btnInt.customId === "done") {
 					await message.edit({
 						embeds: [],
 						components: [],
@@ -627,21 +660,19 @@ export default class extends Command {
 					return;
 				}
 
-				const newEmbed = generateEmbed(
-					filteredEvents,
-					currentPage,
-					maxPage
-				);
-				const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents);
+				// Update the embed and both rows (toggle and pagination) after any interaction.
+				const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
+				const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
+				const newToggleRow = generateEventSelectButtons(filteredEvents, currentPage);
 				await message.edit({
 					embeds: [newEmbed],
-					components: [newButtonRow],
+					components: [newToggleRow, newButtonRow],
 				});
 			} catch (error) {
 				console.error("Button Collector Error:", error);
+				// Always use followUp to avoid re-acknowledging an interaction.
 				await btnInt.followUp({
-					content:
-						"⚠️ An error occurred while navigating through events. Please try again.",
+					content: "⚠️ An error occurred while navigating through events. Please try again.",
 					ephemeral: true,
 				});
 			}
@@ -653,11 +684,20 @@ export default class extends Command {
 			if (filter) {
 				filter.newValues = i.values;
 			}
+			// Re-filter events using the updated filter selections.
 			filteredEvents = await filterEvents(events, eventsPerPage, filters);
 			currentPage = 0;
 			maxPage = filteredEvents.length;
+			// Clear previous selections and rebuild the eventMap.
+			selectedEventsSet.clear();
+			filteredEvents.forEach((pageEvents, pIndex) => {
+				pageEvents.forEach((evt, eIndex) => {
+					eventMap[`${pIndex}-${eIndex}`] = evt;
+				});
+			});
 			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-			const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents);
+			const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
+			const newToggleRow = generateEventSelectButtons(filteredEvents, currentPage);
 			message.edit({
 				embeds: [newEmbed],
 				components: [newButtonRow],
