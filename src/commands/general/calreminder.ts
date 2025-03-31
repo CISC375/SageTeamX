@@ -20,6 +20,7 @@ const process = require("process");
 const { google } = require("googleapis");
 import parse from "parse-duration";
 import { authorize } from "../../lib/auth";
+import { utc } from "moment";
 
 export default class extends Command {
 	name = "calreminder";
@@ -211,12 +212,16 @@ export default class extends Command {
 						});
 						return;
 					}
+					// Create reminder time in local time
 					const remindDate = new Date(
 						dateObj.getTime() - chosenOffset
 					);
 
+					// Force it to UTC by re-parsing the ISO string
+					const utcRemindDate = new Date(remindDate.toISOString());
+
 					// Check if it's already in the past
-					if (remindDate.getTime() <= Date.now()) {
+					if (utcRemindDate.getTime() <= Date.now()) {
 						await btnInt.editReply({
 							content:
 								"That reminder time is in the past. No reminder was set.",
@@ -237,7 +242,7 @@ export default class extends Command {
 						owner: btnInt.user.id,
 						content: eventInfo,
 						mode: "public",
-						expires: remindDate,
+						expires: utcRemindDate,
 						repeat: null,
 					};
 
