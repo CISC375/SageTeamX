@@ -80,8 +80,8 @@ export default class extends Command {
 
 		// Command input
 		const className = interaction.options.getString("classname");
-		const events = res.data.items || [];	
-		
+		const events = res.data.items || [];
+
 		// Filter events
 		const filteredEvents = events.filter((event) =>
 			event.summary.toLowerCase().includes(className.toLowerCase())
@@ -180,6 +180,14 @@ export default class extends Command {
 			} else if (i.customId === "select_offset") {
 				const rawOffsetStr = i.values[0];
 				chosenOffset = rawOffsetStr === "0" ? 0 : parse(rawOffsetStr);
+				if (isNaN(chosenOffset)) {
+					await i.reply({
+						content:
+							"⚠️ Invalid reminder offset selected. Please try again.",
+						ephemeral: true,
+					});
+					return;
+				}
 				await i.deferUpdate();
 			}
 		});
@@ -195,6 +203,14 @@ export default class extends Command {
 				await btnInt.deferUpdate();
 				if (chosenEvent && chosenEvent !== null) {
 					const dateObj = new Date(chosenEvent.start.dateTime);
+					if (!chosenOffset || isNaN(chosenOffset)) {
+						await btnInt.editReply({
+							content:
+								"⚠️ Reminder offset is invalid. No reminder was set.",
+							components: [],
+						});
+						return;
+					}
 					const remindDate = new Date(
 						dateObj.getTime() - chosenOffset
 					);
