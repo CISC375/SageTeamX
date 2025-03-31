@@ -87,6 +87,22 @@ export default class extends Command {
 			event.summary.toLowerCase().includes(className.toLowerCase())
 		);
 
+		// Put the events into a 2D array
+		let temp = [];
+		let pagifiedEvents = [];
+		filteredEvents.forEach((event) => {
+			if (temp.length < 25) {
+				temp = [...temp, event];
+			}
+			else {
+				pagifiedEvents = [...pagifiedEvents, temp];
+				temp = [];
+			}
+		});
+		if (temp.length > 0) {
+			pagifiedEvents = [...pagifiedEvents, temp];
+		}
+
 		if (!filteredEvents.length) {
 			await interaction.reply({
 				content: "No events found for this class.",
@@ -101,7 +117,7 @@ export default class extends Command {
 			.setPlaceholder("Select an event")
 			.setMaxValues(1)
 			.addOptions(
-				filteredEvents.slice(0, 25).map((event, index: number) => {
+				filteredEvents.map((event, index: number) => {
 					const label = event.summary;
 					const description = `Starts at: ${new Date(
 						event.start.dateTime
