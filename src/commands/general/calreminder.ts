@@ -34,6 +34,75 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
+		async function generateRemindMessage() {
+			// 1) Event dropdown
+			const eventMenu = new StringSelectMenuBuilder()
+			.setCustomId("select_event")
+			.setPlaceholder("Select an event")
+			.setMaxValues(1)
+			.addOptions(
+				pagifiedEvents[0].map((event, index: number) => {
+					const label = event.summary;
+					const description = `Starts at: ${new Date(
+						event.start.dateTime
+					).toLocaleString()}`;
+					// Stash dateTime plus index
+					return new StringSelectMenuOptionBuilder()
+						.setLabel(label)
+						.setDescription(description)
+						.setValue(`${event.start.dateTime}::${index}`);
+				})
+			);
+
+			// 2) Offset dropdown
+			const offsetOptions = [
+				{ label: "At event", value: "0" },
+				{ label: "10 minutes before", value: "10m" },
+				{ label: "30 minutes before", value: "30m" },
+				{ label: "1 hour before", value: "1h" },
+				{ label: "1 day before", value: "1d" },
+			];
+
+			const offsetMenu = new StringSelectMenuBuilder()
+				.setCustomId("select_offset")
+				.setPlaceholder("Select reminder offset")
+				.setMaxValues(1)
+				.addOptions(
+					offsetOptions.map((opt) =>
+						new StringSelectMenuOptionBuilder()
+							.setLabel(opt.label)
+							.setValue(opt.value)
+					)
+				);
+
+			// 3) Set Reminder button
+			const setReminder = new ButtonBuilder()
+				.setCustomId("set_reminder")
+				.setLabel("Set Reminder")
+				.setStyle(ButtonStyle.Success);
+
+			// 4) Next Button
+
+			// 5) Prev Button
+
+			// Create action rows for the dropdowns
+			const row1 =
+				new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+					eventMenu
+				);
+			const row2 =
+				new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+					offsetMenu
+				);
+
+			const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+				setReminder
+			);
+			return await interaction.reply({
+				components: [row1, row2, row3],
+				ephemeral: true,
+			});
+		}
 		// Authorize Google Calendar
 		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
@@ -111,71 +180,9 @@ export default class extends Command {
 			return;
 		}
 
-		// 1) Event dropdown
-		const eventMenu = new StringSelectMenuBuilder()
-			.setCustomId("select_event")
-			.setPlaceholder("Select an event")
-			.setMaxValues(1)
-			.addOptions(
-				filteredEvents.map((event, index: number) => {
-					const label = event.summary;
-					const description = `Starts at: ${new Date(
-						event.start.dateTime
-					).toLocaleString()}`;
-					// Stash dateTime plus index
-					return new StringSelectMenuOptionBuilder()
-						.setLabel(label)
-						.setDescription(description)
-						.setValue(`${event.start.dateTime}::${index}`);
-				})
-			);
-
-		// 2) Offset dropdown
-		const offsetOptions = [
-			{ label: "At event", value: "0" },
-			{ label: "10 minutes before", value: "10m" },
-			{ label: "30 minutes before", value: "30m" },
-			{ label: "1 hour before", value: "1h" },
-			{ label: "1 day before", value: "1d" },
-		];
-
-		const offsetMenu = new StringSelectMenuBuilder()
-			.setCustomId("select_offset")
-			.setPlaceholder("Select reminder offset")
-			.setMaxValues(1)
-			.addOptions(
-				offsetOptions.map((opt) =>
-					new StringSelectMenuOptionBuilder()
-						.setLabel(opt.label)
-						.setValue(opt.value)
-				)
-			);
-
-		// 3) Set Reminder button
-		const setReminder = new ButtonBuilder()
-			.setCustomId("set_reminder")
-			.setLabel("Set Reminder")
-			.setStyle(ButtonStyle.Success);
-
-		// Create action rows for the dropdowns
-		const row1 =
-			new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-				eventMenu
-			);
-		const row2 =
-			new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-				offsetMenu
-			);
-
-		const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-			setReminder
-		);
 
 		// Send ephemeral message with both dropdowns
-		const replyMessage = await interaction.reply({
-			components: [row1, row2, row3],
-			ephemeral: true,
-		});
+		const replyMessage = await generateRemindMessage();
 
 		let chosenEvent = null;
 		let chosenOffset: number | null = null;
