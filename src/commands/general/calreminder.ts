@@ -34,14 +34,14 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		async function generateRemindMessage() {
+		async function generateRemindMessage(pagifiedEvents, currentPage: number, maxPages: number) {
 			// 1) Event dropdown
 			const eventMenu = new StringSelectMenuBuilder()
 			.setCustomId("select_event")
 			.setPlaceholder("Select an event")
 			.setMaxValues(1)
 			.addOptions(
-				pagifiedEvents[0].map((event, index: number) => {
+				pagifiedEvents[currentPage].map((event, index: number) => {
 					const label = event.summary;
 					const description = `Starts at: ${new Date(
 						event.start.dateTime
@@ -82,8 +82,18 @@ export default class extends Command {
 				.setStyle(ButtonStyle.Success);
 
 			// 4) Next Button
+			const nextButton = new ButtonBuilder()
+				.setCustomId('nextButton')
+				.setLabel('Next')
+				.setStyle(ButtonStyle.Primary)
+				.setDisabled(currentPage + 1 === maxPages)
 
 			// 5) Prev Button
+			const prevButton = new ButtonBuilder()
+				.setCustomId('prevButton')
+				.setLabel('Previous')
+				.setStyle(ButtonStyle.Primary)
+				.setDisabled(currentPage === 0)
 
 			// Create action rows for the dropdowns
 			const row1 =
@@ -96,12 +106,14 @@ export default class extends Command {
 				);
 
 			const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+				prevButton, nextButton
+			);
+
+			const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(
 				setReminder
 			);
-			return await interaction.reply({
-				components: [row1, row2, row3],
-				ephemeral: true,
-			});
+
+			return [row1, row2, row3, row4];
 		}
 		// Authorize Google Calendar
 		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
@@ -156,6 +168,14 @@ export default class extends Command {
 			event.summary.toLowerCase().includes(className.toLowerCase())
 		);
 
+		if (!filteredEvents.length) {
+			await interaction.reply({
+				content: "No events found for this class.",
+				ephemeral: true,
+			});
+			return;
+		}
+
 		// Put the events into a 2D array
 		let temp = [];
 		let pagifiedEvents = [];
@@ -171,18 +191,15 @@ export default class extends Command {
 		if (temp.length > 0) {
 			pagifiedEvents = [...pagifiedEvents, temp];
 		}
-
-		if (!filteredEvents.length) {
-			await interaction.reply({
-				content: "No events found for this class.",
-				ephemeral: true,
-			});
-			return;
-		}
-
+		const maxPages = pagifiedEvents.length;
+		let currentPage = 0;
 
 		// Send ephemeral message with both dropdowns
-		const replyMessage = await generateRemindMessage();
+		const initalComponents = await generateRemindMessage(pagifiedEvents, currentPage, maxPages);
+		const replyMessage = await interaction.reply({
+			components: initalComponents,
+			ephemeral: true
+		})
 
 		let chosenEvent = null;
 		let chosenOffset: number | null = null;
@@ -198,7 +215,7 @@ export default class extends Command {
 			if (i.customId === "select_event") {
 				const [eventDateStr, indexStr] = i.values[0].split("::");
 				const selectedIndex = parseInt(indexStr);
-				chosenEvent = filteredEvents[selectedIndex];
+				chosenEvent = pagifiedEvents[currentPage][selectedIndex];
 				await i.deferUpdate();
 			} else if (i.customId === "select_offset") {
 				const rawOffsetStr = i.values[0];
@@ -288,6 +305,22 @@ export default class extends Command {
 				});
 
 				buttonCollector.stop();
+			}
+			else if (btnInt.customId === 'nextButton') {
+				await btnInt.deferUpdate();
+				currentPage++;
+				const newComponents = await generateRemindMessage(pagifiedEvents, currentPage, maxPages);
+				replyMessage.edit({
+					components: newComponents 
+				});
+			}
+			else if (btnInt.customId === 'prevButton') {
+				await btnInt.deferUpdate();
+				currentPage--;
+				const newComponents = await generateRemindMessage(pagifiedEvents, currentPage, maxPages);
+				replyMessage.edit({
+					components: newComponents 
+				});
 			}
 		});
 	}
