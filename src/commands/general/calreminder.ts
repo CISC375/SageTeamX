@@ -34,7 +34,7 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		async function generateRemindMessage(pagifiedEvents, currentPage: number, maxPages: number) {
+		async function generateMessage(pagifiedEvents, currentPage: number, maxPages: number) {
 			// 1) Event dropdown
 			const eventMenu = new StringSelectMenuBuilder()
 			.setCustomId("select_event")
@@ -195,8 +195,9 @@ export default class extends Command {
 		let currentPage = 0;
 
 		// Send ephemeral message with both dropdowns
-		const initalComponents = await generateRemindMessage(pagifiedEvents, currentPage, maxPages);
+		const initalComponents = await generateMessage(pagifiedEvents, currentPage, maxPages);
 		const replyMessage = await interaction.reply({
+			content: `Events ${currentPage + 1} of ${maxPages}`,
 			components: initalComponents,
 			ephemeral: true
 		})
@@ -309,16 +310,18 @@ export default class extends Command {
 			else if (btnInt.customId === 'nextButton') {
 				await btnInt.deferUpdate();
 				currentPage++;
-				const newComponents = await generateRemindMessage(pagifiedEvents, currentPage, maxPages);
+				const newComponents = await generateMessage(pagifiedEvents, currentPage, maxPages);
 				replyMessage.edit({
+					content: `Events ${currentPage + 1} of ${maxPages}`,
 					components: newComponents 
 				});
 			}
 			else if (btnInt.customId === 'prevButton') {
 				await btnInt.deferUpdate();
 				currentPage--;
-				const newComponents = await generateRemindMessage(pagifiedEvents, currentPage, maxPages);
+				const newComponents = await generateMessage(pagifiedEvents, currentPage, maxPages);
 				replyMessage.edit({
+					content: `Events ${currentPage + 1} of ${maxPages}`,
 					components: newComponents 
 				});
 			}
