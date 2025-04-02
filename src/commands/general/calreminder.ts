@@ -20,6 +20,7 @@ const process = require("process");
 const { google } = require("googleapis");
 import parse from "parse-duration";
 import { authorize } from "../../lib/auth";
+import { utc } from "moment";
 
 export default class extends Command {
 	name = "calreminder";
@@ -161,8 +162,8 @@ export default class extends Command {
 
 		// Command input
 		const className = interaction.options.getString("classname");
-		const events = res.data.items || [];	
-		
+		const events = res.data.items || [];
+
 		// Filter events
 		const filteredEvents = events.filter((event) =>
 			event.summary.toLowerCase().includes(className.toLowerCase())
@@ -221,6 +222,14 @@ export default class extends Command {
 			} else if (i.customId === "select_offset") {
 				const rawOffsetStr = i.values[0];
 				chosenOffset = rawOffsetStr === "0" ? 0 : parse(rawOffsetStr);
+				if (isNaN(chosenOffset)) {
+					await i.reply({
+						content:
+							"⚠️ Invalid reminder offset selected. Please try again.",
+						ephemeral: true,
+					});
+					return;
+				}
 				await i.deferUpdate();
 			}
 		});
@@ -236,12 +245,24 @@ export default class extends Command {
 				await btnInt.deferUpdate();
 				if (chosenEvent && chosenEvent !== null) {
 					const dateObj = new Date(chosenEvent.start.dateTime);
+					if (!chosenOffset || isNaN(chosenOffset)) {
+						await btnInt.editReply({
+							content:
+								"⚠️ Reminder offset is invalid. No reminder was set.",
+							components: [],
+						});
+						return;
+					}
+					// Create reminder time in local time
 					const remindDate = new Date(
 						dateObj.getTime() - chosenOffset
 					);
 
+					// Force it to UTC by re-parsing the ISO string
+					const utcRemindDate = new Date(remindDate.toISOString());
+
 					// Check if it's already in the past
-					if (remindDate.getTime() <= Date.now()) {
+					if (utcRemindDate.getTime() <= Date.now()) {
 						await btnInt.editReply({
 							content:
 								"That reminder time is in the past. No reminder was set.",
@@ -262,7 +283,7 @@ export default class extends Command {
 						owner: btnInt.user.id,
 						content: eventInfo,
 						mode: "public",
-						expires: remindDate,
+						expires: utcRemindDate,
 						repeat: null,
 					};
 
