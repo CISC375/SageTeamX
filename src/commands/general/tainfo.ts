@@ -163,9 +163,14 @@ export default class extends Command {
 					.map((holder: { name: string; email: string }) => `**Name:** ${holder.name} **Email:** ${holder.email}`)
 					.join("\n\n");
 
+					// Remove duplicates
+					const uniqueTaInfoList = Array.from(
+						new Set(taInfoList.split("\n\n"))
+					).join("\n\n");
+
 					const embed = new EmbedBuilder()
 						.setTitle(`TAs for course **${className}**`)
-						.setDescription(taInfoList)
+						.setDescription(uniqueTaInfoList)
 						.setColor("#0099ff")
 
 					// Send DM with list of TAs
