@@ -34,7 +34,6 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		// Authorize Google Calendar
 		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
@@ -50,7 +49,6 @@ export default class extends Command {
 			});
 			return;
 		}
-
 		// Fetch events
 		const now = new Date();
 		const timeMin = now.toISOString();
@@ -80,8 +78,7 @@ export default class extends Command {
 
 		// Command input
 		const className = interaction.options.getString("classname");
-		const events = res.data.items || [];	
-		
+		const events = res.data.items || [];
 		// Filter events
 		const filteredEvents = events.filter((event) =>
 			event.summary.toLowerCase().includes(className.toLowerCase())
@@ -107,6 +104,7 @@ export default class extends Command {
 						event.start.dateTime
 					).toLocaleString()}`;
 					// Stash dateTime plus index
+
 					return new StringSelectMenuOptionBuilder()
 						.setLabel(label)
 						.setDescription(description)
@@ -135,6 +133,11 @@ export default class extends Command {
 				)
 			);
 
+		const toggleRepeatButton = new ButtonBuilder()
+			.setCustomId("toggle_repeat")
+			.setLabel("Repeat: Off")
+			.setStyle(ButtonStyle.Secondary);
+
 		// 3) Set Reminder button
 		const setReminder = new ButtonBuilder()
 			.setCustomId("set_reminder")
@@ -150,8 +153,8 @@ export default class extends Command {
 			new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
 				offsetMenu
 			);
-
 		const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+			toggleRepeatButton,
 			setReminder
 		);
 
@@ -163,9 +166,11 @@ export default class extends Command {
 
 		let chosenEvent = null;
 		let chosenOffset: number | null = null;
+		let repeatInterval: "every_event" | null = null;
 		let activeReminderId: string | null = null;
 
 		// Main collector for event & offset
+
 		const collector = replyMessage.createMessageComponentCollector({
 			componentType: ComponentType.StringSelect,
 			time: 60_000,
@@ -191,7 +196,19 @@ export default class extends Command {
 		});
 
 		buttonCollector.on("collect", async (btnInt) => {
-			if (btnInt.customId === "set_reminder") {
+			if (btnInt.customId === "toggle_repeat") {
+				repeatInterval = repeatInterval ? null : "every_event";
+				const newLabel = repeatInterval ? "Repeat: On" : "Repeat: Off";
+				const updatedRow =
+					new ActionRowBuilder<ButtonBuilder>().addComponents(
+						new ButtonBuilder()
+							.setCustomId("toggle_repeat")
+							.setLabel(newLabel)
+							.setStyle(ButtonStyle.Secondary),
+						setReminder
+					);
+				await btnInt.update({ components: [row1, row2, updatedRow] });
+			} else if (btnInt.customId === "set_reminder") {
 				await btnInt.deferUpdate();
 				if (chosenEvent && chosenEvent !== null) {
 					const dateObj = new Date(chosenEvent.start.dateTime);
@@ -207,7 +224,7 @@ export default class extends Command {
 							components: [],
 						});
 						collector.stop();
-						buttonCollector.stop;
+						buttonCollector.stop();
 						return;
 					}
 
@@ -222,7 +239,7 @@ export default class extends Command {
 						content: eventInfo,
 						mode: "public",
 						expires: remindDate,
-						repeat: null,
+						repeat: repeatInterval,
 					};
 
 					const result = await btnInt.client.mongo
@@ -245,7 +262,11 @@ export default class extends Command {
 					await btnInt.editReply({
 						content: `Your reminder is set!\nI'll remind you at **${reminderTime(
 							reminder
-						)}** about:\n\`\`\`\n${reminder.content}\n\`\`\``,
+						)}** about:\n\u0060\u0060\u0060\n${
+							reminder.content
+						}\n\u0060\u0060\u0060${
+							repeatInterval ? `\nRepeats every event` : ""
+						}`,
 						components: [buttonRow],
 					});
 
