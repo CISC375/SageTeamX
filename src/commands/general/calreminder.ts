@@ -145,8 +145,8 @@ export default class extends Command {
 			filteredEvents.forEach((event, index) => {
 				eventMenus.addOption({
 										label: event.summary, 
-										description: `Starts at: ${new Date(event.start.dateTime).toLocaleString()}`, 
-										value: `${event.start.dateTime}::${index}`
+										value: `${event.start.dateTime}::${index}`,
+										description: `Starts at: ${new Date(event.start.dateTime).toLocaleString()}`
 									})
 		});
 
@@ -157,9 +157,10 @@ export default class extends Command {
 			ephemeral: true
 		})
 		
-		let chosenEvent = null;
 		const eventMenusComponents = eventMenus.generateActionRows();
-		eventMenus.generateMessage((i, chosenEvent) => {
+
+		let chosenEvent = null;
+		eventMenus.generateMessage((i) => {
 			const [eventDateStr, indexStr] = i.values[0].split("::");
 			const selectedIndex = parseInt(indexStr);
 			chosenEvent = filteredEvents[selectedIndex];
