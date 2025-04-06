@@ -2,9 +2,11 @@ import
 { ActionRowBuilder,
 	ButtonBuilder,
 	ButtonStyle,
+	CacheType,
 	ChatInputCommandInteraction,
 	ComponentType,
 	StringSelectMenuBuilder,
+	StringSelectMenuInteraction,
 	StringSelectMenuOptionBuilder } from 'discord.js';
 
 export class PagifiedSelectMenu {
@@ -38,7 +40,16 @@ export class PagifiedSelectMenu {
 		this.numPages++;
 	}
 
-	addOption(options: { label: string, description?: string, value: string }): void {
+	/**
+	 * Adds an option to an available select menu. If all select menus are full, it will create a new select menu
+	 *
+	 * @param {Object} options Contains the values that will be used to cretae the select menu option
+	 * @param {string} options.label The label that will be given to the select menu option
+	 * @param {string} options.value The value that will be assigned to the select menu option
+	 * @param {string} options.description Optional: Description that will appear under the select menu option
+	 * @returns {void} This method returns nothing
+	 */
+	addOption(options: { label: string, value: string, description?: string }): void {
 		if (this.menus.length > 0) {
 			this.numOptions++;
 
@@ -63,10 +74,15 @@ export class PagifiedSelectMenu {
 		}
 	}
 
+	/**
+	 * Generates Discord action rows containing the string select menu and navigation buttons
+	 *
+	 * @returns {(ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[]} An array of action rows containing the string select menu and navigation buttons
+	 */
 	generateActionRows(): (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] {
-		const components: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
+		const rows: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
 		const menuRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(this.menus[this.currentPage]);
-		components.push(menuRow);
+		rows.push(menuRow);
 
 		if (this.menus.length > 1) {
 			const nextButton = new ButtonBuilder()
@@ -82,17 +98,24 @@ export class PagifiedSelectMenu {
 				.setDisabled(this.currentPage === 0);
 
 			const pageButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(prevButton, nextButton);
-			components.push(pageButtons);
+			rows.push(pageButtons);
 		}
-		return components;
+		return rows;
 	}
 
+	/**
+	 * Generates an ephemeral message containing a select menu and navigation buttons if the select menu has more than 25 values. Handles collector logic using the passed in function
+	 *
+	 * @param {function(StringSelectMenuInteraction<CacheType>): void} collectorLogic Contains the logic for the message collector
+	 * @param {ChatInputCommandInteraction} interaction The Discord interaction created by the called command
+	 * @param {(ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[]} rows The action rows that contains the select menu and navigation buttons
+	 */
 	async generateMessage(
-		collectorLogic: (...args) => void,
+		collectorLogic: (i: StringSelectMenuInteraction<CacheType>) => void,
 		interaction: ChatInputCommandInteraction,
-		components: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[]
+		rows: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[]
 	): Promise<void> {
-		const reply = await interaction.followUp({ components, ephemeral: true });
+		const reply = await interaction.followUp({ components: rows, ephemeral: true });
 		const collector = reply.createMessageComponentCollector({
 			componentType: ComponentType.StringSelect,
 			time: 60_000
