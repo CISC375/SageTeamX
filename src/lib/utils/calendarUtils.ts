@@ -16,13 +16,15 @@ import
 export class PagifiedSelectMenu {
 
 	menus: StringSelectMenuBuilder[];
-	private numOptions: number;
-	private numPages: number;
+	numOptions: number;
+	maxSelected: number;
+	numPages: number;
 	currentPage: number;
 
 	constructor() {
 		this.menus = [];
 		this.numOptions = 0;
+		this.maxSelected = 1;
 		this.numPages = 0;
 		this.currentPage = 0;
 	}
@@ -52,6 +54,7 @@ export class PagifiedSelectMenu {
 			newMenu.setMinValues(options.minimumValues);
 		}
 		if (options.maximumValues !== undefined) {
+			this.maxSelected = options.maximumValues;
 			newMenu.setMaxValues(options.maximumValues);
 		}
 		if (options.disabled !== undefined) {
@@ -88,7 +91,6 @@ export class PagifiedSelectMenu {
 					{ customId: temp.custom_id,
 						placeHolder: temp.placeholder,
 						minimumValues: temp.min_values,
-						maximumValues: temp.max_values,
 						disabled: temp.disabled,
 						options: temp.options }
 				);
@@ -113,6 +115,8 @@ export class PagifiedSelectMenu {
 
 			// Add option into menu
 			lastMenu.addOptions(newOption);
+
+			lastMenu.setMaxValues(this.maxSelected < lastMenu.options.length ? this.maxSelected : lastMenu.options.length);
 		}
 	}
 
