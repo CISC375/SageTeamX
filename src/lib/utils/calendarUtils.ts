@@ -1,4 +1,4 @@
-import { ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
 
 export class PagifiedSelectMenu {
 
@@ -14,6 +14,14 @@ export class PagifiedSelectMenu {
 		this.currentPage = 0;
 	}
 
+	/**
+	 * Creates a blank select menu with no options
+	 *
+	 * @param {string} customId The ID of the select menu
+	 * @param {string} placeHolder Text that appears on the select menu when no value has been chosen
+	 * @param {string} minimumValues The minimum number values that the select menu will accept
+	 * @returns {void} This method returns nothing
+	*/
 	createSelectMenu(customId: string, placeHolder: string, minimumValues: number): void {
 		const newMenu = new StringSelectMenuBuilder()
 			.setCustomId(customId)
@@ -34,10 +42,11 @@ export class PagifiedSelectMenu {
 
 			// Create inital menu option
 			const lastMenu = this.menus[this.menus.length - 1];
-			const newOption = new StringSelectMenuOptionBuilder();
+			const newOption = new StringSelectMenuOptionBuilder()
+				.setLabel(options.label)
+				.setValue(options.value);
 
-
-			// Check for option parameters
+			// Check for optional parameters
 			if (options.description) {
 				newOption.setDescription(options.description);
 			}
@@ -47,8 +56,28 @@ export class PagifiedSelectMenu {
 		}
 	}
 
-	generateActionRows(): void {
+	generateActionRows(): (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] {
+		const components: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
 		const menuRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(this.menus[this.currentPage]);
+		components.push(menuRow);
+
+		if (this.menus.length > 1) {
+			const nextButton = new ButtonBuilder()
+				.setCustomId('next_button')
+				.setLabel('Next')
+				.setStyle(ButtonStyle.Primary)
+				.setDisabled(this.currentPage + 1 === this.numPages);
+
+			const prevButton = new ButtonBuilder()
+				.setCustomId('prev_button')
+				.setLabel('Previous')
+				.setStyle(ButtonStyle.Primary)
+				.setDisabled(this.currentPage === 0);
+
+			const pageButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(prevButton, nextButton);
+			components.push(pageButtons);
+		}
+		return components;
 	}
 
 }
