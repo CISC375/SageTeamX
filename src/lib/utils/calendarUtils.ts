@@ -6,6 +6,7 @@ import
 	CacheType,
 	ChatInputCommandInteraction,
 	ComponentType,
+	DMChannel,
 	InteractionResponse,
 	Message,
 	StringSelectMenuBuilder,
@@ -154,19 +155,25 @@ export class PagifiedSelectMenu {
 	 * @param {function(StringSelectMenuInteraction<CacheType>): void} collectorLogic Function containing the logic for the message collector
 	 * @param {ChatInputCommandInteraction} interaction The Discord interaction created by the called command
 	 * @param {(ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[]} rows The action rows that contains the select menu and navigation buttons
+	 * @param {DMChannel} dmChannel Optional -
+	 * @param {string} content Optional - Sets the message content
 	 */
 	async generateMessage(
 		collectorLogic: (i: StringSelectMenuInteraction<CacheType>) => void,
 		interaction: ChatInputCommandInteraction,
-		rows: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[]
-	): Promise<void> {
+		rows: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[],
+		dmChannel?: DMChannel,
+		content?: string
+	): Promise<Message<boolean> | InteractionResponse<boolean>> {
 		let reply: Message<boolean> | InteractionResponse<boolean>;
 
-		// Check if the interaction has already been replied to and send the message accordingly
-		if (interaction.replied) {
-			reply = await interaction.followUp({ components: rows, ephemeral: true });
+		// Check if the interaction has already been replied to, or if its a DM, and send the message accordingly
+		if (dmChannel) {
+			reply = await dmChannel.send({ content: content, components: rows });
+		} else if (interaction.replied) {
+			reply = await interaction.followUp({ content: content, components: rows, ephemeral: true });
 		} else {
-			reply = await interaction.reply({ components: rows, ephemeral: true });
+			reply = await interaction.reply({ content: content, components: rows, ephemeral: true });
 		}
 
 		// Create menu collector
@@ -187,19 +194,21 @@ export class PagifiedSelectMenu {
 			});
 
 			buttonCollector.on('collect', async (i) => {
-				if (i.customId === 'next_button') {
+				if (i.customId === `next_button:${this.menus[0].data.custom_id}`) {
 					await i.deferUpdate();
 					this.currentPage++;
 					const newRows = this.generateActionRows();
-					i.editReply({ components: newRows });
-				} else if (i.customId === 'prev_button') {
+					await i.editReply({ components: newRows });
+				} else if (i.customId === `prev_button:${this.menus[0].data.custom_id}`) {
 					await i.deferUpdate();
 					this.currentPage--;
 					const newRows = this.generateActionRows();
-					i.editReply({ components: newRows });
+					await i.editReply({ components: newRows });
 				}
 			});
 		}
+
+		return reply;
 	}
 
 	/**
@@ -208,9 +217,11 @@ export class PagifiedSelectMenu {
 	 *
 	 * @param {function(StringSelectMenuInteraction<CacheType>): void} collectorLogic Contains the logic for the message collector
 	 * @param {ChatInputCommandInteraction} interaction The Discord interaction created by the called command
+	 * @param {DMChannel} dmChannel Optional -
+	 * @param {string} content Optional - Sets the message content
 	 */
-	async createAndSendMenu(collectorLogic: (i: StringSelectMenuInteraction<CacheType>) => void, interaction: ChatInputCommandInteraction): Promise<void> {
-		await this.generateMessage(collectorLogic, interaction, this.generateActionRows());
+	async createAndSendMenu(collectorLogic: (i: StringSelectMenuInteraction<CacheType>) => void, interaction: ChatInputCommandInteraction, dmChannel?: DMChannel, content?: string): Promise<void> {
+		await this.generateMessage(collectorLogic, interaction, this.generateActionRows(), dmChannel, content);
 	}
 
 }
