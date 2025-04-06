@@ -1,4 +1,11 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from 'discord.js';
+import
+{ ActionRowBuilder,
+	ButtonBuilder,
+	ButtonStyle,
+	ChatInputCommandInteraction,
+	ComponentType,
+	StringSelectMenuBuilder,
+	StringSelectMenuOptionBuilder } from 'discord.js';
 
 export class PagifiedSelectMenu {
 
@@ -78,6 +85,22 @@ export class PagifiedSelectMenu {
 			components.push(pageButtons);
 		}
 		return components;
+	}
+
+	async generateMessage(
+		collectorLogic: (...args) => void,
+		interaction: ChatInputCommandInteraction,
+		components: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[]
+	): Promise<void> {
+		const reply = await interaction.followUp({ components, ephemeral: true });
+		const collector = reply.createMessageComponentCollector({
+			componentType: ComponentType.StringSelect,
+			time: 60_000
+		});
+
+		collector.on('collect', async (i) => {
+			collectorLogic(i);
+		});
 	}
 
 }
