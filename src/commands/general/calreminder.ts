@@ -35,17 +35,8 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		async function generateMessage(filteredEvents) {
+		async function generateMessage() {
 			// 1) Event dropdown
-			const eventMenus = new PagifiedSelectMenu()
-			eventMenus.createSelectMenu('select_event', 'Select an event', 1);
-			filteredEvents.forEach((event, index) => {
-				eventMenus.addOption({
-										label: event.summary, 
-										description: `Starts at: ${new Date(event.start.dateTime).toLocaleString()}`, 
-										value: `${event.start.dateTime}::${index}`
-									})
-			});
 			const eventMenusComponents = eventMenus.generateActionRows();
 			// const eventMenu = new StringSelectMenuBuilder()
 			// .setCustomId("select_event")
@@ -166,8 +157,18 @@ export default class extends Command {
 			return;
 		}
 
+		const eventMenus = new PagifiedSelectMenu()
+		eventMenus.createSelectMenu('select_event', 'Select an event', 1);
+			filteredEvents.forEach((event, index) => {
+				eventMenus.addOption({
+										label: event.summary, 
+										description: `Starts at: ${new Date(event.start.dateTime).toLocaleString()}`, 
+										value: `${event.start.dateTime}::${index}`
+									})
+		});
+
 		// Send ephemeral message with both dropdowns
-		const initalComponents = await generateMessage(filteredEvents);
+		const initalComponents = await generateMessage();
 		const replyMessage = await interaction.reply({
 			components: initalComponents,
 			ephemeral: true
@@ -292,6 +293,18 @@ export default class extends Command {
 
 				buttonCollector.stop();
 			}
-		});
+			else if (btnInt.customId === 'next_button') {
+				await btnInt.deferUpdate();
+				eventMenus.currentPage++;
+				const newComponents = await generateMessage()
+				replyMessage.edit({components: newComponents});
+			}
+			else if (btnInt.customId === 'prev_button') {
+				await btnInt.deferUpdate();
+				eventMenus.currentPage--;
+				const newComponents = await generateMessage()
+				replyMessage.edit({components: newComponents});
+			}
+ 		});
 	}
 }
