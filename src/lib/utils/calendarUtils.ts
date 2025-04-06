@@ -1,5 +1,6 @@
 import
 { ActionRowBuilder,
+	APISelectMenuOption,
 	ButtonBuilder,
 	ButtonStyle,
 	CacheType,
@@ -28,16 +29,38 @@ export class PagifiedSelectMenu {
 	/**
 	 * Creates a blank select menu with no options
 	 *
-	 * @param {string} customId The ID of the select menu
-	 * @param {string} placeHolder Text that appears on the select menu when no value has been chosen
-	 * @param {string} minimumValues The minimum number values that the select menu will accept
+	 * @param {Object} options Contains the values that will be used to cretae the select menu
+	 * @param {string} options.customId The ID of the select menu
+	 * @param {string} options.placeHolder Optional: Text that appears on the select menu when no value has been chosen
+	 * @param {number} options.minimumValues Optional: The minimum number values that must be selected
+	 * @param {number} options.maximumValues Optional: The maximum number values that the select menu will accept
+	 * @param {boolean} options.disabled Optional: Whether this select menu is disabled
+	 * @param {APISelectMenuOption[]} option.options Optional: Sets the options for the select menu
 	 * @returns {void} This method returns nothing
 	*/
-	createSelectMenu(customId: string, placeHolder: string, minimumValues: number): void {
+	createSelectMenu(options: {customId: string, placeHolder?: string, minimumValues?: number, maximumValues?: number, disabled?: boolean, options?: APISelectMenuOption[]}): void {
+		// Creates inital select menu
 		const newMenu = new StringSelectMenuBuilder()
-			.setCustomId(customId)
-			.setPlaceholder(placeHolder)
-			.setMinValues(minimumValues);
+			.setCustomId(options.customId);
+
+		// Check for optional parameters
+		if (options.placeHolder) {
+			newMenu.setPlaceholder(options.placeHolder);
+		}
+		if (options.minimumValues) {
+			newMenu.setMinValues(options.minimumValues);
+		}
+		if (options.maximumValues) {
+			newMenu.setMaxValues(options.maximumValues);
+		}
+		if (options.disabled !== null) {
+			newMenu.setDisabled(options.disabled);
+		}
+		if (options.options) {
+			newMenu.setOptions(options.options);
+		}
+
+		// Add menu to the list of menus
 		this.menus.push(newMenu);
 		this.numPages++;
 	}
@@ -49,15 +72,25 @@ export class PagifiedSelectMenu {
 	 * @param {string} options.label The label that will be given to the select menu option
 	 * @param {string} options.value The value that will be assigned to the select menu option
 	 * @param {string} options.description Optional: Description that will appear under the select menu option
+	 * @param {boolean} options.default Optional: Whether this option is selected by default
+	 * @param {string} options.emoji Optional: The emoji to use
 	 * @returns {void} This method returns nothing
 	 */
-	addOption(options: { label: string, value: string, description?: string }): void {
+	addOption(options: {label: string, value: string, description?: string, default?: boolean, emoji?: string}): void {
 		if (this.menus.length > 0) {
 			this.numOptions++;
 
 			// Create a new menu every 26th value
 			if (this.numOptions % 26 === 0) {
-				this.createSelectMenu(this.menus[0].data.custom_id, this.menus[0].data.placeholder, this.menus[0].data.min_values);
+				const temp = this.menus[0].data;
+				this.createSelectMenu(
+					{ customId: temp.custom_id,
+						placeHolder: temp.placeholder,
+						minimumValues: temp.min_values,
+						maximumValues: temp.max_values,
+						disabled: temp.disabled,
+						options: temp.options }
+				);
 			}
 
 			// Create inital menu option
@@ -69,6 +102,12 @@ export class PagifiedSelectMenu {
 			// Check for optional parameters
 			if (options.description) {
 				newOption.setDescription(options.description);
+			}
+			if (options.default !== null) {
+				newOption.setDefault(options.default);
+			}
+			if (options.emoji) {
+				newOption.setEmoji(options.emoji);
 			}
 
 			// Add option into menu
@@ -83,10 +122,13 @@ export class PagifiedSelectMenu {
 	 */
 	generateActionRows(): (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] {
 		const rows: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
+
+		// Create action row for select menu and push it to rows array
 		const menuRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(this.menus[this.currentPage]);
 		rows.push(menuRow);
 
 		if (this.menus.length > 1) {
+			// Create next and previous buttons
 			const nextButton = new ButtonBuilder()
 				.setCustomId('next_button')
 				.setLabel('Next')
@@ -99,6 +141,7 @@ export class PagifiedSelectMenu {
 				.setStyle(ButtonStyle.Primary)
 				.setDisabled(this.currentPage === 0);
 
+			// Create action frow for buttons and push it to rows array
 			const pageButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(prevButton, nextButton);
 			rows.push(pageButtons);
 		}
@@ -119,12 +162,14 @@ export class PagifiedSelectMenu {
 	): Promise<void> {
 		let reply: Message<boolean> | InteractionResponse<boolean>;
 
+		// Check if the interaction has already been replied to and send the message accordingly
 		if (interaction.replied) {
 			reply = await interaction.followUp({ components: rows, ephemeral: true });
 		} else {
 			reply = await interaction.reply({ components: rows, ephemeral: true });
 		}
 
+		// Create menu collector
 		const menuCollector = reply.createMessageComponentCollector({
 			componentType: ComponentType.StringSelect,
 			time: 60_000
@@ -134,6 +179,7 @@ export class PagifiedSelectMenu {
 			collectorLogic(i);
 		});
 
+		// Checks to see if there is more than 1 menu and creates button collector for navigations buttons if there is
 		if (this.menus.length > 1) {
 			const buttonCollector = reply.createMessageComponentCollector({
 				componentType: ComponentType.Button,

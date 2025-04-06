@@ -35,9 +35,17 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		async function generateMessage() {
+		async function generateMessage(filteredEvents, eventMenu: PagifiedSelectMenu) {
 			// 1) Event dropdown
-			
+			eventMenu.createSelectMenu({customId: 'select_event', placeHolder: 'Select an event', minimumValues: 1});
+			filteredEvents.forEach((event, index) => {
+				eventMenu.addOption({
+										label: event.summary, 
+										value: `${event.start.dateTime}::${index}`,
+										description: `Starts at: ${new Date(event.start.dateTime).toLocaleString()}`
+									})
+			});
+			const eventMenuRows = eventMenu.generateActionRows();
 
 			// 2) Offset dropdown
 			const offsetOptions = [
@@ -77,7 +85,7 @@ export default class extends Command {
 				setReminder
 			);
 
-			return [ row2, row4];
+			return [...eventMenuRows, row2, row4];
 		}
 		// Authorize Google Calendar
 		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
@@ -140,31 +148,16 @@ export default class extends Command {
 			return;
 		}
 
-		const eventMenus = new PagifiedSelectMenu()
-		eventMenus.createSelectMenu('select_event', 'Select an event', 1);
-			filteredEvents.forEach((event, index) => {
-				eventMenus.addOption({
-										label: event.summary, 
-										value: `${event.start.dateTime}::${index}`,
-										description: `Starts at: ${new Date(event.start.dateTime).toLocaleString()}`
-									})
-		});
-
-		let chosenEvent = null;
-		await eventMenus.createAndSendMenu(async (i) => {
-			const [eventDateStr, indexStr] = i.values[0].split("::");
-			const selectedIndex = parseInt(indexStr);
-			chosenEvent = filteredEvents[selectedIndex];
-			i.deferUpdate();
-		}, interaction);
+		const eventMenu = new PagifiedSelectMenu()
 
 		// Send ephemeral message with both dropdowns
-		const initalComponents = await generateMessage();
-		const replyMessage = await interaction.followUp({
+		const initalComponents = await generateMessage(filteredEvents, eventMenu);
+		const replyMessage = await interaction.reply({
 			components: initalComponents,
 			ephemeral: true
 		})
 
+		let chosenEvent = null;
 		let chosenOffset: number | null = null;
 		let activeReminderId: string | null = null;
 
@@ -175,7 +168,13 @@ export default class extends Command {
 		});
 
 		collector.on("collect", async (i) => {
-			if (i.customId === "select_offset") {
+			if (i.customId === 'select_event') {
+				const [eventDateStr, indexStr] = i.values[0].split("::");
+				const selectedIndex = parseInt(indexStr);
+				chosenEvent = filteredEvents[selectedIndex];
+				await i.deferUpdate();
+			}
+			else if (i.customId === "select_offset") {
 				const rawOffsetStr = i.values[0];
 				chosenOffset = rawOffsetStr === "0" ? 0 : parse(rawOffsetStr);
 				if (isNaN(chosenOffset)) {
@@ -186,6 +185,7 @@ export default class extends Command {
 					});
 					return;
 				}
+				await i.deferUpdate();
 			}
 		});
 
