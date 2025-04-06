@@ -32,7 +32,7 @@ export class PagifiedSelectMenu {
 	/**
 	 * Creates a blank select menu with no options
 	 *
-	 * @param {Object} options Contains the values that will be used to cretae the select menu
+	 * @param {Object} options Contains the values that will be used to create the select menu
 	 * @param {string} options.customId The ID of the select menu
 	 * @param {string} options.placeHolder Optional: Text that appears on the select menu when no value has been chosen
 	 * @param {number} options.minimumValues Optional: The minimum number values that must be selected
@@ -72,7 +72,7 @@ export class PagifiedSelectMenu {
 	/**
 	 * Adds an option to an available select menu. If all select menus are full, it will create a new select menu
 	 *
-	 * @param {Object} options Contains the values that will be used to cretae the select menu option
+	 * @param {Object} options Contains the values that will be used to create the select menu option
 	 * @param {string} options.label The label that will be given to the select menu option
 	 * @param {string} options.value The value that will be assigned to the select menu option
 	 * @param {string} options.description Optional: Description that will appear under the select menu option
@@ -159,8 +159,8 @@ export class PagifiedSelectMenu {
 	 * @param {function(StringSelectMenuInteraction<CacheType>): void} collectorLogic Function containing the logic for the message collector
 	 * @param {ChatInputCommandInteraction} interaction The Discord interaction created by the called command
 	 * @param {(ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[]} rows The action rows that contains the select menu and navigation buttons
-	 * @param {DMChannel} dmChannel Optional -
-	 * @param {string} content Optional - Sets the message content
+	 * @param {DMChannel} dmChannel Optional: Sends messages to given DM channel
+	 * @param {string} content Optional: Sets the message content
 	 */
 	async generateMessage(
 		collectorLogic: (i: StringSelectMenuInteraction<CacheType>) => void,
@@ -221,8 +221,8 @@ export class PagifiedSelectMenu {
 	 *
 	 * @param {function(StringSelectMenuInteraction<CacheType>): void} collectorLogic Contains the logic for the message collector
 	 * @param {ChatInputCommandInteraction} interaction The Discord interaction created by the called command
-	 * @param {DMChannel} dmChannel Optional -
-	 * @param {string} content Optional - Sets the message content
+	 * @param {DMChannel} dmChannel Optional: Sends messages to given DM channel
+	 * @param {string} content Optional: Sets the message content
 	 */
 	async createAndSendMenu(collectorLogic: (i: StringSelectMenuInteraction<CacheType>) => void, interaction: ChatInputCommandInteraction, dmChannel?: DMChannel, content?: string): Promise<void> {
 		await this.generateMessage(collectorLogic, interaction, this.generateActionRows(), dmChannel, content);
