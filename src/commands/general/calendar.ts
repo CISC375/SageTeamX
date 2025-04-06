@@ -16,6 +16,7 @@ import 'dotenv/config';
 import { MongoClient } from 'mongodb';
 import { authorize } from '../../lib/auth';
 import * as fs from 'fs';
+import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
 //import event from '@root/src/models/calEvent';
 
 const path = require("path");
@@ -218,7 +219,7 @@ export default class extends Command {
 
 		// Generates message for filters
 		function generateFilterMessage(filters) {
-			const filterMenus = filters.map((filter) => {
+			const filterMenus: PagifiedSelectMenu[] = filters.map((filter) => {
 				if (filter.values.length === 0) {
 					// Either skip building the menu...
 					// return null; // (you'd then filter out null below)
@@ -226,28 +227,25 @@ export default class extends Command {
 					// Or add a placeholder option:
 					filter.values.push("No Data Available");
 				}
-				return new StringSelectMenuBuilder()
-					.setCustomId(filter.customId)
-					.setMinValues(0)
-					.setMaxValues(
-						filter.values.length > 0
-							? filter.values.length // allow picking as many as exist
-							: 1 // fallback to 1 if empty
-					)
-					.setPlaceholder(filter.placeholder)
-					.addOptions(
-						filter.values.map((value) => {
-							return new StringSelectMenuOptionBuilder()
-								.setLabel(value)
-								.setValue(value.toLowerCase());
-						})
-					);
+				const filterMenu = new PagifiedSelectMenu();
+				filterMenu.createSelectMenu(
+					{
+						customId: filter.customId,
+						placeHolder: filter.placeholder,
+						minimumValues: 0,
+					}
+				);
+
+				filter.values.forEach((value,index) => {
+					console.log(filter.customId, index)
+					filterMenu.addOption({label: value, value: value.toLowerCase()})
+				});
+				return filterMenu;
 			});
 
-			const components = filterMenus.map((menu) => {
-				return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-					menu
-				);
+			const components: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = []; 
+			filterMenus.map((menu) => {
+				return components.push(...menu.generateActionRows())
 			});
 			return components;
 		}
@@ -359,7 +357,16 @@ export default class extends Command {
 			{
 				customId: "class_name_menu",
 				placeholder: "Select Classes",
-				values: [], // Dynamically updated
+				values: ['CISC001', 'CISC002', 'CISC003', 'CISC004', 'CISC005',
+    'CISC006', 'CISC007', 'CISC008', 'CISC009', 'CISC010',
+    'CISC011', 'CISC012', 'CISC013', 'CISC014', 'CISC015',
+    'CISC016', 'CISC017', 'CISC018', 'CISC019', 'CISC020',
+    'CISC021', 'CISC022', 'CISC023', 'CISC024', 'CISC025',
+    'CISC026', 'CISC027', 'CISC028', 'CISC029', 'CISC030',
+    'CISC031', 'CISC032', 'CISC033', 'CISC034', 'CISC035',
+    'CISC036', 'CISC037', 'CISC038', 'CISC039', 'CISC040',
+    'CISC041', 'CISC042', 'CISC043', 'CISC044', 'CISC045',
+    'CISC046', 'CISC047', 'CISC048', 'CISC049', 'CISC050'], // Dynamically updated
 				newValues: [],
 				flag: true,
 				condition: (newValues, event) => {

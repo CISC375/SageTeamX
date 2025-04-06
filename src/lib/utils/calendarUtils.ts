@@ -44,19 +44,19 @@ export class PagifiedSelectMenu {
 			.setCustomId(options.customId);
 
 		// Check for optional parameters
-		if (options.placeHolder) {
+		if (options.placeHolder !== undefined) {
 			newMenu.setPlaceholder(options.placeHolder);
 		}
-		if (options.minimumValues) {
+		if (options.minimumValues !== undefined) {
 			newMenu.setMinValues(options.minimumValues);
 		}
-		if (options.maximumValues) {
+		if (options.maximumValues !== undefined) {
 			newMenu.setMaxValues(options.maximumValues);
 		}
 		if (options.disabled !== undefined) {
 			newMenu.setDisabled(options.disabled);
 		}
-		if (options.options) {
+		if (options.options !== undefined) {
 			newMenu.setOptions(options.options);
 		}
 
@@ -81,7 +81,7 @@ export class PagifiedSelectMenu {
 			this.numOptions++;
 
 			// Create a new menu every 26th value
-			if (this.numOptions % 26 === 0) {
+			if (this.menus[this.menus.length - 1].options.length >= 25) {
 				const temp = this.menus[0].data;
 				this.createSelectMenu(
 					{ customId: temp.custom_id,
@@ -100,13 +100,13 @@ export class PagifiedSelectMenu {
 				.setValue(options.value);
 
 			// Check for optional parameters
-			if (options.description) {
+			if (options.description !== undefined) {
 				newOption.setDescription(options.description);
 			}
 			if (options.default !== undefined) {
 				newOption.setDefault(options.default);
 			}
-			if (options.emoji) {
+			if (options.emoji !== undefined) {
 				newOption.setEmoji(options.emoji);
 			}
 
