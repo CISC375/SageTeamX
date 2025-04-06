@@ -5,6 +5,8 @@ import
 	CacheType,
 	ChatInputCommandInteraction,
 	ComponentType,
+	InteractionResponse,
+	Message,
 	StringSelectMenuBuilder,
 	StringSelectMenuInteraction,
 	StringSelectMenuOptionBuilder } from 'discord.js';
@@ -106,7 +108,7 @@ export class PagifiedSelectMenu {
 	/**
 	 * Generates an ephemeral message containing a select menu and navigation buttons if the select menu has more than 25 values. Handles collector logic using the passed in function
 	 *
-	 * @param {function(StringSelectMenuInteraction<CacheType>): void} collectorLogic Contains the logic for the message collector
+	 * @param {function(StringSelectMenuInteraction<CacheType>): void} collectorLogic Function containing the logic for the message collector
 	 * @param {ChatInputCommandInteraction} interaction The Discord interaction created by the called command
 	 * @param {(ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[]} rows The action rows that contains the select menu and navigation buttons
 	 */
@@ -115,15 +117,43 @@ export class PagifiedSelectMenu {
 		interaction: ChatInputCommandInteraction,
 		rows: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[]
 	): Promise<void> {
-		const reply = await interaction.followUp({ components: rows, ephemeral: true });
-		const collector = reply.createMessageComponentCollector({
+		let reply: Message<boolean> | InteractionResponse<boolean>;
+
+		if (interaction.replied) {
+			reply = await interaction.followUp({ components: rows, ephemeral: true });
+		} else {
+			reply = await interaction.reply({ components: rows, ephemeral: true });
+		}
+
+		const menuCollector = reply.createMessageComponentCollector({
 			componentType: ComponentType.StringSelect,
 			time: 60_000
 		});
 
-		collector.on('collect', async (i) => {
+		menuCollector.on('collect', async (i) => {
 			collectorLogic(i);
 		});
+
+		if (this.menus.length > 1) {
+			const buttonCollector = reply.createMessageComponentCollector({
+				componentType: ComponentType.Button,
+				time: 60_000
+			});
+
+			buttonCollector.on('collect', async (i) => {
+				if (i.customId === 'next_button') {
+					await i.deferUpdate();
+					this.currentPage++;
+					const newRows = this.generateActionRows();
+					i.editReply({ components: newRows });
+				} else if (i.customId === 'prev_button') {
+					await i.deferUpdate();
+					this.currentPage--;
+					const newRows = this.generateActionRows();
+					i.editReply({ components: newRows });
+				}
+			});
+		}
 	}
 
 	/**
@@ -133,8 +163,8 @@ export class PagifiedSelectMenu {
 	 * @param {function(StringSelectMenuInteraction<CacheType>): void} collectorLogic Contains the logic for the message collector
 	 * @param {ChatInputCommandInteraction} interaction The Discord interaction created by the called command
 	 */
-	createAndSendMenu(collectorLogic: (i: StringSelectMenuInteraction<CacheType>) => void, interaction: ChatInputCommandInteraction): void {
-		this.generateMessage(collectorLogic, interaction, this.generateActionRows());
+	async createAndSendMenu(collectorLogic: (i: StringSelectMenuInteraction<CacheType>) => void, interaction: ChatInputCommandInteraction): Promise<void> {
+		await this.generateMessage(collectorLogic, interaction, this.generateActionRows());
 	}
 
 }
