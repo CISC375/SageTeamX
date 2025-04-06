@@ -46,6 +46,7 @@ export default class extends Command {
 										value: `${event.start.dateTime}::${index}`
 									})
 			});
+			const eventMenusComponents = eventMenus.generateActionRows();
 			// const eventMenu = new StringSelectMenuBuilder()
 			// .setCustomId("select_event")
 			// .setPlaceholder("Select an event")
@@ -92,10 +93,7 @@ export default class extends Command {
 				.setStyle(ButtonStyle.Success);
 
 			// Create action rows for the dropdowns
-			const row1 =
-				new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-					eventMenus.menus[0]
-				);
+	
 			const row2 =
 				new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
 					offsetMenu
@@ -105,7 +103,7 @@ export default class extends Command {
 				setReminder
 			);
 
-			return [row1, row2, row4];
+			return [...eventMenusComponents, row2, row4];
 		}
 		// Authorize Google Calendar
 		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
