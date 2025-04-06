@@ -126,4 +126,15 @@ export class PagifiedSelectMenu {
 		});
 	}
 
+	/**
+	 * Generates Discord action rows containing the string select menu and navigation buttons and
+	 * generates an ephemeral message containing a select menu and navigation buttons if the select menu has more than 25 values. Handles collector logic using the passed in function
+	 *
+	 * @param {function(StringSelectMenuInteraction<CacheType>): void} collectorLogic Contains the logic for the message collector
+	 * @param {ChatInputCommandInteraction} interaction The Discord interaction created by the called command
+	 */
+	createAndSendMenu(collectorLogic: (i: StringSelectMenuInteraction<CacheType>) => void, interaction: ChatInputCommandInteraction): void {
+		this.generateMessage(collectorLogic, interaction, this.generateActionRows());
+	}
+
 }

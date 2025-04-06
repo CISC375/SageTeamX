@@ -156,15 +156,13 @@ export default class extends Command {
 			components: initalComponents,
 			ephemeral: true
 		})
-		
-		const eventMenusComponents = eventMenus.generateActionRows();
 
 		let chosenEvent = null;
-		eventMenus.generateMessage((i) => {
+		eventMenus.createAndSendMenu((i) => {
 			const [eventDateStr, indexStr] = i.values[0].split("::");
 			const selectedIndex = parseInt(indexStr);
 			chosenEvent = filteredEvents[selectedIndex];
-		}, interaction, eventMenusComponents);
+		}, interaction);
 
 		
 		let chosenOffset: number | null = null;
