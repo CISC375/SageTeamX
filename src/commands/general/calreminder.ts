@@ -35,15 +35,17 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		async function generateMessage(filteredEvents, eventMenu: PagifiedSelectMenu) {
+		async function generateMessage(filteredEvents, eventMenu: PagifiedSelectMenu, offsetMenu: PagifiedSelectMenu) {
 			// 1) Event dropdown
 			eventMenu.createSelectMenu({customId: 'select_event', placeHolder: 'Select an event', minimumValues: 1});
 			filteredEvents.forEach((event, index) => {
-				eventMenu.addOption({
-										label: event.summary, 
-										value: `${event.start.dateTime}::${index}`,
-										description: `Starts at: ${new Date(event.start.dateTime).toLocaleString()}`
-									})
+				eventMenu.addOption(
+					{
+						label: event.summary, 
+						value: `${event.start.dateTime}::${index}`,
+						description: `Starts at: ${new Date(event.start.dateTime).toLocaleString()}`
+					}
+				)
 			});
 			const eventMenuRows = eventMenu.generateActionRows();
 
@@ -56,17 +58,16 @@ export default class extends Command {
 				{ label: "1 day before", value: "1d" },
 			];
 
-			const offsetMenu = new StringSelectMenuBuilder()
-				.setCustomId("select_offset")
-				.setPlaceholder("Select reminder offset")
-				.setMaxValues(1)
-				.addOptions(
-					offsetOptions.map((opt) =>
-						new StringSelectMenuOptionBuilder()
-							.setLabel(opt.label)
-							.setValue(opt.value)
-					)
-				);
+			offsetMenu.createSelectMenu({customId: 'select_offset', placeHolder: 'Select reminder offset', maximumValues: 1});
+			offsetOptions.forEach((option) => {
+				offsetMenu.addOption(
+					{
+						label: option.label,
+						value: option.value
+					}
+				)
+			});
+			const offsetMenuRows = offsetMenu.generateActionRows();
 
 			// 3) Set Reminder button
 			const setReminder = new ButtonBuilder()
@@ -74,18 +75,12 @@ export default class extends Command {
 				.setLabel("Set Reminder")
 				.setStyle(ButtonStyle.Success);
 
-			// Create action rows for the dropdowns
-	
-			const row2 =
-				new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-					offsetMenu
-				);
-
-			const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+			// Create action row for set reminder button
+			const setReminderRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
 				setReminder
 			);
 
-			return [...eventMenuRows, row2, row4];
+			return [...eventMenuRows, ...offsetMenuRows, setReminderRow];
 		}
 		// Authorize Google Calendar
 		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
@@ -148,10 +143,11 @@ export default class extends Command {
 			return;
 		}
 
-		const eventMenu = new PagifiedSelectMenu()
+		const eventMenu = new PagifiedSelectMenu();
+		const offsetMenu = new PagifiedSelectMenu();
 
 		// Send ephemeral message with both dropdowns
-		const initalComponents = await generateMessage(filteredEvents, eventMenu);
+		const initalComponents = await generateMessage(filteredEvents, eventMenu, offsetMenu);
 		const replyMessage = await interaction.reply({
 			components: initalComponents,
 			ephemeral: true
