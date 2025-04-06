@@ -353,16 +353,7 @@ export default class extends Command {
 			{
 				customId: "class_name_menu",
 				placeholder: "Select Classes",
-				values: ['CISC001', 'CISC002', 'CISC003', 'CISC004', 'CISC005',
-    'CISC006', 'CISC007', 'CISC008', 'CISC009', 'CISC010',
-    'CISC011', 'CISC012', 'CISC013', 'CISC014', 'CISC015',
-    'CISC016', 'CISC017', 'CISC018', 'CISC019', 'CISC020',
-    'CISC021', 'CISC022', 'CISC023', 'CISC024', 'CISC025',
-    'CISC026', 'CISC027', 'CISC028', 'CISC029', 'CISC030',
-    'CISC031', 'CISC032', 'CISC033', 'CISC034', 'CISC035',
-    'CISC036', 'CISC037', 'CISC038', 'CISC039', 'CISC040',
-    'CISC041', 'CISC042', 'CISC043', 'CISC044', 'CISC045',
-    'CISC046', 'CISC047', 'CISC048', 'CISC049', 'CISC050'], // Dynamically updated
+				values: [], // Dynamically updated
 				newValues: [],
 				flag: true,
 				condition: (newValues, event) => {
