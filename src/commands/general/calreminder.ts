@@ -37,24 +37,7 @@ export default class extends Command {
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
 		async function generateMessage() {
 			// 1) Event dropdown
-			const eventMenusComponents = eventMenus.generateActionRows();
-			// const eventMenu = new StringSelectMenuBuilder()
-			// .setCustomId("select_event")
-			// .setPlaceholder("Select an event")
-			// .setMaxValues(1)
-			// .addOptions(
-			// 	filteredEvents.map((event, index: number) => {
-			// 		const label = event.summary;
-			// 		const description = `Starts at: ${new Date(
-			// 			event.start.dateTime
-			// 		).toLocaleString()}`;
-			// 		// Stash dateTime plus index
-			// 		return new StringSelectMenuOptionBuilder()
-			// 			.setLabel(label)
-			// 			.setDescription(description)
-			// 			.setValue(`${event.start.dateTime}::${index}`);
-			// 	})
-			// );
+			
 
 			// 2) Offset dropdown
 			const offsetOptions = [
@@ -94,7 +77,7 @@ export default class extends Command {
 				setReminder
 			);
 
-			return [...eventMenusComponents, row2, row4];
+			return [ row2, row4];
 		}
 		// Authorize Google Calendar
 		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
@@ -173,8 +156,16 @@ export default class extends Command {
 			components: initalComponents,
 			ephemeral: true
 		})
-
+		
 		let chosenEvent = null;
+		const eventMenusComponents = eventMenus.generateActionRows();
+		eventMenus.generateMessage((i, chosenEvent) => {
+			const [eventDateStr, indexStr] = i.values[0].split("::");
+			const selectedIndex = parseInt(indexStr);
+			chosenEvent = filteredEvents[selectedIndex];
+		}, interaction, eventMenusComponents);
+
+		
 		let chosenOffset: number | null = null;
 		let activeReminderId: string | null = null;
 
