@@ -35,38 +35,11 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		async function generateMessage(filteredEvents, eventMenu: PagifiedSelectMenu, offsetMenu: PagifiedSelectMenu) {
-			// 1) Event dropdown
-			eventMenu.createSelectMenu({customId: 'select_event', placeHolder: 'Select an event', minimumValues: 1});
-			filteredEvents.forEach((event, index) => {
-				eventMenu.addOption(
-					{
-						label: event.summary, 
-						value: `${event.start.dateTime}::${index}`,
-						description: `Starts at: ${new Date(event.start.dateTime).toLocaleString()}`
-					}
-				)
-			});
+		async function generateMessage(eventMenu: PagifiedSelectMenu, offsetMenu: PagifiedSelectMenu) {
+			// 1) Generate event menu row(s)
 			const eventMenuRows = eventMenu.generateActionRows();
 
-			// 2) Offset dropdown
-			const offsetOptions = [
-				{ label: "At event", value: "0" },
-				{ label: "10 minutes before", value: "10m" },
-				{ label: "30 minutes before", value: "30m" },
-				{ label: "1 hour before", value: "1h" },
-				{ label: "1 day before", value: "1d" },
-			];
-
-			offsetMenu.createSelectMenu({customId: 'select_offset', placeHolder: 'Select reminder offset', maximumValues: 1});
-			offsetOptions.forEach((option) => {
-				offsetMenu.addOption(
-					{
-						label: option.label,
-						value: option.value
-					}
-				)
-			});
+			// 2) Generate offset menu row(s)
 			const offsetMenuRows = offsetMenu.generateActionRows();
 
 			// 3) Set Reminder button
@@ -143,11 +116,41 @@ export default class extends Command {
 			return;
 		}
 
+		// Create event select menu
 		const eventMenu = new PagifiedSelectMenu();
-		const offsetMenu = new PagifiedSelectMenu();
+		eventMenu.createSelectMenu({customId: 'select_event', placeHolder: 'Select an event', minimumValues: 1});
+		filteredEvents.forEach((event, index) => {
+			eventMenu.addOption(
+				{
+					label: event.summary, 
+					value: `${event.start.dateTime}::${index}`,
+					description: `Starts at: ${new Date(event.start.dateTime).toLocaleString()}`
+				}
+			)
+		});
 
+		// Create offset select menu
+		const offsetMenu = new PagifiedSelectMenu();
+		const offsetOptions = [
+			{ label: "At event", value: "0" },
+			{ label: "10 minutes before", value: "10m" },
+			{ label: "30 minutes before", value: "30m" },
+			{ label: "1 hour before", value: "1h" },
+			{ label: "1 day before", value: "1d" },
+		];
+
+		offsetMenu.createSelectMenu({customId: 'select_offset', placeHolder: 'Select reminder offset', maximumValues: 1});
+		offsetOptions.forEach((option) => {
+			offsetMenu.addOption(
+				{
+					label: option.label,
+					value: option.value
+				}
+			)
+		});
+		
 		// Send ephemeral message with both dropdowns
-		const initalComponents = await generateMessage(filteredEvents, eventMenu, offsetMenu);
+		const initalComponents = await generateMessage(eventMenu, offsetMenu);
 		const replyMessage = await interaction.reply({
 			components: initalComponents,
 			ephemeral: true
@@ -271,6 +274,21 @@ export default class extends Command {
 				});
 
 				buttonCollector.stop();
+			}
+
+			const actions: Record<string, () => void> = {
+				'next_button:select_event': () => eventMenu.currentPage++,
+				'prev_button:select_event': () => eventMenu.currentPage--,
+				'next_button:select_offset': () => offsetMenu.currentPage++,
+				'prev_button:select_offset': () => offsetMenu.currentPage--,
+			};
+			const action = actions[btnInt.customId];
+
+			if (action) {
+				await btnInt.deferUpdate();
+				action();
+				const newRows = await generateMessage(eventMenu, offsetMenu);
+				await btnInt.editReply({ components: newRows });
 			}
  		});
 	}

@@ -53,7 +53,7 @@ export class PagifiedSelectMenu {
 		if (options.maximumValues) {
 			newMenu.setMaxValues(options.maximumValues);
 		}
-		if (options.disabled !== null) {
+		if (options.disabled !== undefined) {
 			newMenu.setDisabled(options.disabled);
 		}
 		if (options.options) {
@@ -103,7 +103,7 @@ export class PagifiedSelectMenu {
 			if (options.description) {
 				newOption.setDescription(options.description);
 			}
-			if (options.default !== null) {
+			if (options.default !== undefined) {
 				newOption.setDefault(options.default);
 			}
 			if (options.emoji) {
@@ -130,13 +130,13 @@ export class PagifiedSelectMenu {
 		if (this.menus.length > 1) {
 			// Create next and previous buttons
 			const nextButton = new ButtonBuilder()
-				.setCustomId('next_button')
+				.setCustomId(`next_button:${this.menus[0].data.custom_id}`)
 				.setLabel('Next')
 				.setStyle(ButtonStyle.Primary)
 				.setDisabled(this.currentPage + 1 === this.numPages);
 
 			const prevButton = new ButtonBuilder()
-				.setCustomId('prev_button')
+				.setCustomId(`prev_button:${this.menus[0].data.custom_id}`)
 				.setLabel('Previous')
 				.setStyle(ButtonStyle.Primary)
 				.setDisabled(this.currentPage === 0);
