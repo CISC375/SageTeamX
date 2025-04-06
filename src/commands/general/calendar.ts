@@ -233,21 +233,17 @@ export default class extends Command {
 						customId: filter.customId,
 						placeHolder: filter.placeholder,
 						minimumValues: 0,
+						maximumValues: 25
 					}
 				);
 
-				filter.values.forEach((value,index) => {
-					console.log(filter.customId, index)
+				filter.values.forEach((value) => {
 					filterMenu.addOption({label: value, value: value.toLowerCase()})
 				});
 				return filterMenu;
 			});
 
-			const components: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = []; 
-			filterMenus.map((menu) => {
-				return components.push(...menu.generateActionRows())
-			});
-			return components;
+			return filterMenus;
 		}
 
 		async function downloadCalendar(filteredEvents, calendar, auth) {
@@ -420,8 +416,6 @@ export default class extends Command {
 						"Friday",
 						"Saturday",
 					][weekdayIndex];
-					console.log(newValues);
-					console.log(dayName)
 					return newValues.some((value) => value.toLowerCase() === dayName.toLowerCase());
 				},
 			},
@@ -559,14 +553,39 @@ export default class extends Command {
 			});
 			return;
 		}
+
 		const filterComponents = generateFilterMessage(filters);
+
+		const singlePageMenus: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
+		filterComponents.forEach((component) => {
+			if (component.menus.length > 1) {
+				component.createAndSendMenu(async (i) => {
+					await i.deferUpdate();
+					const filter = filters.find((f) => f.customId === i.customId);
+					if (filter) {
+						filter.newValues = i.values;
+					}
+					filteredEvents = await filterEvents(events, eventsPerPage, filters);
+					currentPage = 0;
+					maxPage = filteredEvents.length;
+					const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
+					const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents);
+					message.edit({
+						embeds: [newEmbed],
+						components: [newButtonRow],
+					});
+				}, interaction, dm)
+			}
+			else {
+				singlePageMenus.push(component.generateActionRows()[0]);
+			}
+		});
 
 		// Send filter message
 		let filterMessage;
 		try {
 			filterMessage = await dm.send({
-				content: "**Select Filters:**",
-				components: filterComponents,
+				components: singlePageMenus
 			});
 		} catch (error) {
 			console.error("Failed to send DM:", error);
@@ -579,8 +598,7 @@ export default class extends Command {
 		}
 		// Refresh filter dropdown so newly detected classes appear
 		await filterMessage.edit({
-			content: "**Select Filters:**",
-			components: filterComponents,
+			components: singlePageMenus
 		});
 
 		// Create button collector for main message
