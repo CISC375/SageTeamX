@@ -316,11 +316,15 @@ export default class extends Command {
 				}\nStarts at: ${dateObj.toLocaleString()}`;
 
 				// Create reminder in DB
+				const EXPIRE_BUFFER_MS = 180 * 24 * 60 * 60 * 1000; // 180 days in ms
+
 				const reminder: Reminder = {
 					owner: btnInt.user.id,
 					content: eventInfo,
 					mode: "public",
-					expires: remindDate,
+					expires: repeatInterval
+						? new Date(remindDate.getTime() + EXPIRE_BUFFER_MS) // give repeat reminders more time
+						: remindDate, // one-time reminders
 					repeat: repeatInterval,
 				};
 
@@ -345,13 +349,13 @@ export default class extends Command {
 					content: `✅ Your reminder is set!\nI'll remind you at **${reminderTime(
 						reminder
 					)}** about:\n\`\`\`\n${reminder.content}\n\`\`\`${
-						repeatInterval ? `\n🔁 Repeats every event` : ""
+						repeatInterval
+							? `\n🔁 Repeats every event (for up to 180 days)
+`
+							: ""
 					}`,
 					components: [buttonRow],
 				});
-
-				// collector.stop();
-				// buttonCollector.stop();
 			} else if (btnInt.customId === "cancel_reminder") {
 				try {
 					// 1) Defer *a new reply* (ephemeral)
