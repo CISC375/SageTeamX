@@ -150,21 +150,21 @@ export default class extends Command {
 									})
 		});
 
+		let chosenEvent = null;
+		await eventMenus.createAndSendMenu(async (i) => {
+			const [eventDateStr, indexStr] = i.values[0].split("::");
+			const selectedIndex = parseInt(indexStr);
+			chosenEvent = filteredEvents[selectedIndex];
+			i.deferUpdate();
+		}, interaction);
+
 		// Send ephemeral message with both dropdowns
 		const initalComponents = await generateMessage();
-		const replyMessage = await interaction.reply({
+		const replyMessage = await interaction.followUp({
 			components: initalComponents,
 			ephemeral: true
 		})
 
-		let chosenEvent = null;
-		eventMenus.createAndSendMenu((i) => {
-			const [eventDateStr, indexStr] = i.values[0].split("::");
-			const selectedIndex = parseInt(indexStr);
-			chosenEvent = filteredEvents[selectedIndex];
-		}, interaction);
-
-		
 		let chosenOffset: number | null = null;
 		let activeReminderId: string | null = null;
 
@@ -175,14 +175,8 @@ export default class extends Command {
 		});
 
 		collector.on("collect", async (i) => {
-			if (i.customId === "select_event") {
-				const [eventDateStr, indexStr] = i.values[0].split("::");
-				const selectedIndex = parseInt(indexStr);
-				chosenEvent = filteredEvents[selectedIndex];
-				await i.deferUpdate();
-			} else if (i.customId === "select_offset") {
+			if (i.customId === "select_offset") {
 				const rawOffsetStr = i.values[0];
-				console.log(i.values)
 				chosenOffset = rawOffsetStr === "0" ? 0 : parse(rawOffsetStr);
 				if (isNaN(chosenOffset)) {
 					await i.reply({
@@ -192,7 +186,6 @@ export default class extends Command {
 					});
 					return;
 				}
-				await i.deferUpdate();
 			}
 		});
 
@@ -282,18 +275,6 @@ export default class extends Command {
 				});
 
 				buttonCollector.stop();
-			}
-			else if (btnInt.customId === 'next_button') {
-				await btnInt.deferUpdate();
-				eventMenus.currentPage++;
-				const newComponents = await generateMessage()
-				replyMessage.edit({components: newComponents});
-			}
-			else if (btnInt.customId === 'prev_button') {
-				await btnInt.deferUpdate();
-				eventMenus.currentPage--;
-				const newComponents = await generateMessage()
-				replyMessage.edit({components: newComponents});
 			}
  		});
 	}
