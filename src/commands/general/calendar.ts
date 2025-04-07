@@ -21,6 +21,10 @@ const process = require("process");
 
 const { google } = require("googleapis");
 
+// Define the Master Calendar ID constant.
+const MASTER_CALENDAR_ID =
+	"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com";
+
 interface Event {
 	eventId: string;
 	courseID: string;
@@ -35,10 +39,8 @@ interface Event {
 
 export default class extends Command {
 	name = "calendar";
-	// Shortened description (<100 characters)
 	description = "Retrieve calendar events with pagination and filters";
 
-	// Slash command options for eventholder and eventdate
 	options: ApplicationCommandStringOptionData[] = [
 		{
 			type: ApplicationCommandOptionType.String,
@@ -59,29 +61,13 @@ export default class extends Command {
 
 		// Filters calendar events based on slash command inputs and filter dropdown selections.
 		async function filterEvents(events, eventsPerPage: number, filters) {
-			const eventHolder: string = interaction.options
-				.getString("eventholder")
-				?.toLowerCase();
-			const eventDate: string =
-				interaction.options.getString("eventdate");
+			const eventHolder: string = interaction.options.getString("eventholder")?.toLowerCase();
+			const eventDate: string = interaction.options.getString("eventdate");
 
-			const newEventDate: string = eventDate
-				? new Date(eventDate + " 2025").toLocaleDateString()
-				: "";
-			const days: string[] = [
-				"sunday",
-				"monday",
-				"tuesday",
-				"wednesday",
-				"thursday",
-				"friday",
-				"saturday",
-			];
-
+			const newEventDate: string = eventDate ? new Date(eventDate + " 2025").toLocaleDateString() : "";
 			let temp = [];
 			let filteredEvents = [];
 
-			// Flags for each property
 			let allFiltersFlags = true;
 			let eventHolderFlag: boolean = true;
 			let eventDateFlag: boolean = true;
@@ -90,19 +76,11 @@ export default class extends Command {
 
 				// Extract class name (works for "CISC108-..." and "CISC374010")
 				const classNameMatch = lowerCaseSummary.match(/cisc\d+/i);
-				const extractedClassName = classNameMatch
-					? classNameMatch[0].toUpperCase()
-					: "";
+				const extractedClassName = classNameMatch ? classNameMatch[0].toUpperCase() : "";
 
-				// Add class name to filters dynamically
-				const classFilter = filters.find(
-					(f) => f.customId === "class_name_menu"
-				);
-				if (
-					extractedClassName &&
-					classFilter &&
-					!classFilter.values.includes(extractedClassName)
-				) {
+				// Dynamically update filter options.
+				const classFilter = filters.find((f) => f.customId === "class_name_menu");
+				if (extractedClassName && classFilter && !classFilter.values.includes(extractedClassName)) {
 					classFilter.values.push(extractedClassName);
 				}
 
@@ -112,10 +90,7 @@ export default class extends Command {
 					filters.forEach((filter) => {
 						filter.flag = true;
 						if (filter.newValues.length) {
-							filter.flag = filter.condition(
-								filter.newValues,
-								event
-							);
+							filter.flag = filter.condition(filter.newValues, event);
 						}
 					});
 					allFiltersFlags = filters.every((f) => f.flag);
@@ -125,8 +100,7 @@ export default class extends Command {
 					eventHolderFlag = lowerCaseSummary.includes(eventHolder);
 				}
 				if (eventDate) {
-					eventDateFlag =
-						currentEventDate.toLocaleDateString() === newEventDate;
+					eventDateFlag = currentEventDate.toLocaleDateString() === newEventDate;
 				}
 
 				if (allFiltersFlags && eventHolderFlag && eventDateFlag) {
@@ -141,35 +115,30 @@ export default class extends Command {
 			return filteredEvents;
 		}
 
-		// Generates the embed for displaying events
-		function generateEmbed(
-			filteredEvents,
-			currentPage: number,
-			maxPage: number
-		): EmbedBuilder {
+		// Generates the embed for displaying events.
+		function generateEmbed(filteredEvents, currentPage: number, maxPage: number): EmbedBuilder {
 			let embed: EmbedBuilder;
-			if (filteredEvents.length && filteredEvents[currentPage] && filteredEvents[currentPage].length) {
+			if (
+				filteredEvents.length &&
+				filteredEvents[currentPage] &&
+				filteredEvents[currentPage].length
+			) {
 				embed = new EmbedBuilder()
 					.setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
 					.setColor("Green");
 				filteredEvents[currentPage].forEach((event) => {
 					embed.addFields({
 						name: `**${event.summary}**`,
-						value: `Date: ${new Date(
-							event.start.dateTime
-						).toLocaleDateString()}
-								Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(
-							event.end.dateTime
-						).toLocaleTimeString()}
-								Location: ${event.location ? event.location : "`NONE`"}
-								email:${event.creator.email}\n`,
+						value: `Date: ${new Date(event.start.dateTime).toLocaleDateString()}
+Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}
+Location: ${event.location ? event.location : "`NONE`"}
+Email: ${event.creator.email}\n`,
 					});
 				});
 			} else {
 				embed = new EmbedBuilder()
-					.setTitle(`No Events`)
-					.setColor(`Green`)
 					.setTitle("No Events Found")
+					.setColor("Green")
 					.addFields({
 						name: "Try adjusting your filters",
 						value: "No events match your selections, please change them!",
@@ -178,8 +147,7 @@ export default class extends Command {
 			return embed;
 		}
 
-		// Generates the pagination buttons (Previous, Next, Download Calendar, Done).
-		// Accepts an extra parameter "downloadCount" to show the number of selected events.
+		// Generates the pagination buttons (Previous, Next, Download Calendar, Download All, Done).
 		function generateButtons(currentPage: number, maxPage: number, filteredEvents, downloadCount: number): ActionRowBuilder<ButtonBuilder> {
 			const nextButton = new ButtonBuilder()
 				.setCustomId("next")
@@ -197,7 +165,12 @@ export default class extends Command {
 				.setCustomId("download_Cal")
 				.setLabel(`Download Calendar (${downloadCount})`)
 				.setStyle(ButtonStyle.Success)
-				.setDisabled(downloadCount === 0); // disabled if no events selected
+				.setDisabled(downloadCount === 0);
+
+			const downloadAll = new ButtonBuilder()
+				.setCustomId("download_all")
+				.setLabel("Download All")
+				.setStyle(ButtonStyle.Secondary);
 
 			const done = new ButtonBuilder()
 				.setCustomId("done")
@@ -208,6 +181,7 @@ export default class extends Command {
 				prevButton,
 				nextButton,
 				downloadCal,
+				downloadAll,
 				done
 			);
 		}
@@ -216,20 +190,12 @@ export default class extends Command {
 		function generateFilterMessage(filters) {
 			const filterMenus = filters.map((filter) => {
 				if (filter.values.length === 0) {
-					// Either skip building the menu...
-					// return null; // (you'd then filter out null below)
-
-					// Or add a placeholder option:
 					filter.values.push("No Data Available");
 				}
 				return new StringSelectMenuBuilder()
 					.setCustomId(filter.customId)
 					.setMinValues(0)
-					.setMaxValues(
-						filter.values.length > 0
-							? filter.values.length // allow picking as many as exist
-							: 1 // fallback to 1 if empty
-					)
+					.setMaxValues(filter.values.length > 0 ? filter.values.length : 1)
 					.setPlaceholder(filter.placeholder)
 					.addOptions(
 						filter.values.map((value) => {
@@ -240,9 +206,7 @@ export default class extends Command {
 					);
 			});
 			const components = filterMenus.map((menu) => {
-				return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-					menu
-				);
+				return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
 			});
 			return components;
 		}
@@ -250,9 +214,9 @@ export default class extends Command {
 		// Generates a row of toggle buttons – one for each event on the current page.
 		function generateEventSelectButtons(filteredEvents, currentPage: number) {
 			const row = new ActionRowBuilder<ButtonBuilder>();
-			if (!filteredEvents[currentPage] || !filteredEvents[currentPage].length) return row;
+			if (!filteredEvents[currentPage] || !filteredEvents[currentPage].length)
+				return row;
 			filteredEvents[currentPage].forEach((event, idx) => {
-				// Custom ID format: toggle-<currentPage>-<index>
 				row.addComponents(
 					new ButtonBuilder()
 						.setCustomId(`toggle-${currentPage}-${idx}`)
@@ -263,13 +227,18 @@ export default class extends Command {
 			return row;
 		}
 
-		// Downloads only the selected events by generating an ICS file.
+		// Downloads events by generating an ICS file.
+		// This version includes recurrence rules (if the event has them).
 		async function downloadSelectedEvents(selectedEvents, calendar, auth) {
 			const formattedEvents: string[] = [];
 			selectedEvents.forEach((event) => {
+				// Join recurrence rules (if any) into a string.
+				const recurrenceString = event.recurrence ? event.recurrence.join("\n") : "";
 				const iCalEvent = {
 					UID: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
-					CREATED: new Date(event.created).toISOString().replace(/[-:.]/g, ''),
+					CREATED: new Date(event.created)
+						.toISOString()
+						.replace(/[-:.]/g, ''),
 					DTSTAMP: event.updated.replace(/[-:.]/g, ''),
 					DTSTART: `TZID=${event.start.timeZone}:${event.start.dateTime.replace(/[-:.]/g, '')}`,
 					DTEND: `TZID=${event.end.timeZone}:${event.end.dateTime.replace(/[-:.]/g, '')}`,
@@ -278,8 +247,7 @@ export default class extends Command {
 					LOCATION: event.location ? event.location : 'NONE',
 				};
 
-				const icsFormatted =
-					`BEGIN:VEVENT
+				const icsFormatted = `BEGIN:VEVENT
 UID:${iCalEvent.UID}
 CREATED:${iCalEvent.CREATED}
 DTSTAMP:${iCalEvent.DTSTAMP}
@@ -288,14 +256,13 @@ DTEND;${iCalEvent.DTEND}
 SUMMARY:${iCalEvent.SUMMARY}
 DESCRIPTION:${iCalEvent.DESCRIPTION}
 LOCATION:${iCalEvent.LOCATION}
-STATUS:CONFIRMED
+${recurrenceString ? recurrenceString + "\n" : ""}STATUS:CONFIRMED
 END:VEVENT
 `.replace(/\t/g, '');
 				formattedEvents.push(icsFormatted);
 			});
 
-			const icsCalendar =
-				`BEGIN:VCALENDAR
+			const icsCalendar = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//YourBot//Discord Calendar//EN
 ${formattedEvents.join('')}
@@ -305,98 +272,65 @@ END:VCALENDAR
 			fs.writeFileSync('./events.ics', icsCalendar);
 		}
 
-		/**********************************************************************************************************************************************************************************************/
-		// Initial Reply to acknowledge the interaction (only once)
+		/******************************************************************************************************************/
+		// Initial reply to acknowledge the interaction.
 		await interaction.reply({
 			content: "Authenticating and fetching events...",
 			ephemeral: true,
 		});
-		// Send filter message
+
+		// Define filters for dropdowns.
 		const filters = [
 			{
 				customId: "calendar_menu",
 				placeholder: "Select Calendar",
-				values: [], // Filled with calendar names from the DB
+				values: [],
 				newValues: [],
 				flag: true,
 				condition: (newValues, event) => {
-					// Check the event’s calendarName property
-					const calendarName =
-						event.calendarName?.toLowerCase() || "";
-					// For partial matches: use .includes(...)
-					// For exact matches: use (calendarName === value)
-					return newValues.some((value) =>
-						calendarName.includes(value.toLowerCase())
-					);
+					const calendarName = event.calendarName?.toLowerCase() || "";
+					return newValues.some((value) => calendarName.includes(value.toLowerCase()));
 				},
 			},
 			{
 				customId: "class_name_menu",
 				placeholder: "Select Classes",
-				values: [], // Dynamically updated
+				values: [],
 				newValues: [],
 				flag: true,
 				condition: (newValues, event) => {
-					// Check the event.summary property
 					const summary = event.summary?.toLowerCase() || "";
-					return newValues.some((value) =>
-						summary.includes(value.toLowerCase())
-					);
+					return newValues.some((value) => summary.includes(value.toLowerCase()));
 				},
 			},
 			{
 				customId: "location_type_menu",
 				placeholder: "Select Location Type",
-				values: ["In Person", "Virtual"], // Example
+				values: ["In Person", "Virtual"],
 				newValues: [],
 				flag: true,
 				condition: (newValues, event) => {
-					// Example: assume "In Person" or "Virtual" might appear in event.location (or event.summary)
 					const locString = event.summary.toLowerCase();
-					// If you want to treat "In Person" or "Virtual" as a substring match:
-					return newValues.some((value) =>
-						locString.includes(value.toLowerCase())
-					);
+					return newValues.some((value) => locString.includes(value.toLowerCase()));
 				},
 			},
 			{
 				customId: "week_menu",
 				placeholder: "Select Days of Week",
-				values: [
-					"Sunday",
-					"Monday",
-					"Tuesday",
-					"Wednesday",
-					"Thursday",
-					"Friday",
-					"Saturday",
-				],
+				values: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
 				newValues: [],
 				flag: true,
 				condition: (newValues, event) => {
-					// Convert event.start.dateTime into a weekday
-					if (!event.start?.dateTime) return false; // if there's no dateTime at all
+					if (!event.start?.dateTime) return false;
 					const dt = new Date(event.start.dateTime);
-					const weekdayIndex = dt.getDay(); // 0 = Sunday, 1 = Monday, etc.
-					const dayName = [
-						"Sunday",
-						"Monday",
-						"Tuesday",
-						"Wednesday",
-						"Thursday",
-						"Friday",
-						"Saturday",
-					][weekdayIndex];
-					console.log(newValues);
-					console.log(dayName)
+					const weekdayIndex = dt.getDay();
+					const dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][weekdayIndex];
 					return newValues.some((value) => value.toLowerCase() === dayName.toLowerCase());
 				},
 			},
 		];
 
-		// Fetch Calendar events
-		// Fetch Calendar events from multiple calendars
-		// Fetch Calendar events from multiple Google Calendars
+		// Set up Google Calendar API authorization.
 		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
@@ -407,14 +341,9 @@ END:VCALENDAR
 		const DB_NAME = "CalendarDatabase";
 		const COLLECTION_NAME = "calendarIds";
 
-		// Hardcoded Master Google Calendar ID (Always Included)
-		const MASTER_CALENDAR_ID =
-			"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com";
-
-		// Function to fetch stored Google Calendar IDs from MongoDB
-		/** Fetch Calendar IDs & Names **/
+		// Fetch calendar IDs from MongoDB.
 		async function fetchCalendars() {
-			const client = new MongoClient(MONGO_URI);
+			const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
 			await client.connect();
 			const db = client.db(DB_NAME);
 			const collection = db.collection(COLLECTION_NAME);
@@ -422,13 +351,11 @@ END:VCALENDAR
 			const calendarDocs = await collection.find().toArray();
 			await client.close();
 
-			// Include master calendar always
 			const calendars = calendarDocs.map((doc) => ({
 				calendarId: doc.calendarId,
 				calendarName: doc.calendarName || "Unnamed Calendar",
 			}));
 
-			// Ensure Master Calendar is always included
 			if (!calendars.some((c) => c.calendarId === MASTER_CALENDAR_ID)) {
 				calendars.push({
 					calendarId: MASTER_CALENDAR_ID,
@@ -440,33 +367,24 @@ END:VCALENDAR
 		}
 
 		let events = [];
-
 		try {
 			const calendars = await fetchCalendars();
-
-			// Let’s pick out the "calendar_menu" from your filters
-			const calendarMenu = filters.find(
-				(f) => f.customId === "calendar_menu"
-			);
+			const calendarMenu = filters.find((f) => f.customId === "calendar_menu");
 			if (calendarMenu) {
-				// Fill the dropdown with the names
 				calendarMenu.values = calendars.map((c) => c.calendarName);
 			}
 
-			// For all calendarIds, attach the name to each fetched event
+			// IMPORTANT: Set singleEvents to false so that master events (with recurrence) are returned.
 			for (const cal of calendars) {
 				const response = await calendar.events.list({
 					calendarId: cal.calendarId,
 					timeMin: new Date().toISOString(),
-					timeMax: new Date(
-						Date.now() + 10 * 24 * 60 * 60 * 1000
-					).toISOString(),
-					singleEvents: true,
-					orderBy: "startTime",
+					timeMax: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+					singleEvents: false,
+					// Removed orderBy parameter since it's not allowed with singleEvents: false.
 				});
 
 				if (response.data.items) {
-					// Tag each event with its source calendar name
 					response.data.items.forEach((event) => {
 						event.calendarName = cal.calendarName;
 					});
@@ -474,7 +392,7 @@ END:VCALENDAR
 				}
 			}
 
-			// Sort events by start time
+			// Sort events by their start time.
 			events.sort(
 				(a, b) =>
 					new Date(a.start?.dateTime || a.start?.date).getTime() -
@@ -483,21 +401,17 @@ END:VCALENDAR
 		} catch (error) {
 			console.error("Google Calendar API Error:", error);
 			await interaction.followUp({
-				content:
-					"⚠️ Failed to retrieve calendar events due to an API issue. Please try again later.",
+				content: "⚠️ Failed to retrieve calendar events due to an API issue. Please try again later.",
 				ephemeral: true,
 			});
 			return;
 		}
 
-		// Continue using the existing filterEvents function
 		const eventsPerPage: number = 3;
 		let filteredEvents = await filterEvents(events, eventsPerPage, filters);
-
 		if (!filteredEvents.length) {
 			await interaction.followUp({
-				content:
-					"No matching events found based on your filters. Please adjust your search criteria.",
+				content: "No matching events found based on your filters. Please adjust your search criteria.",
 				ephemeral: true,
 			});
 			return;
@@ -505,26 +419,18 @@ END:VCALENDAR
 
 		let maxPage: number = filteredEvents.length;
 		let currentPage: number = 0;
-
-		// Create state variables to track selected events.
-		// Keys are in the format "page-index"; eventMap holds the actual event objects.
 		const selectedEventsSet = new Set<string>();
 		const eventMap = {};
-
-		// Build the eventMap from filtered events.
 		filteredEvents.forEach((pageEvents, pIndex) => {
 			pageEvents.forEach((evt, eIndex) => {
 				eventMap[`${pIndex}-${eIndex}`] = evt;
 			});
 		});
 
-		// Generate initial embed, pagination buttons, and event toggle buttons.
 		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
-		// Pass the selected events count so Download button is initially disabled if count is 0.
 		const buttonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
 		const toggleRow = generateEventSelectButtons(filteredEvents, currentPage);
 
-		// Send main DM message with embed and two rows: toggle buttons and pagination buttons.
 		const dm = await interaction.user.createDM();
 		let message;
 		try {
@@ -535,15 +441,13 @@ END:VCALENDAR
 		} catch (error) {
 			console.error("Failed to send DM:", error);
 			await interaction.followUp({
-				content:
-					"⚠️ I couldn't send you a DM. Please check your privacy settings.",
+				content: "⚠️ I couldn't send you a DM. Please check your privacy settings.",
 				ephemeral: true,
 			});
 			return;
 		}
-		const filterComponents = generateFilterMessage(filters);
 
-		// Send filter message to prompt the user.
+		const filterComponents = generateFilterMessage(filters);
 		let filterMessage;
 		try {
 			filterMessage = await dm.send({
@@ -553,42 +457,29 @@ END:VCALENDAR
 		} catch (error) {
 			console.error("Failed to send DM:", error);
 			await interaction.followUp({
-				content:
-					"⚠️ I couldn't send you a DM. Please check your privacy settings.",
+				content: "⚠️ I couldn't send you a DM. Please check your privacy settings.",
 				ephemeral: true,
 			});
 			return;
 		}
-		// Refresh filter dropdown so newly detected classes appear
 		await filterMessage.edit({
 			content: "**Select Filters:**",
 			components: filterComponents,
 		});
 
-		// Create a button collector for the main message (for toggling, pagination, download, done).
-		const buttonCollector = message.createMessageComponentCollector({
-			time: 300000,
-		});
+		// Create collectors for button and menu interactions.
+		const buttonCollector = message.createMessageComponentCollector({ time: 300000 });
+		const menuCollector = filterMessage.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 300000 });
 
-		// Create a collector for the filter dropdown menus.
-		const menuCollector = filterMessage.createMessageComponentCollector({
-			componentType: ComponentType.StringSelect,
-			time: 300000,
-		});
-
-		// Handle button interactions (toggle selection, pagination, download, done)
 		buttonCollector.on("collect", async (btnInt) => {
 			try {
 				await btnInt.deferUpdate();
-				// Handle toggle button clicks.
 				if (btnInt.customId.startsWith("toggle-")) {
-					// Custom ID format: toggle-<page>-<index>
 					const parts = btnInt.customId.split("-");
 					const key = `${parts[1]}-${parts[2]}`;
 					const event = eventMap[key];
 					if (selectedEventsSet.has(key)) {
 						selectedEventsSet.delete(key);
-						// Send a temporary message indicating removal.
 						try {
 							const removeMsg = await dm.send(`Removed ${event.summary}`);
 							setTimeout(async () => {
@@ -623,7 +514,6 @@ END:VCALENDAR
 					if (currentPage === 0) return;
 					currentPage--;
 				} else if (btnInt.customId === 'download_Cal') {
-					// When Download is pressed, include only selected events.
 					if (selectedEventsSet.size === 0) {
 						await dm.send("No events selected to download!");
 						return;
@@ -644,6 +534,24 @@ END:VCALENDAR
 					} catch {
 						await downloadMessage.edit({ content: '⚠️ Failed to download events' });
 					}
+				} else if (btnInt.customId === "download_all") {
+					const allFilteredEvents = filteredEvents.flat();
+					if (!allFilteredEvents.length) {
+						await dm.send("No events to download!");
+						return;
+					}
+					const downloadMessage = await dm.send({ content: "Downloading all events..." });
+					try {
+						await downloadSelectedEvents(allFilteredEvents, calendar, auth);
+						const filePath = path.join('./events.ics');
+						await downloadMessage.edit({
+							content: '',
+							files: [filePath]
+						});
+						fs.unlinkSync('./events.ics');
+					} catch {
+						await downloadMessage.edit({ content: "⚠️ Failed to download all events." });
+					}
 				} else if (btnInt.customId === "done") {
 					await message.edit({
 						embeds: [],
@@ -660,7 +568,6 @@ END:VCALENDAR
 					return;
 				}
 
-				// Update the embed and both rows (toggle and pagination) after any interaction.
 				const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
 				const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
 				const newToggleRow = generateEventSelectButtons(filteredEvents, currentPage);
@@ -670,7 +577,6 @@ END:VCALENDAR
 				});
 			} catch (error) {
 				console.error("Button Collector Error:", error);
-				// Always use followUp to avoid re-acknowledging an interaction.
 				await btnInt.followUp({
 					content: "⚠️ An error occurred while navigating through events. Please try again.",
 					ephemeral: true,
@@ -684,11 +590,9 @@ END:VCALENDAR
 			if (filter) {
 				filter.newValues = i.values;
 			}
-			// Re-filter events using the updated filter selections.
 			filteredEvents = await filterEvents(events, eventsPerPage, filters);
 			currentPage = 0;
 			maxPage = filteredEvents.length;
-			// Clear previous selections and rebuild the eventMap.
 			selectedEventsSet.clear();
 			filteredEvents.forEach((pageEvents, pIndex) => {
 				pageEvents.forEach((evt, eIndex) => {
@@ -700,7 +604,7 @@ END:VCALENDAR
 			const newToggleRow = generateEventSelectButtons(filteredEvents, currentPage);
 			message.edit({
 				embeds: [newEmbed],
-				components: [newButtonRow],
+				components: [newToggleRow, newButtonRow],
 			});
 		});
 	}
