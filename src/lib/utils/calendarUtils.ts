@@ -1,7 +1,7 @@
 /**
  * So as it turns out, Discord is pretty limited in what it can do
  * This class was built with the goal to get around the max 25 options in a select menu
- * In short, if you build select menus using thise class instead of the normal way, it will automatically create new select menus as needed.
+ * In short, if you build select menus using this class instead of the normal way, it will automatically create new select menus as needed.
  * It will also automatically create navigaiton buttons if the number of select menus is greater than 1
  *
  * So how to use this thing you may ask? Well I hope the JSDoc comments bellow can help, but I'll still explain it up here
@@ -10,7 +10,7 @@
  * 	1. Call the constructor ( const newMenu = new PagifiedSelectMenu(); )
  * 	2. Generate the inital menu ( newMenu.createSelectMenu({customId: 'tutorial', ...other options}); )
  * 	3. Add options to your menu - Note: The addOption() method will only add ONE option at a time.
- * 		a. Create an array containing all the value you want to put into the select menu before calling this method (if you want only want one option, then you don't have to do this)
+ * 		a. Create an array containing all the values you want to put into the select menu before calling this method (if you want only one option, then you don't have to do this)
  * 		b. Iterate over the array and call the addOption() method each iteration ( myValues.forEach((val) => addOption({label: val, value: val, ...other options})) )
  * 		c. Profit
  * 	4. Congratulations you just created a pagified select menu
@@ -22,7 +22,7 @@
  *		a. It will create the logic for the buttons, but you have to pass in a function containing the logic for the menu collector
  *		b. Example: newMenu.generateMessage(collectorLogic(i) => { [your code goes here] }, interaction, rows)
  *		c. Note: You MUST pass in your function with i: StringSelectMenuInteraction<CacheType> as an argument
- * 	9. You can also take care of row generation and message sending using tge generateRowsAndSendMenu() method
+ * 	9. You can also take care of row generation and message sending using the generateRowsAndSendMenu() method
  */
 
 import
