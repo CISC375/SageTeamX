@@ -38,6 +38,120 @@ export default class extends Command {
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
 		let auth;
+		function generateMessage(
+			pagifiedEvents,
+			currentPage: number,
+			maxPages: number,
+			chosenEvent: any,
+			chosenOffset: number | null,
+			repeatInterval: "every_event" | null
+		) {
+			const offsetOptions = [
+				{ label: "At event", value: "0" },
+				{ label: "10 minutes before", value: "10m" },
+				{ label: "30 minutes before", value: "30m" },
+				{ label: "1 hour before", value: "1h" },
+				{ label: "1 day before", value: "1d" },
+			];
+
+			function buildEventDropdown(): StringSelectMenuBuilder {
+				return new StringSelectMenuBuilder()
+					.setCustomId("select_event")
+					.setPlaceholder("Select an event")
+					.setMaxValues(1)
+					.addOptions(
+						pagifiedEvents[currentPage].map((event, index) => {
+							const label = event.summary;
+							const description = `Starts at: ${new Date(
+								event.start.dateTime
+							).toLocaleString()}`;
+							const value = `${event.start.dateTime}::${index}`;
+							const option = new StringSelectMenuOptionBuilder()
+								.setLabel(label)
+								.setDescription(description)
+								.setValue(value);
+
+							if (
+								chosenEvent &&
+								chosenEvent.start.dateTime ===
+									event.start.dateTime
+							) {
+								option.setDefault(true);
+							}
+
+							return option;
+						})
+					);
+			}
+
+			function buildOffsetDropdown(): StringSelectMenuBuilder {
+				return new StringSelectMenuBuilder()
+					.setCustomId("select_offset")
+					.setPlaceholder("Select reminder offset")
+					.setMaxValues(1)
+					.addOptions(
+						offsetOptions.map((opt) => {
+							const option = new StringSelectMenuOptionBuilder()
+								.setLabel(opt.label)
+								.setValue(opt.value);
+
+							if (
+								chosenOffset !== null &&
+								(opt.value === "0"
+									? chosenOffset === 0
+									: parse(opt.value) === chosenOffset)
+							) {
+								option.setDefault(true);
+							}
+
+							return option;
+						})
+					);
+			}
+
+			const toggleRepeatButton = new ButtonBuilder()
+				.setCustomId("toggle_repeat")
+				.setLabel(
+					repeatInterval === "every_event"
+						? "Repeat: On"
+						: "Repeat: Off"
+				)
+				.setStyle(ButtonStyle.Secondary);
+
+			const setReminder = new ButtonBuilder()
+				.setCustomId("set_reminder")
+				.setLabel("Set Reminder")
+				.setStyle(ButtonStyle.Success);
+
+			const nextButton = new ButtonBuilder()
+				.setCustomId("nextButton")
+				.setLabel("Next")
+				.setStyle(ButtonStyle.Primary)
+				.setDisabled(currentPage + 1 >= maxPages);
+
+			const prevButton = new ButtonBuilder()
+				.setCustomId("prevButton")
+				.setLabel("Previous")
+				.setStyle(ButtonStyle.Primary)
+				.setDisabled(currentPage === 0);
+
+			return [
+				new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+					buildEventDropdown()
+				),
+				new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+					buildOffsetDropdown()
+				),
+				new ActionRowBuilder<ButtonBuilder>().addComponents(
+					prevButton,
+					nextButton
+				),
+				new ActionRowBuilder<ButtonBuilder>().addComponents(
+					toggleRepeatButton,
+					setReminder
+				),
+			];
+		}
 		try {
 			auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
 		} catch (error) {
@@ -153,82 +267,41 @@ export default class extends Command {
 				);
 		}
 
-		// 1) Event dropdown
-		const eventMenu = new StringSelectMenuBuilder()
-			.setCustomId("select_event")
-			.setPlaceholder("Select an event")
-			.setMaxValues(1)
-			.addOptions(
-				filteredEvents.slice(0, 25).map((event, index: number) => {
-					const label = event.summary;
-					const description = `Starts at: ${new Date(
-						event.start.dateTime
-					).toLocaleString()}`;
-					// Stash dateTime plus index
+		// Paginate events (25 per page)
+		let temp = [];
+		let pagifiedEvents = [];
+		for (const event of filteredEvents) {
+			if (temp.length < 25) {
+				temp.push(event);
+			} else {
+				pagifiedEvents.push(temp);
+				temp = [event];
+			}
+		}
+		if (temp.length > 0) pagifiedEvents.push(temp);
 
-					return new StringSelectMenuOptionBuilder()
-						.setLabel(label)
-						.setDescription(description)
-						.setValue(`${event.start.dateTime}::${index}`);
-				})
-			);
-
-		// 2) Offset dropdown
-		const offsetOptions = [
-			{ label: "At event", value: "0" },
-			{ label: "10 minutes before", value: "10m" },
-			{ label: "30 minutes before", value: "30m" },
-			{ label: "1 hour before", value: "1h" },
-			{ label: "1 day before", value: "1d" },
-		];
-
-		const offsetMenu = new StringSelectMenuBuilder()
-			.setCustomId("select_offset")
-			.setPlaceholder("Select reminder offset")
-			.setMaxValues(1)
-			.addOptions(
-				offsetOptions.map((opt) =>
-					new StringSelectMenuOptionBuilder()
-						.setLabel(opt.label)
-						.setValue(opt.value)
-				)
-			);
-
-		const toggleRepeatButton = new ButtonBuilder()
-			.setCustomId("toggle_repeat")
-			.setLabel("Repeat: Off")
-			.setStyle(ButtonStyle.Secondary);
-
-		// 3) Set Reminder button
-		const setReminder = new ButtonBuilder()
-			.setCustomId("set_reminder")
-			.setLabel("Set Reminder")
-			.setStyle(ButtonStyle.Success);
-
-		// Create action rows for the dropdowns
-		const row1 =
-			new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-				eventMenu
-			);
-		const row2 =
-			new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-				offsetMenu
-			);
-		const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-			toggleRepeatButton,
-			setReminder
-		);
-
-		// Send ephemeral message with both dropdowns
-		const replyMessage = await interaction.reply({
-			components: [row1, row2, row3],
-			ephemeral: true,
-		});
+		const maxPages = pagifiedEvents.length;
+		let currentPage = 0;
 
 		let chosenEvent = null;
 		let chosenOffset: number | null = null;
 		let repeatInterval: "every_event" | null = null;
 		let activeReminderId: string | null = null;
+
+		const components = generateMessage(
+			pagifiedEvents,
+			currentPage,
+			maxPages,
+			chosenEvent,
+			chosenOffset,
+			repeatInterval
+		);
+
+		const replyMessage = await interaction.reply({
+			content: `Events ${currentPage + 1} of ${maxPages}`,
+			components,
+			ephemeral: true,
+		});
 
 		// Main collector for event & offset
 
@@ -259,29 +332,18 @@ export default class extends Command {
 		buttonCollector.on("collect", async (btnInt) => {
 			if (btnInt.customId === "toggle_repeat") {
 				repeatInterval = repeatInterval ? null : "every_event";
-				const newLabel = repeatInterval ? "Repeat: On" : "Repeat: Off";
 
-				const updatedRow1 =
-					new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-						buildEventDropdown(filteredEvents, chosenEvent)
-					);
-
-				const updatedRow2 =
-					new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-						buildOffsetDropdown(offsetOptions, chosenOffset)
-					);
-
-				const updatedRow3 =
-					new ActionRowBuilder<ButtonBuilder>().addComponents(
-						new ButtonBuilder()
-							.setCustomId("toggle_repeat")
-							.setLabel(newLabel)
-							.setStyle(ButtonStyle.Secondary),
-						setReminder
-					);
+				const updatedComponents = generateMessage(
+					pagifiedEvents,
+					currentPage,
+					maxPages,
+					chosenEvent,
+					chosenOffset,
+					repeatInterval
+				);
 
 				await btnInt.update({
-					components: [updatedRow1, updatedRow2, updatedRow3],
+					components: updatedComponents,
 				});
 			} else if (btnInt.customId === "set_reminder") {
 				// If user hasn’t selected both fields, just silently acknowledge
@@ -381,6 +443,36 @@ export default class extends Command {
 				} catch (err) {
 					console.error("Failed to cancel reminder:", err);
 				}
+			} else if (btnInt.customId === "nextButton") {
+				await btnInt.deferUpdate();
+				currentPage++;
+				const updatedComponents = generateMessage(
+					pagifiedEvents,
+					currentPage,
+					maxPages,
+					chosenEvent,
+					chosenOffset,
+					repeatInterval
+				);
+				await replyMessage.edit({
+					content: `Events ${currentPage + 1} of ${maxPages}`,
+					components: updatedComponents,
+				});
+			} else if (btnInt.customId === "prevButton") {
+				await btnInt.deferUpdate();
+				currentPage--;
+				const updatedComponents = generateMessage(
+					pagifiedEvents,
+					currentPage,
+					maxPages,
+					chosenEvent,
+					chosenOffset,
+					repeatInterval
+				);
+				await replyMessage.edit({
+					content: `Events ${currentPage + 1} of ${maxPages}`,
+					components: updatedComponents,
+				});
 			}
 		});
 	}
