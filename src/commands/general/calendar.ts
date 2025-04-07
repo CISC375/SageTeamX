@@ -133,9 +133,9 @@ export default class extends Command {
 					embed.addFields({
 						name: `**${event.summary}**`,
 						value: `Date: ${new Date(event.start.dateTime).toLocaleDateString()}
-Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}
-Location: ${event.location ? event.location : "`NONE`"}
-Email: ${event.creator.email}\n`,
+						Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}
+						Location: ${event.location ? event.location : "`NONE`"}
+						Email: ${event.creator.email}\n`,
 					});
 				});
 			} else {
@@ -251,26 +251,26 @@ Email: ${event.creator.email}\n`,
 				};
 
 				const icsFormatted = `BEGIN:VEVENT
-UID:${iCalEvent.UID}
-CREATED:${iCalEvent.CREATED}
-DTSTAMP:${iCalEvent.DTSTAMP}
-DTSTART;${iCalEvent.DTSTART}
-DTEND;${iCalEvent.DTEND}
-SUMMARY:${iCalEvent.SUMMARY}
-DESCRIPTION:${iCalEvent.DESCRIPTION}
-LOCATION:${iCalEvent.LOCATION}
-${recurrenceString ? recurrenceString + "\n" : ""}STATUS:CONFIRMED
-END:VEVENT
-`.replace(/\t/g, '');
-				formattedEvents.push(icsFormatted);
-			});
+				UID:${iCalEvent.UID}
+				CREATED:${iCalEvent.CREATED}
+				DTSTAMP:${iCalEvent.DTSTAMP}
+				DTSTART;${iCalEvent.DTSTART}
+				DTEND;${iCalEvent.DTEND}
+				SUMMARY:${iCalEvent.SUMMARY}
+				DESCRIPTION:${iCalEvent.DESCRIPTION}
+				LOCATION:${iCalEvent.LOCATION}
+				${recurrenceString ? recurrenceString + "\n" : ""}STATUS:CONFIRMED
+				END:VEVENT
+				`.replace(/\t/g, '');
+								formattedEvents.push(icsFormatted);
+							});
 
-			const icsCalendar = `BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//YourBot//Discord Calendar//EN
-${formattedEvents.join('')}
-END:VCALENDAR
-`.replace(/\t/g, '');
+							const icsCalendar = `BEGIN:VCALENDAR
+				VERSION:2.0
+				PRODID:-//YourBot//Discord Calendar//EN
+				${formattedEvents.join('')}
+				END:VCALENDAR
+				`.replace(/\t/g, '');
 
 			fs.writeFileSync('./events.ics', icsCalendar);
 		}
