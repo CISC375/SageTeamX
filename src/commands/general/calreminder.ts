@@ -35,7 +35,60 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		function generateMessage(eventMenu: PagifiedSelectMenu, offsetMenu: PagifiedSelectMenu, repeatInterval: "every_event" | null) {
+		let eventMenu: PagifiedSelectMenu;
+		let offsetMenu: PagifiedSelectMenu;
+
+		function generateMessage(repeatInterval: "every_event" | null, chosenEvent?, chosenOffset?: number, renderMenus = false, eventCurrentPage = 0, offsetCurrentPage = 0) {
+			if (renderMenus) {
+				eventMenu = new PagifiedSelectMenu();
+				eventMenu.createSelectMenu({customId: 'select_event', placeHolder: 'Select an event', minimumValues: 1});
+				filteredEvents.forEach((event, index) => {
+					let isDefault: boolean = false;
+					if (chosenEvent) {
+						if (chosenEvent.start.dateTime === event.start.dateTime) {
+							isDefault = true;
+						}
+					}
+					eventMenu.addOption(
+						{
+							label: event.summary, 
+							value: `${event.start.dateTime}::${index}`,
+							description: `Starts at: ${new Date(event.start.dateTime).toLocaleString()}`,
+							default: isDefault
+						}
+					)
+				});
+				eventMenu.currentPage = eventCurrentPage;
+
+				// Create offset select menu
+				const offsetOptions = [
+					{ label: "At event", value: "0" },
+					{ label: "10 minutes before", value: "10m" },
+					{ label: "30 minutes before", value: "30m" },
+					{ label: "1 hour before", value: "1h" },
+					{ label: "1 day before", value: "1d" },
+				];
+
+				offsetMenu = new PagifiedSelectMenu();
+				offsetMenu.createSelectMenu({customId: 'select_offset', placeHolder: 'Select reminder offset', maximumValues: 1});
+				offsetOptions.forEach((option) => {
+					let isDefault: boolean = false;
+					if (chosenOffset) {
+						if (chosenOffset === parse(option.value)) {
+							isDefault = true;
+						}
+					}
+					offsetMenu.addOption(
+						{
+							label: option.label,
+							value: option.value,
+							default: isDefault
+						}
+					)
+				});
+				offsetMenu.currentPage = offsetCurrentPage;
+			}
+
 			// 1) Generate event menu row(s)
 			const eventMenuRows = eventMenu.generateActionRows();
 
@@ -126,44 +179,11 @@ export default class extends Command {
 		}
 
 		let chosenEvent = null;
-		let chosenOffset: number | null = null;
-		let repeatInterval: "every_event" | null = null;
-		let activeReminderId: string | null = null;
+		let chosenOffset: number = null;
+		let repeatInterval: "every_event" = null;
+		let activeReminderId: string = null;
 
-		// Create event select menu
-		const eventMenu = new PagifiedSelectMenu();
-		eventMenu.createSelectMenu({customId: 'select_event', placeHolder: 'Select an event', minimumValues: 1});
-		filteredEvents.forEach((event, index) => {
-			eventMenu.addOption(
-				{
-					label: event.summary, 
-					value: `${event.start.dateTime}::${index}`,
-					description: `Starts at: ${new Date(event.start.dateTime).toLocaleString()}`
-				}
-			)
-		});
-
-		// Create offset select menu
-		const offsetMenu = new PagifiedSelectMenu();
-		const offsetOptions = [
-			{ label: "At event", value: "0" },
-			{ label: "10 minutes before", value: "10m" },
-			{ label: "30 minutes before", value: "30m" },
-			{ label: "1 hour before", value: "1h" },
-			{ label: "1 day before", value: "1d" },
-		];
-
-		offsetMenu.createSelectMenu({customId: 'select_offset', placeHolder: 'Select reminder offset', maximumValues: 1});
-		offsetOptions.forEach((option) => {
-			offsetMenu.addOption(
-				{
-					label: option.label,
-					value: option.value
-				}
-			)
-		});
-
-		const initialComponents = generateMessage(eventMenu, offsetMenu, repeatInterval);
+		const initialComponents = generateMessage(repeatInterval, chosenEvent, chosenOffset, true);
 
 		const replyMessage = await interaction.reply({
 			components: initialComponents,
@@ -200,7 +220,7 @@ export default class extends Command {
 			if (btnInt.customId === "toggle_repeat") {
 				repeatInterval = repeatInterval ? null : "every_event";
 
-				const updatedComponents = generateMessage(eventMenu, offsetMenu, repeatInterval);
+				const updatedComponents = generateMessage(repeatInterval, chosenEvent, chosenOffset, true, eventMenu.currentPage, offsetMenu.currentPage);
 
 				await btnInt.update({
 					components: updatedComponents,
@@ -316,7 +336,7 @@ export default class extends Command {
 			if (action) {
 				await btnInt.deferUpdate();
 				action();
-				const newRows = generateMessage(eventMenu, offsetMenu, repeatInterval);
+				const newRows = generateMessage(repeatInterval);
 				await btnInt.editReply({ components: newRows });
 			}
 		});
