@@ -20,7 +20,6 @@ const process = require("process");
 const { google } = require("googleapis");
 import parse from "parse-duration";
 import { authorize } from "../../lib/auth";
-import { utc } from "moment";
 
 export default class extends Command {
 	name = "calreminder";
@@ -35,6 +34,87 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
+		async function generateMessage(pagifiedEvents, currentPage: number, maxPages: number) {
+			// 1) Event dropdown
+			const eventMenu = new StringSelectMenuBuilder()
+			.setCustomId("select_event")
+			.setPlaceholder("Select an event")
+			.setMaxValues(1)
+			.addOptions(
+				pagifiedEvents[currentPage].map((event, index: number) => {
+					const label = event.summary;
+					const description = `Starts at: ${new Date(
+						event.start.dateTime
+					).toLocaleString()}`;
+					// Stash dateTime plus index
+					return new StringSelectMenuOptionBuilder()
+						.setLabel(label)
+						.setDescription(description)
+						.setValue(`${event.start.dateTime}::${index}`);
+				})
+			);
+
+			// 2) Offset dropdown
+			const offsetOptions = [
+				{ label: "At event", value: "0" },
+				{ label: "10 minutes before", value: "10m" },
+				{ label: "30 minutes before", value: "30m" },
+				{ label: "1 hour before", value: "1h" },
+				{ label: "1 day before", value: "1d" },
+			];
+
+			const offsetMenu = new StringSelectMenuBuilder()
+				.setCustomId("select_offset")
+				.setPlaceholder("Select reminder offset")
+				.setMaxValues(1)
+				.addOptions(
+					offsetOptions.map((opt) =>
+						new StringSelectMenuOptionBuilder()
+							.setLabel(opt.label)
+							.setValue(opt.value)
+					)
+				);
+
+			// 3) Set Reminder button
+			const setReminder = new ButtonBuilder()
+				.setCustomId("set_reminder")
+				.setLabel("Set Reminder")
+				.setStyle(ButtonStyle.Success);
+
+			// 4) Next Button
+			const nextButton = new ButtonBuilder()
+				.setCustomId('nextButton')
+				.setLabel('Next')
+				.setStyle(ButtonStyle.Primary)
+				.setDisabled(currentPage + 1 === maxPages)
+
+			// 5) Prev Button
+			const prevButton = new ButtonBuilder()
+				.setCustomId('prevButton')
+				.setLabel('Previous')
+				.setStyle(ButtonStyle.Primary)
+				.setDisabled(currentPage === 0)
+
+			// Create action rows for the dropdowns
+			const row1 =
+				new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+					eventMenu
+				);
+			const row2 =
+				new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+					offsetMenu
+				);
+
+			const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+				prevButton, nextButton
+			);
+
+			const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+				setReminder
+			);
+
+			return [row1, row2, row3, row4];
+		}
 		// Authorize Google Calendar
 		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
@@ -96,71 +176,31 @@ export default class extends Command {
 			return;
 		}
 
-		// 1) Event dropdown
-		const eventMenu = new StringSelectMenuBuilder()
-			.setCustomId("select_event")
-			.setPlaceholder("Select an event")
-			.setMaxValues(1)
-			.addOptions(
-				filteredEvents.slice(0, 25).map((event, index: number) => {
-					const label = event.summary;
-					const description = `Starts at: ${new Date(
-						event.start.dateTime
-					).toLocaleString()}`;
-					// Stash dateTime plus index
-					return new StringSelectMenuOptionBuilder()
-						.setLabel(label)
-						.setDescription(description)
-						.setValue(`${event.start.dateTime}::${index}`);
-				})
-			);
-
-		// 2) Offset dropdown
-		const offsetOptions = [
-			{ label: "At event", value: "0" },
-			{ label: "10 minutes before", value: "10m" },
-			{ label: "30 minutes before", value: "30m" },
-			{ label: "1 hour before", value: "1h" },
-			{ label: "1 day before", value: "1d" },
-		];
-
-		const offsetMenu = new StringSelectMenuBuilder()
-			.setCustomId("select_offset")
-			.setPlaceholder("Select reminder offset")
-			.setMaxValues(1)
-			.addOptions(
-				offsetOptions.map((opt) =>
-					new StringSelectMenuOptionBuilder()
-						.setLabel(opt.label)
-						.setValue(opt.value)
-				)
-			);
-
-		// 3) Set Reminder button
-		const setReminder = new ButtonBuilder()
-			.setCustomId("set_reminder")
-			.setLabel("Set Reminder")
-			.setStyle(ButtonStyle.Success);
-
-		// Create action rows for the dropdowns
-		const row1 =
-			new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-				eventMenu
-			);
-		const row2 =
-			new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-				offsetMenu
-			);
-
-		const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-			setReminder
-		);
+		// Put the events into a 2D array
+		let temp = [];
+		let pagifiedEvents = [];
+		filteredEvents.forEach((event) => {
+			if (temp.length < 25) {
+				temp = [...temp, event];
+			}
+			else {
+				pagifiedEvents = [...pagifiedEvents, temp];
+				temp = [];
+			}
+		});
+		if (temp.length > 0) {
+			pagifiedEvents = [...pagifiedEvents, temp];
+		}
+		const maxPages = pagifiedEvents.length;
+		let currentPage = 0;
 
 		// Send ephemeral message with both dropdowns
+		const initalComponents = await generateMessage(pagifiedEvents, currentPage, maxPages);
 		const replyMessage = await interaction.reply({
-			components: [row1, row2, row3],
-			ephemeral: true,
-		});
+			content: `Events ${currentPage + 1} of ${maxPages}`,
+			components: initalComponents,
+			ephemeral: true
+		})
 
 		let chosenEvent = null;
 		let chosenOffset: number | null = null;
@@ -176,10 +216,11 @@ export default class extends Command {
 			if (i.customId === "select_event") {
 				const [eventDateStr, indexStr] = i.values[0].split("::");
 				const selectedIndex = parseInt(indexStr);
-				chosenEvent = filteredEvents[selectedIndex];
+				chosenEvent = pagifiedEvents[currentPage][selectedIndex];
 				await i.deferUpdate();
 			} else if (i.customId === "select_offset") {
 				const rawOffsetStr = i.values[0];
+				console.log(i.values)
 				chosenOffset = rawOffsetStr === "0" ? 0 : parse(rawOffsetStr);
 				if (isNaN(chosenOffset)) {
 					await i.reply({
@@ -204,14 +245,7 @@ export default class extends Command {
 				await btnInt.deferUpdate();
 				if (chosenEvent && chosenEvent !== null) {
 					const dateObj = new Date(chosenEvent.start.dateTime);
-					if (!chosenOffset || isNaN(chosenOffset)) {
-						await btnInt.editReply({
-							content:
-								"⚠️ Reminder offset is invalid. No reminder was set.",
-							components: [],
-						});
-						return;
-					}
+	
 					// Create reminder time in local time
 					const remindDate = new Date(
 						dateObj.getTime() - chosenOffset
@@ -286,6 +320,24 @@ export default class extends Command {
 				});
 
 				buttonCollector.stop();
+			}
+			else if (btnInt.customId === 'nextButton') {
+				await btnInt.deferUpdate();
+				currentPage++;
+				const newComponents = await generateMessage(pagifiedEvents, currentPage, maxPages);
+				replyMessage.edit({
+					content: `Events ${currentPage + 1} of ${maxPages}`,
+					components: newComponents 
+				});
+			}
+			else if (btnInt.customId === 'prevButton') {
+				await btnInt.deferUpdate();
+				currentPage--;
+				const newComponents = await generateMessage(pagifiedEvents, currentPage, maxPages);
+				replyMessage.edit({
+					content: `Events ${currentPage + 1} of ${maxPages}`,
+					components: newComponents 
+				});
 			}
 		});
 	}
