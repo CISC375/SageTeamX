@@ -35,31 +35,41 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		async function generateMessage(eventMenu: PagifiedSelectMenu, offsetMenu: PagifiedSelectMenu) {
+		function generateMessage(eventMenu: PagifiedSelectMenu, offsetMenu: PagifiedSelectMenu, repeatInterval: "every_event" | null) {
 			// 1) Generate event menu row(s)
 			const eventMenuRows = eventMenu.generateActionRows();
 
 			// 2) Generate offset menu row(s)
 			const offsetMenuRows = offsetMenu.generateActionRows();
 
-			// 3) Set Reminder button
+			// 3) Generate repeat button
+			const toggleRepeatButton = new ButtonBuilder()
+				.setCustomId("toggle_repeat")
+				.setLabel(
+					repeatInterval === "every_event"
+						? "Repeat: On"
+						: "Repeat: Off"
+				)
+				.setStyle(ButtonStyle.Secondary);
+
+			// 4) Generate set reminder button
 			const setReminder = new ButtonBuilder()
 				.setCustomId("set_reminder")
 				.setLabel("Set Reminder")
 				.setStyle(ButtonStyle.Success);
 
-			// Create action row for set reminder button
-			const setReminderRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-				setReminder
+			const setReminderAndRepeatRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+				toggleRepeatButton, setReminder
 			);
 
-			return [...eventMenuRows, ...offsetMenuRows, setReminderRow];
+			return [...eventMenuRows, ...offsetMenuRows, setReminderAndRepeatRow]
 		}
-		// Authorize Google Calendar
+
 		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
 		let auth;
+
 		try {
 			auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
 		} catch (error) {
@@ -102,7 +112,6 @@ export default class extends Command {
 		// Command input
 		const className = interaction.options.getString("classname");
 		const events = res.data.items || [];
-
 		// Filter events
 		const filteredEvents = events.filter((event) =>
 			event.summary.toLowerCase().includes(className.toLowerCase())
@@ -115,6 +124,11 @@ export default class extends Command {
 			});
 			return;
 		}
+
+		let chosenEvent = null;
+		let chosenOffset: number | null = null;
+		let repeatInterval: "every_event" | null = null;
+		let activeReminderId: string | null = null;
 
 		// Create event select menu
 		const eventMenu = new PagifiedSelectMenu();
@@ -148,17 +162,13 @@ export default class extends Command {
 				}
 			)
 		});
-		
-		// Send ephemeral message with both dropdowns
-		const initalComponents = await generateMessage(eventMenu, offsetMenu);
-		const replyMessage = await interaction.reply({
-			components: initalComponents,
-			ephemeral: true
-		})
 
-		let chosenEvent = null;
-		let chosenOffset: number | null = null;
-		let activeReminderId: string | null = null;
+		const initialComponents = generateMessage(eventMenu, offsetMenu, repeatInterval);
+
+		const replyMessage = await interaction.reply({
+			components: initialComponents,
+			ephemeral: true
+		});
 
 		// Main collector for event & offset
 		const collector = replyMessage.createMessageComponentCollector({
@@ -176,14 +186,6 @@ export default class extends Command {
 			else if (i.customId === "select_offset") {
 				const rawOffsetStr = i.values[0];
 				chosenOffset = rawOffsetStr === "0" ? 0 : parse(rawOffsetStr);
-				if (isNaN(chosenOffset)) {
-					await i.reply({
-						content:
-							"⚠️ Invalid reminder offset selected. Please try again.",
-						ephemeral: true,
-					});
-					return;
-				}
 				await i.deferUpdate();
 			}
 		});
@@ -195,85 +197,112 @@ export default class extends Command {
 		});
 
 		buttonCollector.on("collect", async (btnInt) => {
-			if (btnInt.customId === "set_reminder") {
-				await btnInt.deferUpdate();
-				if (chosenEvent && chosenEvent !== null) {
-					const dateObj = new Date(chosenEvent.start.dateTime);
-	
-					// Create reminder time in local time
-					const remindDate = new Date(
-						dateObj.getTime() - chosenOffset
-					);
+			if (btnInt.customId === "toggle_repeat") {
+				repeatInterval = repeatInterval ? null : "every_event";
 
-					// Force it to UTC by re-parsing the ISO string
-					const utcRemindDate = new Date(remindDate.toISOString());
-
-					// Check if it's already in the past
-					if (utcRemindDate.getTime() <= Date.now()) {
-						await btnInt.editReply({
-							content:
-								"That reminder time is in the past. No reminder was set.",
-							components: [],
-						});
-						collector.stop();
-						buttonCollector.stop;
-						return;
-					}
-
-					// Build more detailed reminder text
-					const eventInfo = `${
-						chosenEvent.summary
-					}\nStarts at: ${dateObj.toLocaleString()}`;
-
-					// Create reminder in DB
-					const reminder: Reminder = {
-						owner: btnInt.user.id,
-						content: eventInfo,
-						mode: "public",
-						expires: utcRemindDate,
-						repeat: null,
-					};
-
-					const result = await btnInt.client.mongo
-						.collection(DB.REMINDERS)
-						.insertOne(reminder);
-					activeReminderId = result.insertedId;
-
-					// Build Cancel button row
-					const cancelButton = new ButtonBuilder()
-						.setCustomId("cancel_reminder")
-						.setLabel("Cancel Reminder")
-						.setStyle(ButtonStyle.Danger);
-
-					const buttonRow =
-						new ActionRowBuilder<ButtonBuilder>().addComponents(
-							cancelButton
-						);
-
-					// Update ephemeral message with final reminder text + Cancel button
-					await btnInt.editReply({
-						content: `Your reminder is set!\nI'll remind you at **${reminderTime(
-							reminder
-						)}** about:\n\`\`\`\n${reminder.content}\n\`\`\``,
-						components: [buttonRow],
-					});
-
-					collector.stop();
-				}
-			} else if (btnInt.customId === "cancel_reminder") {
-				if (activeReminderId) {
-					// Remove from DB
-					await btnInt.client.mongo
-						.collection(DB.REMINDERS)
-						.deleteOne({ _id: activeReminderId });
-				}
+				const updatedComponents = generateMessage(eventMenu, offsetMenu, repeatInterval);
 
 				await btnInt.update({
-					content: "Your reminder has been canceled.",
-					components: [],
+					components: updatedComponents,
 				});
+			} else if (btnInt.customId === "set_reminder") {
+				// If user hasn’t selected both fields, just silently acknowledge
+				if (!chosenEvent || chosenOffset === null) {
+					if (!btnInt.deferred && !btnInt.replied) {
+						await btnInt.deferUpdate(); // Prevent "interaction failed"
+					}
+					return;
+				}
 
-				buttonCollector.stop();
+				// Everything is valid, continue with reminder setup
+				await btnInt.deferUpdate();
+
+				const dateObj = new Date(chosenEvent.start.dateTime);
+				const remindDate = new Date(dateObj.getTime() - chosenOffset);
+
+				// Check if it's already in the past
+				if (remindDate.getTime() <= Date.now()) {
+					await btnInt.editReply({
+						content:
+							"⏰ That reminder time is in the past. No reminder was set.",
+						components: [],
+					});
+					collector.stop();
+					buttonCollector.stop();
+					return;
+				}
+
+				// Build more detailed reminder text
+				const eventInfo = `${
+					chosenEvent.summary
+				}\nStarts at: ${dateObj.toLocaleString()}`;
+
+				// Create reminder in DB
+				const EXPIRE_BUFFER_MS = 180 * 24 * 60 * 60 * 1000; // 180 days in ms
+
+				const reminder: Reminder = {
+					owner: btnInt.user.id,
+					content: eventInfo,
+					mode: "public",
+					expires: repeatInterval
+						? new Date(remindDate.getTime() + EXPIRE_BUFFER_MS) // give repeat reminders more time
+						: remindDate, // one-time reminders
+					repeat: repeatInterval,
+				};
+
+				const result = await btnInt.client.mongo
+					.collection(DB.REMINDERS)
+					.insertOne(reminder);
+				activeReminderId = result.insertedId;
+
+				// Build Cancel button row
+				const cancelButton = new ButtonBuilder()
+					.setCustomId("cancel_reminder")
+					.setLabel("Cancel Reminder")
+					.setStyle(ButtonStyle.Danger);
+
+				const buttonRow =
+					new ActionRowBuilder<ButtonBuilder>().addComponents(
+						cancelButton
+					);
+
+				// Update ephemeral message with final reminder text + Cancel button
+				await btnInt.editReply({
+					content: `✅ Your reminder is set!\nI'll remind you at **${reminderTime(
+						reminder
+					)}** about:\n\`\`\`\n${reminder.content}\n\`\`\`${
+						repeatInterval
+							? `\n🔁 Repeats every event (for up to 180 days)
+`
+							: ""
+					}`,
+					components: [buttonRow],
+				});
+			} else if (btnInt.customId === "cancel_reminder") {
+				try {
+					// 1) Defer *a new reply* (ephemeral)
+					if (!btnInt.deferred && !btnInt.replied) {
+						await btnInt.deferReply({ ephemeral: true });
+					}
+
+					// 2) Delete the reminder from DB if it exists
+					if (activeReminderId) {
+						await btnInt.client.mongo
+							.collection(DB.REMINDERS)
+							.deleteOne({ _id: activeReminderId });
+					}
+
+					// 3) Send brand new ephemeral follow-up
+					await btnInt.followUp({
+						content: "❌ Your reminder has been canceled.",
+						ephemeral: true,
+					});
+
+					// 4) Stop the collector
+					buttonCollector.stop();
+				} catch (err) {
+					console.error("Failed to cancel reminder:", err);
+				}
 			}
 
 			const actions: Record<string, () => void> = {
@@ -287,9 +316,9 @@ export default class extends Command {
 			if (action) {
 				await btnInt.deferUpdate();
 				action();
-				const newRows = await generateMessage(eventMenu, offsetMenu);
+				const newRows = generateMessage(eventMenu, offsetMenu, repeatInterval);
 				await btnInt.editReply({ components: newRows });
 			}
- 		});
+		});
 	}
 }
