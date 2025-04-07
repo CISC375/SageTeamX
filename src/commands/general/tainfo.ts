@@ -144,10 +144,22 @@ export default class extends Command {
 					// Extract unique event holders
 					const eventHolders = Array.from(
 						new Set(
-							filteredEvents.map((event) => ({
-								name: event.summary.split("-")[1]?.trim(),
-								email: event.creator?.email,
-							}))
+							filteredEvents.map((event) => {
+								// Extract email from the description if it exists
+								let emailFromDescription: string | undefined;
+								if (event.description) {
+									const emailMatch = event.description.match(/Email:\s*([^\s]+)/i);
+									if (emailMatch) {
+										emailFromDescription = emailMatch[1];
+									}
+								}
+					
+								// Use email from description if found, otherwise fallback to creator's email
+								return {
+									name: event.summary.split("-")[1]?.trim(),
+									email: emailFromDescription || event.creator?.email,
+								};
+							})
 						)
 					).filter((holder: { name?: string; email?: string }) => holder.name && holder.email);
 
