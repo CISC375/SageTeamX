@@ -190,6 +190,6 @@ export default class extends Command {
 			}
 		}
 
-		taSelectMenu.createAndSendMenu(collectorLogic, interaction, null, "Please select a class:");
+		taSelectMenu.generateRowsAndSendMenu(collectorLogic, interaction, null, "Please select a class:");
 	}
 }

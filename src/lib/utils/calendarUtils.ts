@@ -1,3 +1,30 @@
+/**
+ * So as it turns out, Discord is pretty limited in what it can do
+ * This class was built with the goal to get around the max 25 options in a select menu
+ * In short, if you build select menus using thise class instead of the normal way, it will automatically create new select menus as needed.
+ * It will also automatically create navigaiton buttons if the number of select menus is greater than 1
+ *
+ * So how to use this thing you may ask? Well I hope the JSDoc comments bellow can help, but I'll still explain it up here
+ *
+ * Instructions:
+ * 	1. Call the constructor ( const newMenu = new PagifiedSelectMenu(); )
+ * 	2. Generate the inital menu ( newMenu.createSelectMenu({customId: 'tutorial', ...other options}); )
+ * 	3. Add options to your menu - Note: The addOption() method will only add ONE option at a time.
+ * 		a. Create an array containing all the value you want to put into the select menu before calling this method (if you want only want one option, then you don't have to do this)
+ * 		b. Iterate over the array and call the addOption() method each iteration ( myValues.forEach((val) => addOption({label: val, value: val, ...other options})) )
+ * 		c. Profit
+ * 	4. Congratulations you just created a pagified select menu
+ * 	5. Send the darn thing. You can use the generateActionRows() method to generate the components neccessary to render the menu and navigations buttons
+ *  6. And then just pass the returned action rows into the components property when sending a message
+ *  7. Make sure to setup collectors so that your select menu and possible navigations buttons work
+ * 		a. Navigations buttons have the following custom_Ids next_button:[Custom ID of menu] prev_button:[Custom ID of menu]
+ *	8. Alternativley, you can use generateMessage() to send the message and it will take care of the collector logic for you...sort of
+ *		a. It will create the logic for the buttons, but you have to pass in a function containing the logic for the menu collector
+ *		b. Example: newMenu.generateMessage(collectorLogic(i) => { [your code goes here] }, interaction, rows)
+ *		c. Note: You MUST pass in your function with i: StringSelectMenuInteraction<CacheType> as an argument
+ * 	9. You can also take care of row generation and message sending using tge generateRowsAndSendMenu() method
+ */
+
 import
 { ActionRowBuilder,
 	APISelectMenuOption,
@@ -15,11 +42,11 @@ import
 
 export class PagifiedSelectMenu {
 
-	menus: StringSelectMenuBuilder[];
-	numOptions: number;
-	maxSelected: number;
-	numPages: number;
-	currentPage: number;
+	menus: StringSelectMenuBuilder[]; // Array of select menus
+	numOptions: number; // Total number of options across all menus
+	maxSelected: number; // The max number of options a user can select
+	numPages: number; // The number of menus in the menus array
+	currentPage: number; // The current page number
 
 	constructor() {
 		this.menus = [];
@@ -224,7 +251,7 @@ export class PagifiedSelectMenu {
 	 * @param {DMChannel} dmChannel Optional: Sends messages to given DM channel
 	 * @param {string} content Optional: Sets the message content
 	 */
-	async createAndSendMenu(collectorLogic: (i: StringSelectMenuInteraction<CacheType>) => void, interaction: ChatInputCommandInteraction, dmChannel?: DMChannel, content?: string): Promise<void> {
+	async generateRowsAndSendMenu(collectorLogic: (i: StringSelectMenuInteraction<CacheType>) => void, interaction: ChatInputCommandInteraction, dmChannel?: DMChannel, content?: string): Promise<void> {
 		await this.generateMessage(collectorLogic, interaction, this.generateActionRows(), dmChannel, content);
 	}
 

@@ -550,7 +550,7 @@ export default class extends Command {
 		const singlePageMenus: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
 		filterComponents.forEach((component) => {
 			if (component.menus.length > 1) {
-				component.createAndSendMenu(async (i) => {
+				component.generateRowsAndSendMenu(async (i) => {
 					await i.deferUpdate();
 					const filter = filters.find((f) => f.customId === i.customId);
 					if (filter) {
