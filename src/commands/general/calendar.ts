@@ -10,6 +10,7 @@ import {
 	ComponentType,
 	StringSelectMenuBuilder,
 	StringSelectMenuOptionBuilder,
+	ButtonComponent,
 } from 'discord.js';
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
@@ -157,7 +158,7 @@ export default class extends Command {
 				embed = new EmbedBuilder()
 					.setTitle(`OFFICE HOURS`)
 					.setDescription('Please use the **Prev** and **Next** to access all events fetched based on your request.')
-					.setColor("Blue")
+					.setColor("Purple")
 					.setFooter({text : `Page ${currentPage + 1} of ${maxPage}`})
 
 				filteredEvents[currentPage].forEach((event) => {
@@ -204,13 +205,13 @@ export default class extends Command {
 			const nextButton = new ButtonBuilder()
 				.setCustomId("next")
 				.setLabel("Next")
-				.setStyle(ButtonStyle.Primary)
+				.setStyle(ButtonStyle.Secondary)
 				.setDisabled(currentPage + 1 >= maxPage);
 
 			const prevButton = new ButtonBuilder()
 				.setCustomId("prev")
 				.setLabel("Previous")
-				.setStyle(ButtonStyle.Primary)
+				.setStyle(ButtonStyle.Secondary)
 				.setDisabled(currentPage === 0);
 
 			const downloadCal = new ButtonBuilder()
