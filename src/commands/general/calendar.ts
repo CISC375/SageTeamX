@@ -472,6 +472,7 @@ export default class extends Command {
 		}
 
 		const filterComponents = generateFilterMessage(filters);
+		let content: string =  '**Select Filters**';
 
 		const singlePageMenus: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
 		filterComponents.forEach((component) => {
@@ -498,7 +499,8 @@ export default class extends Command {
 						embeds: [newEmbed],
 						components: newComponents,
 					});
-				}, interaction, dm)
+				}, interaction, dm, content);
+				content = '';
 			}
 			else {
 				singlePageMenus.push(component.generateActionRows()[0]);
@@ -509,6 +511,7 @@ export default class extends Command {
 		let filterMessage: Message<false>;
 		try {
 			filterMessage = await dm.send({
+				content: content,
 				components: singlePageMenus
 			});
 		} catch (error) {
@@ -520,6 +523,7 @@ export default class extends Command {
 			return;
 		}
 		await filterMessage.edit({
+			content: content,
 			components: singlePageMenus
 		});
 

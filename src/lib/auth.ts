@@ -16,11 +16,13 @@ const KEY_PATH = process.env.MYPATH;
  * @returns {Promise<GaxiosResponse<calendar_v3.Schema$Events>>} Return the events of the given calendar ID
  */
 export async function retrieveEvents(calendarId: string, interaction?: ChatInputCommandInteraction, singleEvents = true): Promise<calendar_v3.Schema$Event[]> {
+	// Retrieve an authenticaiton token
 	const auth = new JWT({
 		keyFile: KEY_PATH,
 		scopes: SCOPES
 	});
 
+	// Authorize access to google calendar and retrieve the calendar
 	let calendar: calendar_v3.Calendar = null;
 	try {
 		calendar = google.calendar({ version: 'v3', auth: auth });
@@ -43,9 +45,12 @@ export async function retrieveEvents(calendarId: string, interaction?: ChatInput
 		}
 	}
 
+	// Retrieve the events from the calendar
 	let events: calendar_v3.Schema$Event[] = null;
 	try {
 		let response: GaxiosResponse;
+
+		// This makes sure events are only sorted if single events is true
 		if (singleEvents) {
 			response = await calendar.events.list({
 				calendarId: calendarId,
