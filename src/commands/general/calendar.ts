@@ -191,7 +191,7 @@ export default class extends Command {
 				filter.values.forEach((value) => {
 					let isDefault: boolean = false;
 					if (filter.newValues[0]) {
-						if (filter.newValues[0] === value) {
+						if (filter.newValues[0].toLowerCase() === value.toLowerCase()) {
 							isDefault = true;
 						}
 					}
@@ -322,7 +322,7 @@ export default class extends Command {
 				customId: "class_name_menu",
 				placeholder: "Select Classes",
 				values: [],
-				newValues: [],
+				newValues: [interaction.options.getString('classname') ? interaction.options.getString('classname') : ''],
 				flag: true,
 				condition: (newValues: string[], event: Event) => {
 					const summary = event.calEvent.summary?.toLowerCase() || "";
@@ -363,12 +363,6 @@ export default class extends Command {
 				},
 			},
 		];
-
-		const classname = interaction.options.getString('classname').toLowerCase();
-		if (classname) {
-			const classNameFilter = filters.find((f) => f.customId === 'class_name_menu');
-			classNameFilter.newValues.push(classname);
-		}
 
 		const MONGO_URI = process.env.DB_CONN_STRING || "";
 		const DB_NAME = "CalendarDatabase";
