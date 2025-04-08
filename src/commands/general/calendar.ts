@@ -9,7 +9,9 @@ import {
 	ApplicationCommandStringOptionData,
 	ComponentType,
 	StringSelectMenuBuilder,
-	StringSelectMenuOptionBuilder,
+	ButtonInteraction,
+	CacheType,
+	StringSelectMenuInteraction,
 } from 'discord.js';
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
@@ -231,46 +233,71 @@ export default class extends Command {
 
 		// Downloads events by generating an ICS file.
 		// This version includes recurrence rules (if the event has them).
-		async function downloadSelectedEvents(selectedEvents, calendar, auth) {
+		async function downloadEvents(selectedEvents: Event[][], calendars: {calendarId: string, calendarName: string}[]) {
 			const formattedEvents: string[] = [];
-			selectedEvents.forEach((event) => {
-				// Join recurrence rules (if any) into a string.
-				const recurrenceString = event.recurrence ? event.recurrence.join("\n") : "";
-				const iCalEvent = {
-					UID: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
-					CREATED: new Date(event.created)
-						.toISOString()
-						.replace(/[-:.]/g, ''),
-					DTSTAMP: event.updated.replace(/[-:.]/g, ''),
-					DTSTART: `TZID=${event.start.timeZone}:${event.start.dateTime.replace(/[-:.]/g, '')}`,
-					DTEND: `TZID=${event.end.timeZone}:${event.end.dateTime.replace(/[-:.]/g, '')}`,
-					SUMMARY: event.summary,
-					DESCRIPTION: `Contact Email: ${event.creator.email || 'NA'}`,
-					LOCATION: event.location ? event.location : 'NONE',
-				};
+			const parentEvents: calendar_v3.Schema$Event[] = [];
+			calendars.forEach(async (calendar) => {
+				const newParentEvents = await retrieveEvents(calendar.calendarId, interaction, false);
+				parentEvents.push(...newParentEvents)
+			}); 
 
-				const icsFormatted = `BEGIN:VEVENT
-				UID:${iCalEvent.UID}
-				CREATED:${iCalEvent.CREATED}
-				DTSTAMP:${iCalEvent.DTSTAMP}
-				DTSTART;${iCalEvent.DTSTART}
-				DTEND;${iCalEvent.DTEND}
-				SUMMARY:${iCalEvent.SUMMARY}
-				DESCRIPTION:${iCalEvent.DESCRIPTION}
-				LOCATION:${iCalEvent.LOCATION}
-				${recurrenceString ? recurrenceString + "\n" : ""}STATUS:CONFIRMED
-				END:VEVENT
-				`.replace(/\t/g, '');
-								formattedEvents.push(icsFormatted);
-							});
+			const recurrenceRules: Record<string, string> = Object.fromEntries(parentEvents.map((event) => {
+				return [event.id, event.recurrence[0]];
+			}));
 
-							const icsCalendar = `BEGIN:VCALENDAR
-				VERSION:2.0
-				PRODID:-//YourBot//Discord Calendar//EN
-				${formattedEvents.join('')}
-				END:VCALENDAR
-				`.replace(/\t/g, '');
+			const recurringIds: Set<string> = new Set();
 
+			selectedEvents.forEach((eventsArray) => {
+				eventsArray.forEach((event) => {
+					let append: boolean = false;
+					const iCalEvent = {
+						UID: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+						CREATED: new Date(event.calEvent.created).toISOString().replace(/[-:.]/g, ''),
+						DTSTAMP: event.calEvent.updated.replace(/[-:.]/g, ''),
+						DTSTART: `TZID=${event.calEvent.start.timeZone}:${event.calEvent.start.dateTime.replace(/[-:.]/g, '')}`,
+						DTEND: `TZID=${event.calEvent.end.timeZone}:${event.calEvent.end.dateTime.replace(/[-:.]/g, '')}`,
+						SUMMARY: event.calEvent.summary,
+						DESCRIPTION: `Contact Email: ${event.calEvent.creator.email || 'NA'}`,
+						LOCATION: event.calEvent.location ? event.calEvent.location : 'NONE',
+					};
+
+					if (!event.calEvent.recurringEventId) {
+						append = true
+					}
+					else {
+						if (!recurringIds.has(event.calEvent.recurringEventId)) {
+							recurringIds.add(event.calEvent.recurringEventId);
+							append = true;
+						}
+					}
+
+					if (append) {
+						const icsFormatted = 
+						`BEGIN:VEVENT
+						UID:${iCalEvent.UID}
+						CREATED:${iCalEvent.CREATED}
+						DTSTAMP:${iCalEvent.DTSTAMP}
+						DTSTART;${iCalEvent.DTSTART}
+						DTEND;${iCalEvent.DTEND}
+						SUMMARY:${iCalEvent.SUMMARY}
+						DESCRIPTION:${iCalEvent.DESCRIPTION}
+						LOCATION:${iCalEvent.LOCATION}
+						STATUS:CONFIRMED
+						${event.calEvent.recurringEventId ? recurrenceRules[event.calEvent.recurringEventId] : ''}
+						END:VEVENT
+						`.replace(/\t/g, '');
+						formattedEvents.push(icsFormatted);
+					}
+
+				});
+			});
+
+			const icsCalendar = `BEGIN:VCALENDAR
+			VERSION:2.0
+			PRODID:-//YourBot//Discord Calendar//EN
+			${formattedEvents.join('')}
+			END:VCALENDAR
+			`.replace(/\t/g, '');
 			fs.writeFileSync('./events.ics', icsCalendar);
 		}
 
@@ -354,7 +381,7 @@ export default class extends Command {
 			const calendarDocs = await collection.find().toArray();
 			await client.close();
 
-			const calendars = calendarDocs.map((doc) => ({
+			const calendars: {calendarId: string, calendarName: string}[] = calendarDocs.map((doc) => ({
 				calendarId: doc.calendarId,
 				calendarName: doc.calendarName || "Unnamed Calendar",
 			}));
@@ -416,7 +443,7 @@ export default class extends Command {
 		});
 
 		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
-		const buttonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
+		const buttonRow = generateButtons(currentPage, maxPage, selectedEventsSet.size);
 		const toggleRow = generateEventSelectButtons(filteredEvents, currentPage);
 
 		const dm = await interaction.user.createDM();
@@ -484,7 +511,7 @@ export default class extends Command {
 		const buttonCollector = message.createMessageComponentCollector({ time: 300000 });
 		const menuCollector = filterMessage.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 300000 });
 
-		buttonCollector.on("collect", async (btnInt) => {
+		buttonCollector.on("collect", async (btnInt: ButtonInteraction<CacheType>) => {
 			try {
 				await btnInt.deferUpdate();
 				if (btnInt.customId.startsWith("toggle-")) {
@@ -582,7 +609,7 @@ export default class extends Command {
 				}
 
 				const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-				const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
+				const newButtonRow = generateButtons(currentPage, maxPage, selectedEventsSet.size);
 				const newToggleRow = generateEventSelectButtons(filteredEvents, currentPage);
 				await message.edit({
 					embeds: [newEmbed],
@@ -597,7 +624,7 @@ export default class extends Command {
 			}
 		});
 
-		menuCollector.on("collect", async (i) => {
+		menuCollector.on("collect", async (i: StringSelectMenuInteraction<CacheType>) => {
 			i.deferUpdate();
 			const filter = filters.find((f) => f.customId === i.customId);
 			if (filter) {
@@ -613,7 +640,7 @@ export default class extends Command {
 				});
 			});
 			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-			const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
+			const newButtonRow = generateButtons(currentPage, maxPage, selectedEventsSet.size);
 			const newToggleRow = generateEventSelectButtons(filteredEvents, currentPage);
 			message.edit({
 				embeds: [newEmbed],
