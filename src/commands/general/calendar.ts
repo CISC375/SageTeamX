@@ -217,28 +217,27 @@ export default class extends Command {
 		}
 
 		// Generates a row of toggle buttons – one for each event on the current page.
-		function generateEventSelectButtons(): ActionRowBuilder<ButtonBuilder> {
-			// Create button for selecting event 1
-			const selectEventOne = new ButtonBuilder()
-				.setCustomId('toggle-1')
-				.setLabel('Select #1')
-				.setStyle(ButtonStyle.Secondary);
+		function generateEventSelectButtons(eventsPerPage: number): ActionRowBuilder<ButtonBuilder> {
+			const selectEventButtons: ButtonBuilder[] = []
 
-			// Create button for selecting event 2
-			const selectEventTwo = new ButtonBuilder()
-				.setCustomId('toggle-2')
-				.setLabel('Select #2')
-				.setStyle(ButtonStyle.Secondary);
+			// This is to ensure that the number of buttons does not exceed to the limit per row
+			// We should probably change to a pagified select menu later on
+			if (eventsPerPage > 5) {
+				eventsPerPage = 5;
+			}
 
-			// Create button for selecting event 3
-			const selectEventThree = new ButtonBuilder()
-				.setCustomId('toggle-3')
-				.setLabel('Select #3')
-				.setStyle(ButtonStyle.Secondary);
+			// Create buttons for each event on the page (up to 5)
+			for (let i = 1; i <= eventsPerPage; i++) {
+				const selectEvent = new ButtonBuilder()
+					.setCustomId(`toggle-${i}`)
+					.setLabel(`Select #${i}`)
+					.setStyle(ButtonStyle.Secondary);
+				selectEventButtons.push(selectEvent);
+			}
 
 			// Create row containing all of the select buttons
 			const selectRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-				selectEventOne, selectEventTwo, selectEventThree
+				...selectEventButtons
 			);
 
 			return selectRow;
@@ -249,10 +248,11 @@ export default class extends Command {
 		async function downloadEvents(selectedEvents: Event[], calendars: {calendarId: string, calendarName: string}[]) {
 			const formattedEvents: string[] = [];
 			const parentEvents: calendar_v3.Schema$Event[] = [];
-			calendars.forEach(async (calendar) => {
+
+			for (const calendar of calendars) {
 				const newParentEvents = await retrieveEvents(calendar.calendarId, interaction, false);
 				parentEvents.push(...newParentEvents)
-			}); 
+			}
 
 			const recurrenceRules: Record<string, string> = Object.fromEntries(parentEvents.map((event) => {
 				return [event.id, event.recurrence[0]];
@@ -447,15 +447,20 @@ export default class extends Command {
 		let selectedEvents: Event[] = [];
 
 		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
-		const buttonRow = generateButtons(currentPage, maxPage, selectedEvents.length);
-		const toggleRow = generateEventSelectButtons();
+		const initialComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+		initialComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+		if (filteredEvents[currentPage]) {
+			if (filteredEvents[currentPage].length) {
+				initialComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+			}
+		}
 
 		const dm = await interaction.user.createDM();
 		let message: Message<false>;
 		try {
 			message = await dm.send({
 				embeds: [embed],
-				components: [toggleRow, buttonRow],
+				components: initialComponents,
 			});
 		} catch (error) {
 			console.error("Failed to send DM:", error);
@@ -482,11 +487,16 @@ export default class extends Command {
 					maxPage = filteredEvents.length;
 					selectedEvents = []
 					const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-					const newButtonRow = generateButtons(currentPage, maxPage, selectedEvents.length);
-					const newToggleRow = generateEventSelectButtons();
+					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+					newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+					if (filteredEvents[currentPage]) {
+						if (filteredEvents[currentPage].length) {
+							newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+						}
+					}
 					message.edit({
 						embeds: [newEmbed],
-						components: [newToggleRow, newButtonRow],
+						components: newComponents,
 					});
 				}, interaction, dm)
 			}
@@ -521,7 +531,7 @@ export default class extends Command {
 			try {
 				await btnInt.deferUpdate();
 				if (btnInt.customId.startsWith("toggle-")) {
-					const eventIndex = Number(btnInt.customId.split('-')[1]);
+					const eventIndex = Number(btnInt.customId.split('-')[1]) - 1;
 					const event = filteredEvents[currentPage][eventIndex];
 					if (selectedEvents.some((e) => e === event)) {
 						selectedEvents.splice(selectedEvents.indexOf(event), 1);
@@ -540,7 +550,7 @@ export default class extends Command {
 					} else {
 						selectedEvents.push(event);
 						try {
-							const addMsg = await dm.send(`Added ${event.calEvent}`);
+							const addMsg = await dm.send(`Added ${event.calEvent.summary}`);
 							setTimeout(async () => {
 								try {
 									await addMsg.delete();
@@ -609,11 +619,16 @@ export default class extends Command {
 				}
 
 				const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-				const newButtonRow = generateButtons(currentPage, maxPage, selectedEvents.length);
-				const newToggleRow = generateEventSelectButtons();
+				const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+				newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+				if (filteredEvents[currentPage]) {
+					if (filteredEvents[currentPage].length) {
+						newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+					}
+				}
 				await message.edit({
 					embeds: [newEmbed],
-					components: [newToggleRow, newButtonRow],
+					components: newComponents,
 				});
 			} catch (error) {
 				console.error("Button Collector Error:", error);
@@ -635,11 +650,16 @@ export default class extends Command {
 			maxPage = filteredEvents.length;
 			selectedEvents = []
 			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-			const newButtonRow = generateButtons(currentPage, maxPage, selectedEvents.length);
-			const newToggleRow = generateEventSelectButtons();
+			const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+			newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+			if (filteredEvents[currentPage]) {
+				if (filteredEvents[currentPage].length) {
+					newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+				}
+			}
 			message.edit({
 				embeds: [newEmbed],
-				components: [newToggleRow, newButtonRow],
+				components: newComponents,
 			});
 		});
 	}
