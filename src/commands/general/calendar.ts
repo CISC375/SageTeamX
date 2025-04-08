@@ -14,30 +14,28 @@ import {
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
 import { MongoClient } from 'mongodb';
-import { authorize } from '../../lib/auth';
 import * as fs from 'fs';
 import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
+import { calendar_v3 } from 'googleapis';
+import { retrieveEvents } from '@root/src/lib/auth';
 //import event from '@root/src/models/calEvent';
-
-const path = require("path");
-const process = require("process");
-
-const { google } = require("googleapis");
 
 // Define the Master Calendar ID constant.
 const MASTER_CALENDAR_ID =
 	"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com";
 
 interface Event {
-	eventId: string;
-	courseID: string;
-	instructor: string;
-	date: string;
-	start: string;
-	end: string;
-	location: string;
-	locationType: string;
-	email: string;
+	calEvent: calendar_v3.Schema$Event;
+	calendarName: string;
+}
+
+interface Filter {
+	customId: string;
+	placeholder: string,
+	values: string[];
+	newValues: string[];
+	flag: boolean;
+	condition: (newValues: string[], event: Event) => boolean;
 }
 
 export default class extends Command {
@@ -63,19 +61,19 @@ export default class extends Command {
 		/** Helper Functions **/
 
 		// Filters calendar events based on slash command inputs and filter dropdown selections.
-		async function filterEvents(events, eventsPerPage: number, filters) {
+		async function filterEvents(events: Event[], eventsPerPage: number, filters: Filter[]) {
 			const eventHolder: string = interaction.options.getString("eventholder")?.toLowerCase();
 			const eventDate: string = interaction.options.getString("eventdate");
 
 			const newEventDate: string = eventDate ? new Date(eventDate + " 2025").toLocaleDateString() : "";
-			let temp = [];
-			let filteredEvents = [];
+			let temp: Event[] = [];
+			let filteredEvents: Event[] = [];
 
 			let allFiltersFlags = true;
 			let eventHolderFlag: boolean = true;
 			let eventDateFlag: boolean = true;
 			events.forEach((event) => {
-				const lowerCaseSummary: string = event.summary.toLowerCase();
+				const lowerCaseSummary: string = event.calEvent.summary.toLowerCase();
 
 				// Extract class name (works for "CISC108-..." and "CISC374010")
 				const classNameMatch = lowerCaseSummary.match(/cisc\d+/i);
@@ -87,7 +85,7 @@ export default class extends Command {
 					classFilter.values.push(extractedClassName);
 				}
 
-				const currentEventDate: Date = new Date(event.start.dateTime);
+				const currentEventDate: Date = new Date(event.calEvent.start.dateTime);
 
 				if (filters.length) {
 					filters.forEach((filter) => {
@@ -109,12 +107,12 @@ export default class extends Command {
 				if (allFiltersFlags && eventHolderFlag && eventDateFlag) {
 					temp.push(event);
 					if (temp.length % eventsPerPage === 0) {
-						filteredEvents.push(temp);
+						filteredEvents.push(...temp);
 						temp = [];
 					}
 				}
 			});
-			if (temp.length) filteredEvents.push(temp);
+			if (temp.length) filteredEvents.push(...temp);
 			return filteredEvents;
 		}
 
@@ -283,15 +281,15 @@ export default class extends Command {
 		});
 
 		// Define filters for dropdowns.
-		const filters = [
+		const filters: Filter[] = [
 			{
 				customId: "calendar_menu",
 				placeholder: "Select Calendar",
 				values: [],
 				newValues: [],
 				flag: true,
-				condition: (newValues, event) => {
-					const calendarName = event.calendarName?.toLowerCase() || "";
+				condition: (newValues: string[], event: Event) => {
+					const calendarName = event.calendarName.toLowerCase() || "";
 					return newValues.some((value) => calendarName.includes(value.toLowerCase()));
 				},
 			},
@@ -301,8 +299,8 @@ export default class extends Command {
 				values: [],
 				newValues: [],
 				flag: true,
-				condition: (newValues, event) => {
-					const summary = event.summary?.toLowerCase() || "";
+				condition: (newValues: string[], event: Event) => {
+					const summary = event.calEvent.summary?.toLowerCase() || "";
 					return newValues.some((value) => summary.includes(value.toLowerCase()));
 				},
 			},
@@ -312,8 +310,8 @@ export default class extends Command {
 				values: ["In Person", "Virtual"],
 				newValues: [],
 				flag: true,
-				condition: (newValues, event) => {
-					const locString = event.summary.toLowerCase();
+				condition: (newValues: string[], event: Event) => {
+					const locString = event.calEvent.summary?.toLowerCase() || '';
 					return newValues.some((value) => locString.includes(value.toLowerCase()));
 				},
 			},
@@ -323,9 +321,9 @@ export default class extends Command {
 				values: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
 				newValues: [],
 				flag: true,
-				condition: (newValues, event) => {
-					if (!event.start?.dateTime) return false;
-					const dt = new Date(event.start.dateTime);
+				condition: (newValues: string[], event: Event) => {
+					if (!event.calEvent.start?.dateTime) return false;
+					const dt = new Date(event.calEvent.start.dateTime);
 					const weekdayIndex = dt.getDay(); // 0 = Sunday, 1 = Monday, etc.
 					const dayName = [
 						"Sunday",
@@ -340,13 +338,6 @@ export default class extends Command {
 				},
 			},
 		];
-
-		// Set up Google Calendar API authorization.
-		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
-		const TOKEN_PATH = path.join(process.cwd(), "token.json");
-		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
-		const auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
-		const calendar = google.calendar({ version: "v3", auth });
 
 		const MONGO_URI = process.env.DB_CONN_STRING || "";
 		const DB_NAME = "CalendarDatabase";
@@ -377,46 +368,31 @@ export default class extends Command {
 			return calendars;
 		}
 
-		let events = [];
-		try {
-			const calendars = await fetchCalendars();
-			const calendarMenu = filters.find((f) => f.customId === "calendar_menu");
-			if (calendarMenu) {
-				calendarMenu.values = calendars.map((c) => c.calendarName);
-			}
-
-			// IMPORTANT: Set singleEvents to false so that master events (with recurrence) are returned.
-			for (const cal of calendars) {
-				const response = await calendar.events.list({
-					calendarId: cal.calendarId,
-					timeMin: new Date().toISOString(),
-					timeMax: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-					singleEvents: true,
-					// Removed orderBy parameter since it's not allowed with singleEvents: false.
-				});
-
-				if (response.data.items) {
-					response.data.items.forEach((event) => {
-						event.calendarName = cal.calendarName;
-					});
-					events.push(...response.data.items);
-				}
-			}
-
-			// Sort events by their start time.
-			events.sort(
-				(a, b) =>
-					new Date(a.start?.dateTime || a.start?.date).getTime() -
-					new Date(b.start?.dateTime || b.start?.date).getTime()
-			);
-		} catch (error) {
-			console.error("Google Calendar API Error:", error);
-			await interaction.followUp({
-				content: "⚠️ Failed to retrieve calendar events due to an API issue. Please try again later.",
-				ephemeral: true,
-			});
-			return;
+		// Retrieve events from all calendars in the database
+		let events: Event[] = [];
+		const calendars = await fetchCalendars();
+		const calendarMenu = filters.find((f) => f.customId === "calendar_menu");
+		if (calendarMenu) {
+			calendarMenu.values = calendars.map((c) => c.calendarName);
 		}
+
+		for (const cal of calendars) {
+			const retrivedEvents = await retrieveEvents(cal.calendarId, interaction)
+			if (retrivedEvents === null) {
+				return;
+			}
+			retrivedEvents.forEach((retrivedEvent) => {
+				const newEvent: Event = {calEvent: retrivedEvent, calendarName: cal.calendarName}
+				events.push(newEvent);
+			});
+		}
+
+		// Sort events by their start time.
+		events.sort(
+			(a, b) =>
+				new Date(a.calEvent.start?.dateTime || a.calEvent.start?.date).getTime() -
+				new Date(b.calEvent.start?.dateTime || b.calEvent.start?.date).getTime()
+		);
 
 		const eventsPerPage: number = 3;
 		let filteredEvents = await filterEvents(events, eventsPerPage, filters);
