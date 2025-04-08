@@ -16,14 +16,14 @@ import 'dotenv/config';
 import { MongoClient } from 'mongodb';
 import { authorize } from '../../lib/auth';
 import * as fs from 'fs';
+import { CALENDAR_CONFIG } from './CalendarConfig';
 const path = require("path");
 const process = require("process");
 
 const { google } = require("googleapis");
 
 // Define the Master Calendar ID constant.
-const MASTER_CALENDAR_ID =
-	"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com";
+const MASTER_CALENDAR_ID = CALENDAR_CONFIG.MASTER_ID;
 
 interface Event {
 	eventId: string;
