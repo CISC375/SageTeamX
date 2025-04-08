@@ -16,7 +16,7 @@ import 'dotenv/config';
 import { MongoClient } from 'mongodb';
 import { authorize } from '../../lib/auth';
 import * as fs from 'fs';
-import { CALENDAR_CONFIG } from './CalendarConfig';
+import { CALENDAR_CONFIG } from './calendarConfig';
 const path = require("path");
 const process = require("process");
 

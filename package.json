@@ -61,7 +61,9 @@
 		"@pieces": "dist/src/pieces"
 	},
 	"devDependencies": {
+		"@testing-library/jest-dom": "^6.6.3",
 		"@types/console-stamp": "^0.2.33",
+		"@types/jest": "^29.5.14",
 		"@types/mongodb": "^3.6.3",
 		"@types/node": "^14.18.63",
 		"@types/node-cron": "^2.0.3",
@@ -71,6 +73,6 @@
 		"@typescript-eslint/parser": "^4.23.0",
 		"eslint": "^7.26.0",
 		"tsc-watch": "^4.6.2",
-		"typescript": "^5.0.2"
+		"typescript": "^5.8.3"
 	}
 }
