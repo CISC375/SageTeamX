@@ -2,6 +2,7 @@
 import { calendar_v3, google } from 'googleapis';
 import { JWT } from 'google-auth-library';
 import { ChatInputCommandInteraction } from 'discord.js';
+import { GaxiosResponse } from 'gaxios';
 
 const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 const KEY_PATH = process.env.MYPATH;
@@ -44,12 +45,23 @@ export async function retrieveEvents(calendarId: string, interaction?: ChatInput
 
 	let events: calendar_v3.Schema$Event[] = null;
 	try {
-		const response = await calendar.events.list({
-			calendarId: calendarId,
-			timeMin: new Date().toISOString(),
-			timeMax: new Date(Date.now() + (10 * 24 * 60 * 60 * 1000)).toISOString(),
-			singleEvents: singleEvents
-		});
+		let response: GaxiosResponse;
+		if (singleEvents) {
+			response = await calendar.events.list({
+				calendarId: calendarId,
+				timeMin: new Date().toISOString(),
+				timeMax: new Date(Date.now() + (10 * 24 * 60 * 60 * 1000)).toISOString(),
+				singleEvents: singleEvents,
+				orderBy: 'startTime'
+			});
+		} else {
+			response = await calendar.events.list({
+				calendarId: calendarId,
+				timeMin: new Date().toISOString(),
+				timeMax: new Date(Date.now() + (10 * 24 * 60 * 60 * 1000)).toISOString(),
+				singleEvents: singleEvents
+			});
+		}
 
 		events = response.data.items;
 	} catch {
