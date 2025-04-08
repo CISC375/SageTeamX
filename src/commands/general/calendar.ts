@@ -444,7 +444,7 @@ export default class extends Command {
 
 		let maxPage: number = filteredEvents.length;
 		let currentPage: number = 0;
-		let selectedEvents: Event[];
+		let selectedEvents: Event[] = [];
 
 		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
 		const buttonRow = generateButtons(currentPage, maxPage, selectedEvents.length);
@@ -540,7 +540,7 @@ export default class extends Command {
 					} else {
 						selectedEvents.push(event);
 						try {
-							const addMsg = await dm.send(`Added ${event.calEvent.summary}`);
+							const addMsg = await dm.send(`Added ${event.calEvent}`);
 							setTimeout(async () => {
 								try {
 									await addMsg.delete();

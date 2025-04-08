@@ -9,7 +9,7 @@ import { Command } from "@root/src/lib/types/Command";
 import { MongoClient } from "mongodb";
 import "dotenv/config";
 import { google } from "googleapis";
-import { authorize } from "../../lib/auth"; // Ensure this function authorizes Google API access
+import { retrieveEvents } from '@root/src/lib/auth';
 
 // MongoDB Connection Settings
 const MONGO_URI = process.env.DB_CONN_STRING || "";
@@ -77,20 +77,11 @@ export default class extends Command {
 		}
 
 		// Validate the Calendar ID by checking if it returns events
-		const auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
-		const calendar = google.calendar({ version: "v3", auth });
-
 		try {
-			const response = await calendar.events.list({
-				calendarId: calendarId,
-				timeMin: new Date().toISOString(),
-				maxResults: 1, // Just check if it can fetch at least one event
-				singleEvents: true,
-				orderBy: "startTime",
-			});
+			const events = await retrieveEvents(calendarId, interaction);
 
 			// If no events are found, the calendar still exists
-			if (!response.data.items) {
+			if (!events) {
 				await interaction.reply({
 					content: `⚠️ Calendar ID \`${calendarId}\` exists but has no upcoming events.`,
 					ephemeral: true,
