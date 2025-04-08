@@ -113,7 +113,10 @@ export default class extends Command {
 		}
 
 		// Retreive events
-		const events = await retrieveEvents("c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com", interaction)
+		const events = await retrieveEvents("c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com", interaction);
+		if (!events) {
+			return;
+		}
 
 		// Command input
 		const className = interaction.options.getString("classname");
