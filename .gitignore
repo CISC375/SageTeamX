@@ -4,6 +4,7 @@ resources/*
 src/commands/admin/eval.ts
 
 config.ts
+token.json
 
 # macOS stuff
 .DS_Store
