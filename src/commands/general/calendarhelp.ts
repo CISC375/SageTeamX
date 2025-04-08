@@ -13,7 +13,7 @@ export default class extends Command {
 			"Use the `/calendar` command to view upcoming office hour events. You'll **receive a DM** with office hour events over the next 10 days that allows for filtering and downloading events to add to your personal calendar.\n\n" +
 			
 			"**📬 Filtering in DMs:**\n" +
-			"`Class`, `Location Type` *(In-person/Virtual)*, and `Day of the Week` filtering options are available.\n\n" +
+			"`Class`, `Location Type` *(in-person/virtual)*, and `Days of Week` filtering options are available.\n\n" +
 
 			"**🔍 Optional Command Arguments:**\n" +
 			"`coursecode` — Automatically filters results by course (e.g., `cisc123`)\n\n" +
