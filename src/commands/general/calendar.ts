@@ -16,6 +16,9 @@ import 'dotenv/config';
 import { MongoClient } from 'mongodb';
 import { authorize } from '../../lib/auth';
 import * as fs from 'fs';
+import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
+//import event from '@root/src/models/calEvent';
+
 const path = require("path");
 const process = require("process");
 
@@ -130,9 +133,9 @@ export default class extends Command {
 					embed.addFields({
 						name: `**${event.summary}**`,
 						value: `Date: ${new Date(event.start.dateTime).toLocaleDateString()}
-Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}
-Location: ${event.location ? event.location : "`NONE`"}
-Email: ${event.creator.email}\n`,
+						Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}
+						Location: ${event.location ? event.location : "`NONE`"}
+						Email: ${event.creator.email}\n`,
 					});
 				});
 			} else {
@@ -188,27 +191,27 @@ Email: ${event.creator.email}\n`,
 
 		// Generates filter dropdown menus.
 		function generateFilterMessage(filters) {
-			const filterMenus = filters.map((filter) => {
+			const filterMenus: PagifiedSelectMenu[] = filters.map((filter) => {
 				if (filter.values.length === 0) {
 					filter.values.push("No Data Available");
 				}
-				return new StringSelectMenuBuilder()
-					.setCustomId(filter.customId)
-					.setMinValues(0)
-					.setMaxValues(filter.values.length > 0 ? filter.values.length : 1)
-					.setPlaceholder(filter.placeholder)
-					.addOptions(
-						filter.values.map((value) => {
-							return new StringSelectMenuOptionBuilder()
-								.setLabel(value)
-								.setValue(value.toLowerCase());
-						})
-					);
+				const filterMenu = new PagifiedSelectMenu();
+				filterMenu.createSelectMenu(
+					{
+						customId: filter.customId,
+						placeHolder: filter.placeholder,
+						minimumValues: 0,
+						maximumValues: 25
+					}
+				);
+
+				filter.values.forEach((value) => {
+					filterMenu.addOption({label: value, value: value.toLowerCase()})
+				});
+				return filterMenu;
 			});
-			const components = filterMenus.map((menu) => {
-				return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
-			});
-			return components;
+
+			return filterMenus;
 		}
 
 		// Generates a row of toggle buttons – one for each event on the current page.
@@ -248,26 +251,26 @@ Email: ${event.creator.email}\n`,
 				};
 
 				const icsFormatted = `BEGIN:VEVENT
-UID:${iCalEvent.UID}
-CREATED:${iCalEvent.CREATED}
-DTSTAMP:${iCalEvent.DTSTAMP}
-DTSTART;${iCalEvent.DTSTART}
-DTEND;${iCalEvent.DTEND}
-SUMMARY:${iCalEvent.SUMMARY}
-DESCRIPTION:${iCalEvent.DESCRIPTION}
-LOCATION:${iCalEvent.LOCATION}
-${recurrenceString ? recurrenceString + "\n" : ""}STATUS:CONFIRMED
-END:VEVENT
-`.replace(/\t/g, '');
-				formattedEvents.push(icsFormatted);
-			});
+				UID:${iCalEvent.UID}
+				CREATED:${iCalEvent.CREATED}
+				DTSTAMP:${iCalEvent.DTSTAMP}
+				DTSTART;${iCalEvent.DTSTART}
+				DTEND;${iCalEvent.DTEND}
+				SUMMARY:${iCalEvent.SUMMARY}
+				DESCRIPTION:${iCalEvent.DESCRIPTION}
+				LOCATION:${iCalEvent.LOCATION}
+				${recurrenceString ? recurrenceString + "\n" : ""}STATUS:CONFIRMED
+				END:VEVENT
+				`.replace(/\t/g, '');
+								formattedEvents.push(icsFormatted);
+							});
 
-			const icsCalendar = `BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//YourBot//Discord Calendar//EN
-${formattedEvents.join('')}
-END:VCALENDAR
-`.replace(/\t/g, '');
+							const icsCalendar = `BEGIN:VCALENDAR
+				VERSION:2.0
+				PRODID:-//YourBot//Discord Calendar//EN
+				${formattedEvents.join('')}
+				END:VCALENDAR
+				`.replace(/\t/g, '');
 
 			fs.writeFileSync('./events.ics', icsCalendar);
 		}
@@ -323,8 +326,16 @@ END:VCALENDAR
 				condition: (newValues, event) => {
 					if (!event.start?.dateTime) return false;
 					const dt = new Date(event.start.dateTime);
-					const weekdayIndex = dt.getDay();
-					const dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][weekdayIndex];
+					const weekdayIndex = dt.getDay(); // 0 = Sunday, 1 = Monday, etc.
+					const dayName = [
+						"Sunday",
+						"Monday",
+						"Tuesday",
+						"Wednesday",
+						"Thursday",
+						"Friday",
+						"Saturday",
+					][weekdayIndex];
 					return newValues.some((value) => value.toLowerCase() === dayName.toLowerCase());
 				},
 			},
@@ -380,7 +391,7 @@ END:VCALENDAR
 					calendarId: cal.calendarId,
 					timeMin: new Date().toISOString(),
 					timeMax: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-					singleEvents: false,
+					singleEvents: true,
 					// Removed orderBy parameter since it's not allowed with singleEvents: false.
 				});
 
@@ -447,12 +458,39 @@ END:VCALENDAR
 			return;
 		}
 
+
 		const filterComponents = generateFilterMessage(filters);
+
+		const singlePageMenus: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
+		filterComponents.forEach((component) => {
+			if (component.menus.length > 1) {
+				component.generateRowsAndSendMenu(async (i) => {
+					await i.deferUpdate();
+					const filter = filters.find((f) => f.customId === i.customId);
+					if (filter) {
+						filter.newValues = i.values;
+					}
+					filteredEvents = await filterEvents(events, eventsPerPage, filters);
+					currentPage = 0;
+					maxPage = filteredEvents.length;
+					const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
+					const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
+					message.edit({
+						embeds: [newEmbed],
+						components: [newButtonRow],
+					});
+				}, interaction, dm)
+			}
+			else {
+				singlePageMenus.push(component.generateActionRows()[0]);
+			}
+		});
+
+		// Send filter message
 		let filterMessage;
 		try {
 			filterMessage = await dm.send({
-				content: "**Select Filters:**",
-				components: filterComponents,
+				components: singlePageMenus
 			});
 		} catch (error) {
 			console.error("Failed to send DM:", error);
@@ -463,8 +501,7 @@ END:VCALENDAR
 			return;
 		}
 		await filterMessage.edit({
-			content: "**Select Filters:**",
-			components: filterComponents,
+			components: singlePageMenus
 		});
 
 		// Create collectors for button and menu interactions.
