@@ -1,43 +1,75 @@
-/* eslint-disable */
+/* eslint-disable camelcase */
+import { calendar_v3, google } from 'googleapis';
+import { JWT } from 'google-auth-library';
+import { ChatInputCommandInteraction } from 'discord.js';
 
-const fs = require('fs').promises;
-const { authenticate } = require('@google-cloud/local-auth');
-const { google } = require('googleapis');
+const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
+const KEY_PATH = process.env.MYPATH;
 
-// Loads saved credentials if they exist
-export async function loadSavedCredentialsIfExist(TOKEN_PATH) {
-	try {
-		const content = await fs.readFile(TOKEN_PATH);
-		const credentials = JSON.parse(content);
-		return google.auth.fromJSON(credentials);
-	} catch {
-		return null;
-	}
-}
-
-// Saves calendar access token.json into its own folder when authenticating
-export async function saveCredentials(client, CREDENTIALS_PATH, TOKEN_PATH) {
-	const content = await fs.readFile(CREDENTIALS_PATH);
-	const keys = JSON.parse(content);
-	const key = keys.installed || keys.web;
-	const payload = JSON.stringify({
-		type: 'authorized_user',
-		client_id: key.client_id,
-		client_secret: key.client_secret,
-		refresh_token: client.credentials.refresh_token,
+/**
+ * This function will retrive and return the events of the given calendar ID. It will send error messages if it cannot retrive the events
+ *
+ * @param {string} calendarId The ID of the calendar you want to retrieve
+ * @param {ChatInputCommandInteraction} interaction Optional: Current Discord interacton
+ * @param {boolean} singleEvents ...
+ * @returns {Promise<GaxiosResponse<calendar_v3.Schema$Events>>} Return the events of the given calendar ID
+ */
+export async function retrieveEvents(calendarId: string, interaction?: ChatInputCommandInteraction, singleEvents = true): Promise<calendar_v3.Schema$Event[]> {
+	const auth = new JWT({
+		keyFile: KEY_PATH,
+		scopes: SCOPES
 	});
-	await fs.writeFile(TOKEN_PATH, payload);
-}
 
-// Loads the credentials that were authenticated by the user on their first use
-export async function authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH) {
-	let client = await loadSavedCredentialsIfExist(TOKEN_PATH);
-	if (client) {
-		return client;
+	let calendar: calendar_v3.Calendar = null;
+	try {
+		calendar = google.calendar({ version: 'v3', auth: auth });
+	} catch {
+		const errorMessage = '⚠️ Failed to authenticate with Google Calendar. Please try again later.';
+		if (interaction) {
+			if (interaction.replied) {
+				await interaction.followUp({
+					content: errorMessage,
+					ephemeral: true
+				});
+			} else {
+				await interaction.reply({
+					content: errorMessage,
+					ephemeral: true
+				});
+			}
+		} else {
+			console.log(errorMessage);
+		}
 	}
-	client = await authenticate({ scopes: SCOPES, keyfilePath: CREDENTIALS_PATH });
-	if (client.credentials) {
-		await saveCredentials(client, CREDENTIALS_PATH, TOKEN_PATH);
+
+	let events: calendar_v3.Schema$Event[] = null;
+	try {
+		const response = await calendar.events.list({
+			calendarId: calendarId,
+			timeMin: new Date().toISOString(),
+			timeMax: new Date(Date.now() + (10 * 24 * 60 * 60 * 1000)).toISOString(),
+			singleEvents: singleEvents
+		});
+
+		events = response.data.items;
+	} catch {
+		const errorMessage = '⚠️ Failed to retrieve calendar events. Please try again later.';
+		if (interaction) {
+			if (interaction.replied) {
+				await interaction.followUp({
+					content: errorMessage,
+					ephemeral: true
+				});
+			} else {
+				await interaction.reply({
+					content: errorMessage,
+					ephemeral: true
+				});
+			}
+		} else {
+			console.log(errorMessage);
+		}
 	}
-	return client;
+
+	return events;
 }
