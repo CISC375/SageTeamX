@@ -20,6 +20,7 @@ const process = require("process");
 const { google } = require("googleapis");
 import parse from "parse-duration";
 import { authorize } from "../../lib/auth";
+import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
 
 export default class extends Command {
 	name = "calreminder";
@@ -34,81 +35,67 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
-		const TOKEN_PATH = path.join(process.cwd(), "token.json");
-		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
-		let auth;
-		function generateMessage(
-			pagifiedEvents,
-			currentPage: number,
-			maxPages: number,
-			chosenEvent: any,
-			chosenOffset: number | null,
-			repeatInterval: "every_event" | null
-		) {
-			const offsetOptions = [
-				{ label: "At event", value: "0" },
-				{ label: "10 minutes before", value: "10m" },
-				{ label: "30 minutes before", value: "30m" },
-				{ label: "1 hour before", value: "1h" },
-				{ label: "1 day before", value: "1d" },
-			];
+		let eventMenu: PagifiedSelectMenu;
+		let offsetMenu: PagifiedSelectMenu;
 
-			function buildEventDropdown(): StringSelectMenuBuilder {
-				return new StringSelectMenuBuilder()
-					.setCustomId("select_event")
-					.setPlaceholder("Select an event")
-					.setMaxValues(1)
-					.addOptions(
-						pagifiedEvents[currentPage].map((event, index) => {
-							const label = event.summary;
-							const description = `Starts at: ${new Date(
-								event.start.dateTime
-							).toLocaleString()}`;
-							const value = `${event.start.dateTime}::${index}`;
-							const option = new StringSelectMenuOptionBuilder()
-								.setLabel(label)
-								.setDescription(description)
-								.setValue(value);
+		function generateMessage(repeatInterval: "every_event" | null, chosenEvent?, chosenOffset?: number, renderMenus = false, eventCurrentPage = 0, offsetCurrentPage = 0) {
+			if (renderMenus) {
+				eventMenu = new PagifiedSelectMenu();
+				eventMenu.createSelectMenu({customId: 'select_event', placeHolder: 'Select an event', minimumValues: 1});
+				filteredEvents.forEach((event, index) => {
+					let isDefault: boolean = false;
+					if (chosenEvent) {
+						if (chosenEvent.start.dateTime === event.start.dateTime) {
+							isDefault = true;
+						}
+					}
+					eventMenu.addOption(
+						{
+							label: event.summary, 
+							value: `${event.start.dateTime}::${index}`,
+							description: `Starts at: ${new Date(event.start.dateTime).toLocaleString()}`,
+							default: isDefault
+						}
+					)
+				});
+				eventMenu.currentPage = eventCurrentPage;
 
-							if (
-								chosenEvent &&
-								chosenEvent.start.dateTime ===
-									event.start.dateTime
-							) {
-								option.setDefault(true);
-							}
+				// Create offset select menu
+				const offsetOptions = [
+					{ label: "At event", value: "0" },
+					{ label: "10 minutes before", value: "10m" },
+					{ label: "30 minutes before", value: "30m" },
+					{ label: "1 hour before", value: "1h" },
+					{ label: "1 day before", value: "1d" },
+				];
 
-							return option;
-						})
-					);
+				offsetMenu = new PagifiedSelectMenu();
+				offsetMenu.createSelectMenu({customId: 'select_offset', placeHolder: 'Select reminder offset', maximumValues: 1});
+				offsetOptions.forEach((option) => {
+					let isDefault: boolean = false;
+					if (chosenOffset) {
+						if (chosenOffset === parse(option.value)) {
+							isDefault = true;
+						}
+					}
+					offsetMenu.addOption(
+						{
+							label: option.label,
+							value: option.value,
+							default: isDefault
+						}
+					)
+				});
+				offsetMenu.currentPage = offsetCurrentPage;
 			}
 
-			function buildOffsetDropdown(): StringSelectMenuBuilder {
-				return new StringSelectMenuBuilder()
-					.setCustomId("select_offset")
-					.setPlaceholder("Select reminder offset")
-					.setMaxValues(1)
-					.addOptions(
-						offsetOptions.map((opt) => {
-							const option = new StringSelectMenuOptionBuilder()
-								.setLabel(opt.label)
-								.setValue(opt.value);
+			// 1) Generate event menu row(s)
+			const eventMenuRows = eventMenu.generateActionRows();
 
-							if (
-								chosenOffset !== null &&
-								(opt.value === "0"
-									? chosenOffset === 0
-									: parse(opt.value) === chosenOffset)
-							) {
-								option.setDefault(true);
-							}
+			// 2) Generate offset menu row(s)
+			const offsetMenuRows = offsetMenu.generateActionRows();
 
-							return option;
-						})
-					);
-			}
-
+			// 3) Generate repeat button
 			const toggleRepeatButton = new ButtonBuilder()
 				.setCustomId("toggle_repeat")
 				.setLabel(
@@ -118,40 +105,24 @@ export default class extends Command {
 				)
 				.setStyle(ButtonStyle.Secondary);
 
+			// 4) Generate set reminder button
 			const setReminder = new ButtonBuilder()
 				.setCustomId("set_reminder")
 				.setLabel("Set Reminder")
 				.setStyle(ButtonStyle.Success);
 
-			const nextButton = new ButtonBuilder()
-				.setCustomId("nextButton")
-				.setLabel("Next")
-				.setStyle(ButtonStyle.Primary)
-				.setDisabled(currentPage + 1 >= maxPages);
+			const setReminderAndRepeatRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+				toggleRepeatButton, setReminder
+			);
 
-			const prevButton = new ButtonBuilder()
-				.setCustomId("prevButton")
-				.setLabel("Previous")
-				.setStyle(ButtonStyle.Primary)
-				.setDisabled(currentPage === 0);
-
-			return [
-				new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-					buildEventDropdown()
-				),
-				new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-					buildOffsetDropdown()
-				),
-				new ActionRowBuilder<ButtonBuilder>().addComponents(
-					prevButton,
-					nextButton
-				),
-				new ActionRowBuilder<ButtonBuilder>().addComponents(
-					toggleRepeatButton,
-					setReminder
-				),
-			];
+			return [...eventMenuRows, ...offsetMenuRows, setReminderAndRepeatRow]
 		}
+
+		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
+		const TOKEN_PATH = path.join(process.cwd(), "token.json");
+		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
+		let auth;
+
 		try {
 			auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
 		} catch (error) {
@@ -163,6 +134,7 @@ export default class extends Command {
 			});
 			return;
 		}
+
 		// Fetch events
 		const now = new Date();
 		const timeMin = now.toISOString();
@@ -206,117 +178,32 @@ export default class extends Command {
 			return;
 		}
 
-		// Needed to rebuild dropdowns after clicking repeat (weird Discord UI clears the dropdowns)
-		function buildEventDropdown(
-			filteredEvents: any[],
-			chosenEvent: any
-		): StringSelectMenuBuilder {
-			return new StringSelectMenuBuilder()
-				.setCustomId("select_event")
-				.setPlaceholder("Select an event")
-				.setMaxValues(1)
-				.addOptions(
-					filteredEvents.slice(0, 25).map((event, index) => {
-						const label = event.summary;
-						const description = `Starts at: ${new Date(
-							event.start.dateTime
-						).toLocaleString()}`;
-						const value = `${event.start.dateTime}::${index}`;
-						const option = new StringSelectMenuOptionBuilder()
-							.setLabel(label)
-							.setDescription(description)
-							.setValue(value);
-
-						if (
-							chosenEvent &&
-							chosenEvent.start.dateTime === event.start.dateTime
-						) {
-							option.setDefault(true);
-						}
-
-						return option;
-					})
-				);
-		}
-
-		function buildOffsetDropdown(
-			offsetOptions: { label: string; value: string }[],
-			chosenOffset: number | null
-		): StringSelectMenuBuilder {
-			return new StringSelectMenuBuilder()
-				.setCustomId("select_offset")
-				.setPlaceholder("Select reminder offset")
-				.setMaxValues(1)
-				.addOptions(
-					offsetOptions.map((opt) => {
-						const option = new StringSelectMenuOptionBuilder()
-							.setLabel(opt.label)
-							.setValue(opt.value);
-
-						if (
-							chosenOffset !== null &&
-							(opt.value === "0"
-								? chosenOffset === 0
-								: parse(opt.value) === chosenOffset)
-						) {
-							option.setDefault(true);
-						}
-
-						return option;
-					})
-				);
-		}
-
-		// Paginate events (25 per page)
-		let temp = [];
-		let pagifiedEvents = [];
-		for (const event of filteredEvents) {
-			if (temp.length < 25) {
-				temp.push(event);
-			} else {
-				pagifiedEvents.push(temp);
-				temp = [event];
-			}
-		}
-		if (temp.length > 0) pagifiedEvents.push(temp);
-
-		const maxPages = pagifiedEvents.length;
-		let currentPage = 0;
-
 		let chosenEvent = null;
-		let chosenOffset: number | null = null;
-		let repeatInterval: "every_event" | null = null;
-		let activeReminderId: string | null = null;
+		let chosenOffset: number = null;
+		let repeatInterval: "every_event" = null;
+		let activeReminderId: string = null;
 
-		const components = generateMessage(
-			pagifiedEvents,
-			currentPage,
-			maxPages,
-			chosenEvent,
-			chosenOffset,
-			repeatInterval
-		);
+		const initialComponents = generateMessage(repeatInterval, chosenEvent, chosenOffset, true);
 
 		const replyMessage = await interaction.reply({
-			content: `Events ${currentPage + 1} of ${maxPages}`,
-			components,
-			ephemeral: true,
+			components: initialComponents,
+			ephemeral: true
 		});
 
 		// Main collector for event & offset
-
 		const collector = replyMessage.createMessageComponentCollector({
 			componentType: ComponentType.StringSelect,
 			time: 60_000,
 		});
 
 		collector.on("collect", async (i) => {
-			if (i.customId === "select_event") {
+			if (i.customId === 'select_event') {
 				const [eventDateStr, indexStr] = i.values[0].split("::");
 				const selectedIndex = parseInt(indexStr);
 				chosenEvent = filteredEvents[selectedIndex];
 				await i.deferUpdate();
-			} else if (i.customId === "select_offset") {
+			}
+			else if (i.customId === "select_offset") {
 				const rawOffsetStr = i.values[0];
 				chosenOffset = rawOffsetStr === "0" ? 0 : parse(rawOffsetStr);
 				await i.deferUpdate();
@@ -333,14 +220,7 @@ export default class extends Command {
 			if (btnInt.customId === "toggle_repeat") {
 				repeatInterval = repeatInterval ? null : "every_event";
 
-				const updatedComponents = generateMessage(
-					pagifiedEvents,
-					currentPage,
-					maxPages,
-					chosenEvent,
-					chosenOffset,
-					repeatInterval
-				);
+				const updatedComponents = generateMessage(repeatInterval, chosenEvent, chosenOffset, true, eventMenu.currentPage, offsetMenu.currentPage);
 
 				await btnInt.update({
 					components: updatedComponents,
@@ -443,36 +323,21 @@ export default class extends Command {
 				} catch (err) {
 					console.error("Failed to cancel reminder:", err);
 				}
-			} else if (btnInt.customId === "nextButton") {
+			}
+
+			const actions: Record<string, () => void> = {
+				'next_button:select_event': () => eventMenu.currentPage++,
+				'prev_button:select_event': () => eventMenu.currentPage--,
+				'next_button:select_offset': () => offsetMenu.currentPage++,
+				'prev_button:select_offset': () => offsetMenu.currentPage--,
+			};
+			const action = actions[btnInt.customId];
+
+			if (action) {
 				await btnInt.deferUpdate();
-				currentPage++;
-				const updatedComponents = generateMessage(
-					pagifiedEvents,
-					currentPage,
-					maxPages,
-					chosenEvent,
-					chosenOffset,
-					repeatInterval
-				);
-				await replyMessage.edit({
-					content: `Events ${currentPage + 1} of ${maxPages}`,
-					components: updatedComponents,
-				});
-			} else if (btnInt.customId === "prevButton") {
-				await btnInt.deferUpdate();
-				currentPage--;
-				const updatedComponents = generateMessage(
-					pagifiedEvents,
-					currentPage,
-					maxPages,
-					chosenEvent,
-					chosenOffset,
-					repeatInterval
-				);
-				await replyMessage.edit({
-					content: `Events ${currentPage + 1} of ${maxPages}`,
-					components: updatedComponents,
-				});
+				action();
+				const newRows = generateMessage(repeatInterval);
+				await btnInt.editReply({ components: newRows });
 			}
 		});
 	}
