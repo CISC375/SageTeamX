@@ -11,7 +11,7 @@ const KEY_PATH = process.env.MYPATH;
  *
  * @param {string} calendarId The ID of the calendar you want to retrieve
  * @param {ChatInputCommandInteraction} interaction Optional: Current Discord interacton
- * @param {boolean} singleEvents ...
+ * @param {boolean} singleEvents Optional: Determines whether to list out each event instead of just the parent events Default: true
  * @returns {Promise<GaxiosResponse<calendar_v3.Schema$Events>>} Return the events of the given calendar ID
  */
 export async function retrieveEvents(calendarId: string, interaction?: ChatInputCommandInteraction, singleEvents = true): Promise<calendar_v3.Schema$Event[]> {
