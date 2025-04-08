@@ -11,16 +11,10 @@ import {
 	ButtonStyle,
 	ChatInputCommandInteraction,
 	ComponentType,
-	StringSelectMenuBuilder,
-	StringSelectMenuOptionBuilder,
 } from "discord.js";
-
-const path = require("path");
-const process = require("process");
-const { google } = require("googleapis");
 import parse from "parse-duration";
-import { authorize } from "../../lib/auth";
 import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
+import { retrieveEvents } from '@root/src/lib/auth';
 
 export default class extends Command {
 	name = "calreminder";
@@ -118,53 +112,12 @@ export default class extends Command {
 			return [...eventMenuRows, ...offsetMenuRows, setReminderAndRepeatRow]
 		}
 
-		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
-		const TOKEN_PATH = path.join(process.cwd(), "token.json");
-		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
-		let auth;
-
-		try {
-			auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
-		} catch (error) {
-			console.error("Google Calendar Authorization Error:", error);
-			await interaction.reply({
-				content:
-					"⚠️ Failed to authenticate with Google Calendar. Please try again later.",
-				ephemeral: true,
-			});
-			return;
-		}
-
-		// Fetch events
-		const now = new Date();
-		const timeMin = now.toISOString();
-		const timeMax = new Date(
-			now.getTime() + 10 * 24 * 60 * 60 * 1000
-		).toISOString();
-		const calendar = google.calendar({ version: "v3", auth });
-		let res;
-		try {
-			res = await calendar.events.list({
-				calendarId:
-					"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com",
-				timeMin,
-				timeMax,
-				singleEvents: true,
-				orderBy: "startTime",
-			});
-		} catch (error) {
-			console.error("Google Calendar API Error:", error);
-			await interaction.reply({
-				content:
-					"⚠️ Failed to retrieve calendar events. Please try again later.",
-				ephemeral: true,
-			});
-			return;
-		}
+		// Retreive events
+		const events = await retrieveEvents("c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com", interaction)
 
 		// Command input
 		const className = interaction.options.getString("classname");
-		const events = res.data.items || [];
+
 		// Filter events
 		const filteredEvents = events.filter((event) =>
 			event.summary.toLowerCase().includes(className.toLowerCase())
