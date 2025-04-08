@@ -18,6 +18,7 @@ import * as fs from 'fs';
 import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
 import { calendar_v3 } from 'googleapis';
 import { retrieveEvents } from '@root/src/lib/auth';
+import path from 'path';
 //import event from '@root/src/models/calEvent';
 
 // Define the Master Calendar ID constant.
@@ -61,13 +62,13 @@ export default class extends Command {
 		/** Helper Functions **/
 
 		// Filters calendar events based on slash command inputs and filter dropdown selections.
-		async function filterEvents(events: Event[], eventsPerPage: number, filters: Filter[]) {
+		function filterEvents(events: Event[], eventsPerPage: number, filters: Filter[]) {
 			const eventHolder: string = interaction.options.getString("eventholder")?.toLowerCase();
 			const eventDate: string = interaction.options.getString("eventdate");
 
 			const newEventDate: string = eventDate ? new Date(eventDate + " 2025").toLocaleDateString() : "";
 			let temp: Event[] = [];
-			let filteredEvents: Event[] = [];
+			let filteredEvents: Event[][] = [];
 
 			let allFiltersFlags = true;
 			let eventHolderFlag: boolean = true;
@@ -107,17 +108,17 @@ export default class extends Command {
 				if (allFiltersFlags && eventHolderFlag && eventDateFlag) {
 					temp.push(event);
 					if (temp.length % eventsPerPage === 0) {
-						filteredEvents.push(...temp);
+						filteredEvents.push(temp);
 						temp = [];
 					}
 				}
 			});
-			if (temp.length) filteredEvents.push(...temp);
+			if (temp.length) filteredEvents.push(temp);
 			return filteredEvents;
 		}
 
 		// Generates the embed for displaying events.
-		function generateEmbed(filteredEvents, currentPage: number, maxPage: number): EmbedBuilder {
+		function generateEmbed(filteredEvents: Event[][], currentPage: number, maxPage: number): EmbedBuilder {
 			let embed: EmbedBuilder;
 			if (
 				filteredEvents.length &&
@@ -129,11 +130,11 @@ export default class extends Command {
 					.setColor("Green");
 				filteredEvents[currentPage].forEach((event) => {
 					embed.addFields({
-						name: `**${event.summary}**`,
-						value: `Date: ${new Date(event.start.dateTime).toLocaleDateString()}
-						Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}
-						Location: ${event.location ? event.location : "`NONE`"}
-						Email: ${event.creator.email}\n`,
+						name: `**${event.calEvent.summary}**`,
+						value: `Date: ${new Date(event.calEvent.start.dateTime).toLocaleDateString()}
+						Time: ${new Date(event.calEvent.start.dateTime).toLocaleTimeString()} - ${new Date(event.calEvent.end.dateTime).toLocaleTimeString()}
+						Location: ${event.calEvent.location ? event.calEvent.location : "`NONE`"}
+						Email: ${event.calEvent.creator.email}\n`,
 					});
 				});
 			} else {
@@ -149,7 +150,7 @@ export default class extends Command {
 		}
 
 		// Generates the pagination buttons (Previous, Next, Download Calendar, Download All, Done).
-		function generateButtons(currentPage: number, maxPage: number, filteredEvents, downloadCount: number): ActionRowBuilder<ButtonBuilder> {
+		function generateButtons(currentPage: number, maxPage: number, downloadCount: number): ActionRowBuilder<ButtonBuilder> {
 			const nextButton = new ButtonBuilder()
 				.setCustomId("next")
 				.setLabel("Next")
@@ -188,7 +189,7 @@ export default class extends Command {
 		}
 
 		// Generates filter dropdown menus.
-		function generateFilterMessage(filters) {
+		function generateFilterMessage(filters: Filter[]) {
 			const filterMenus: PagifiedSelectMenu[] = filters.map((filter) => {
 				if (filter.values.length === 0) {
 					filter.values.push("No Data Available");
@@ -213,11 +214,11 @@ export default class extends Command {
 		}
 
 		// Generates a row of toggle buttons – one for each event on the current page.
-		function generateEventSelectButtons(filteredEvents, currentPage: number) {
+		function generateEventSelectButtons(filteredEvents: Event[][], currentPage: number): ActionRowBuilder<ButtonBuilder> {
 			const row = new ActionRowBuilder<ButtonBuilder>();
 			if (!filteredEvents[currentPage] || !filteredEvents[currentPage].length)
 				return row;
-			filteredEvents[currentPage].forEach((event, idx) => {
+			filteredEvents[currentPage].forEach((__, idx) => {
 				row.addComponents(
 					new ButtonBuilder()
 						.setCustomId(`toggle-${currentPage}-${idx}`)
@@ -395,7 +396,7 @@ export default class extends Command {
 		);
 
 		const eventsPerPage: number = 3;
-		let filteredEvents = await filterEvents(events, eventsPerPage, filters);
+		let filteredEvents: Event[][] = filterEvents(events, eventsPerPage, filters);
 		if (!filteredEvents.length) {
 			await interaction.followUp({
 				content: "No matching events found based on your filters. Please adjust your search criteria.",
@@ -433,7 +434,6 @@ export default class extends Command {
 			});
 			return;
 		}
-
 
 		const filterComponents = generateFilterMessage(filters);
 
