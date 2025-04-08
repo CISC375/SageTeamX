@@ -50,7 +50,7 @@ export default class extends Command {
 			type: ApplicationCommandOptionType.String,
 			name: "eventdate",
 			description:
-				'Enter the name of the date you are looking for with: [month name] [day] (eg., "december 12").',
+				'Enter the date in this format : [month name] [day] (eg., "december 12").',
 			required: false,
 		},
 	];
@@ -58,7 +58,7 @@ export default class extends Command {
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
 		/** Helper Functions **/
 
-		// Filters calendar events based on various parameters
+		// Filters calendar events based on various parameters 
 		async function filterEvents(events, eventsPerPage: number, filters) {
 			const eventHolder: string = interaction.options
 				.getString("eventholder")
@@ -81,7 +81,7 @@ export default class extends Command {
 
 			let temp = [];
 			let filteredEvents = [];
-
+			
 			// Flags for each property
 			let allFiltersFlags = true;
 			let eventHolderFlag: boolean = true;
@@ -124,10 +124,12 @@ export default class extends Command {
 
 				if (eventHolder) {
 					eventHolderFlag = lowerCaseSummary.includes(eventHolder);
+					
 				}
 				if (eventDate) {
 					eventDateFlag =
 						currentEventDate.toLocaleDateString() === newEventDate;
+						
 				}
 
 				if (allFiltersFlags && eventHolderFlag && eventDateFlag) {
@@ -136,6 +138,7 @@ export default class extends Command {
 						filteredEvents.push(temp);
 						temp = [];
 					}
+					
 				}
 			});
 
@@ -152,23 +155,36 @@ export default class extends Command {
 			let embed: EmbedBuilder;
 			if (filteredEvents.length) {
 				embed = new EmbedBuilder()
-					.setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
-					.setColor("Green");
+					.setTitle(`OFFICE HOURS`)
+					.setDescription('Please use the **Prev** and **Next** to access all events fetched based on your request.')
+					.setColor("Blue")
+					.setFooter({text : `Page ${currentPage + 1} of ${maxPage}`})
+
 				filteredEvents[currentPage].forEach((event) => {
+					//formatting title to make it clear
+					const input = event.summary;
+					const locationTypeindex = input.lastIndexOf('-');
+					const output = input.substring(0, locationTypeindex).trim();
+					const formattedOutput = output.replace('-', ' - ');
+					const typeoflocation = input.substring(locationTypeindex + 1).trim();
+
 					embed.addFields({
-						name: `**${event.summary}**`,
+						name: `**${formattedOutput}**`,
 						value: `Date: ${new Date(
 							event.start.dateTime
 						).toLocaleDateString()}
 								Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(
 							event.end.dateTime
 						).toLocaleTimeString()}
-								Location: ${event.location ? event.location : "`NONE`"}\n`,
+								Location Type : ${typeoflocation}
+								Location: ${event.location ? event.location : "`NONE`"}
+								\n` 
+
 					});
 				});
 			} else {
 				embed = new EmbedBuilder()
-					.setTitle(`No Events`)
+					.setTitle(`No Office Hours`)
 					.setColor(`Green`)
 					.setTitle("No Events Found")
 					.addFields({
