@@ -15,6 +15,7 @@ import {
 import parse from "parse-duration";
 import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
 import { retrieveEvents } from '@root/src/lib/auth';
+import { calendar_v3 } from 'googleapis';
 
 export default class extends Command {
 	name = "calreminder";
@@ -32,7 +33,7 @@ export default class extends Command {
 		let eventMenu: PagifiedSelectMenu;
 		let offsetMenu: PagifiedSelectMenu;
 
-		function generateMessage(repeatInterval: "every_event" | null, chosenEvent?, chosenOffset?: number, renderMenus = false, eventCurrentPage = 0, offsetCurrentPage = 0) {
+		function generateMessage(repeatInterval: "every_event" | null, chosenEvent?: calendar_v3.Schema$Event, chosenOffset?: number, renderMenus = false, eventCurrentPage = 0, offsetCurrentPage = 0) {
 			if (renderMenus) {
 				eventMenu = new PagifiedSelectMenu();
 				eventMenu.createSelectMenu({customId: 'select_event', placeHolder: 'Select an event', minimumValues: 1});
@@ -134,7 +135,7 @@ export default class extends Command {
 			return;
 		}
 
-		let chosenEvent = null;
+		let chosenEvent: calendar_v3.Schema$Event = null;
 		let chosenOffset: number = null;
 		let repeatInterval: "every_event" = null;
 		let activeReminderId: string = null;
