@@ -328,7 +328,7 @@ export default class extends Command {
 				flag: true,
 				condition: (newValues: string[], event: Event) => {
 					const calendarName = event.calendarName.toLowerCase() || "";
-					return newValues.some((value) => calendarName.includes(value.toLowerCase()));
+					return newValues.some((value) => calendarName === value.toLowerCase());
 				},
 			},
 			{
