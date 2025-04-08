@@ -7,18 +7,28 @@ import {
 	EmbedBuilder,
 	ApplicationCommandOptionType,
 	ApplicationCommandStringOptionData,
+	ComponentType,
+	StringSelectMenuBuilder,
+	StringSelectMenuOptionBuilder,
 } from 'discord.js';
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
 import { MongoClient } from 'mongodb';
 import { authorize } from '../../lib/auth';
+import * as fs from 'fs';
+import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
 //import event from '@root/src/models/calEvent';
 
-const path = require('path');
-const process = require('process');
-const { google } = require('googleapis');
+const path = require("path");
+const process = require("process");
 
-interface Event{
+const { google } = require("googleapis");
+
+// Define the Master Calendar ID constant.
+const MASTER_CALENDAR_ID =
+	"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com";
+
+interface Event {
 	eventId: string;
 	courseID: string;
 	instructor: string;
@@ -27,488 +37,612 @@ interface Event{
 	end: string;
 	location: string;
 	locationType: string;
+	email: string;
 }
+
 export default class extends Command {
 	name = "calendar";
-	description =
-		"Retrieve calendar events over the next 10 days with pagination, optionally filter";
+	description = "Retrieve calendar events with pagination and filters";
 
-	// All available filters that someone can add and they are not required
 	options: ApplicationCommandStringOptionData[] = [
 		{
 			type: ApplicationCommandOptionType.String,
-			name: "classname",
-			description:
-				'Enter the class name to filter events (e.g., "cisc123")',
-			required: false,
-		},
-		{
-			type: ApplicationCommandOptionType.String,
-			name: "locationtype",
-			description: 'Enter "IP" for In-Person or "V" for Virtual events',
-			required: false,
-		},
-		{
-			type: ApplicationCommandOptionType.String,
 			name: "eventholder",
-			description:
-				"Enter the name of the event holder you are looking for.",
+			description: "Enter the event holder (e.g., class name).",
 			required: false,
 		},
 		{
 			type: ApplicationCommandOptionType.String,
 			name: "eventdate",
-			description:
-				'Enter the name of the date you are looking for with: [month name] [day] (eg., "december 12").',
-			required: false,
-		},
-		{
-			type: ApplicationCommandOptionType.String,
-			name: "dayofweek",
-			description:
-				'Enter the day of the week to filter events (e.g., "Monday")',
+			description: 'Enter the date (e.g., "December 12").',
 			required: false,
 		},
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
+		/** Helper Functions **/
+
+		// Filters calendar events based on slash command inputs and filter dropdown selections.
+		async function filterEvents(events, eventsPerPage: number, filters) {
+			const eventHolder: string = interaction.options.getString("eventholder")?.toLowerCase();
+			const eventDate: string = interaction.options.getString("eventdate");
+
+			const newEventDate: string = eventDate ? new Date(eventDate + " 2025").toLocaleDateString() : "";
+			let temp = [];
+			let filteredEvents = [];
+
+			let allFiltersFlags = true;
+			let eventHolderFlag: boolean = true;
+			let eventDateFlag: boolean = true;
+			events.forEach((event) => {
+				const lowerCaseSummary: string = event.summary.toLowerCase();
+
+				// Extract class name (works for "CISC108-..." and "CISC374010")
+				const classNameMatch = lowerCaseSummary.match(/cisc\d+/i);
+				const extractedClassName = classNameMatch ? classNameMatch[0].toUpperCase() : "";
+
+				// Dynamically update filter options.
+				const classFilter = filters.find((f) => f.customId === "class_name_menu");
+				if (extractedClassName && classFilter && !classFilter.values.includes(extractedClassName)) {
+					classFilter.values.push(extractedClassName);
+				}
+
+				const currentEventDate: Date = new Date(event.start.dateTime);
+
+				if (filters.length) {
+					filters.forEach((filter) => {
+						filter.flag = true;
+						if (filter.newValues.length) {
+							filter.flag = filter.condition(filter.newValues, event);
+						}
+					});
+					allFiltersFlags = filters.every((f) => f.flag);
+				}
+
+				if (eventHolder) {
+					eventHolderFlag = lowerCaseSummary.includes(eventHolder);
+				}
+				if (eventDate) {
+					eventDateFlag = currentEventDate.toLocaleDateString() === newEventDate;
+				}
+
+				if (allFiltersFlags && eventHolderFlag && eventDateFlag) {
+					temp.push(event);
+					if (temp.length % eventsPerPage === 0) {
+						filteredEvents.push(temp);
+						temp = [];
+					}
+				}
+			});
+			if (temp.length) filteredEvents.push(temp);
+			return filteredEvents;
+		}
+
+		// Generates the embed for displaying events.
+		function generateEmbed(filteredEvents, currentPage: number, maxPage: number): EmbedBuilder {
+			let embed: EmbedBuilder;
+			if (
+				filteredEvents.length &&
+				filteredEvents[currentPage] &&
+				filteredEvents[currentPage].length
+			) {
+				embed = new EmbedBuilder()
+					.setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
+					.setColor("Green");
+				filteredEvents[currentPage].forEach((event) => {
+					embed.addFields({
+						name: `**${event.summary}**`,
+						value: `Date: ${new Date(event.start.dateTime).toLocaleDateString()}
+						Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}
+						Location: ${event.location ? event.location : "`NONE`"}
+						Email: ${event.creator.email}\n`,
+					});
+				});
+			} else {
+				embed = new EmbedBuilder()
+					.setTitle("No Events Found")
+					.setColor("Green")
+					.addFields({
+						name: "Try adjusting your filters",
+						value: "No events match your selections, please change them!",
+					});
+			}
+			return embed;
+		}
+
+		// Generates the pagination buttons (Previous, Next, Download Calendar, Download All, Done).
+		function generateButtons(currentPage: number, maxPage: number, filteredEvents, downloadCount: number): ActionRowBuilder<ButtonBuilder> {
+			const nextButton = new ButtonBuilder()
+				.setCustomId("next")
+				.setLabel("Next")
+				.setStyle(ButtonStyle.Primary)
+				.setDisabled(currentPage + 1 >= maxPage);
+
+			const prevButton = new ButtonBuilder()
+				.setCustomId("prev")
+				.setLabel("Previous")
+				.setStyle(ButtonStyle.Primary)
+				.setDisabled(currentPage === 0);
+
+			const downloadCal = new ButtonBuilder()
+				.setCustomId("download_Cal")
+				.setLabel(`Download Calendar (${downloadCount})`)
+				.setStyle(ButtonStyle.Success)
+				.setDisabled(downloadCount === 0);
+
+			const downloadAll = new ButtonBuilder()
+				.setCustomId("download_all")
+				.setLabel("Download All")
+				.setStyle(ButtonStyle.Secondary);
+
+			const done = new ButtonBuilder()
+				.setCustomId("done")
+				.setLabel("Done")
+				.setStyle(ButtonStyle.Danger);
+
+			return new ActionRowBuilder<ButtonBuilder>().addComponents(
+				prevButton,
+				nextButton,
+				downloadCal,
+				downloadAll,
+				done
+			);
+		}
+
+		// Generates filter dropdown menus.
+		function generateFilterMessage(filters) {
+			const filterMenus: PagifiedSelectMenu[] = filters.map((filter) => {
+				if (filter.values.length === 0) {
+					filter.values.push("No Data Available");
+				}
+				const filterMenu = new PagifiedSelectMenu();
+				filterMenu.createSelectMenu(
+					{
+						customId: filter.customId,
+						placeHolder: filter.placeholder,
+						minimumValues: 0,
+						maximumValues: 25
+					}
+				);
+
+				filter.values.forEach((value) => {
+					filterMenu.addOption({label: value, value: value.toLowerCase()})
+				});
+				return filterMenu;
+			});
+
+			return filterMenus;
+		}
+
+		// Generates a row of toggle buttons – one for each event on the current page.
+		function generateEventSelectButtons(filteredEvents, currentPage: number) {
+			const row = new ActionRowBuilder<ButtonBuilder>();
+			if (!filteredEvents[currentPage] || !filteredEvents[currentPage].length)
+				return row;
+			filteredEvents[currentPage].forEach((event, idx) => {
+				row.addComponents(
+					new ButtonBuilder()
+						.setCustomId(`toggle-${currentPage}-${idx}`)
+						.setLabel(`Select #${idx + 1}`)
+						.setStyle(ButtonStyle.Secondary)
+				);
+			});
+			return row;
+		}
+
+		// Downloads events by generating an ICS file.
+		// This version includes recurrence rules (if the event has them).
+		async function downloadSelectedEvents(selectedEvents, calendar, auth) {
+			const formattedEvents: string[] = [];
+			selectedEvents.forEach((event) => {
+				// Join recurrence rules (if any) into a string.
+				const recurrenceString = event.recurrence ? event.recurrence.join("\n") : "";
+				const iCalEvent = {
+					UID: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+					CREATED: new Date(event.created)
+						.toISOString()
+						.replace(/[-:.]/g, ''),
+					DTSTAMP: event.updated.replace(/[-:.]/g, ''),
+					DTSTART: `TZID=${event.start.timeZone}:${event.start.dateTime.replace(/[-:.]/g, '')}`,
+					DTEND: `TZID=${event.end.timeZone}:${event.end.dateTime.replace(/[-:.]/g, '')}`,
+					SUMMARY: event.summary,
+					DESCRIPTION: `Contact Email: ${event.creator.email || 'NA'}`,
+					LOCATION: event.location ? event.location : 'NONE',
+				};
+
+				const icsFormatted = `BEGIN:VEVENT
+				UID:${iCalEvent.UID}
+				CREATED:${iCalEvent.CREATED}
+				DTSTAMP:${iCalEvent.DTSTAMP}
+				DTSTART;${iCalEvent.DTSTART}
+				DTEND;${iCalEvent.DTEND}
+				SUMMARY:${iCalEvent.SUMMARY}
+				DESCRIPTION:${iCalEvent.DESCRIPTION}
+				LOCATION:${iCalEvent.LOCATION}
+				${recurrenceString ? recurrenceString + "\n" : ""}STATUS:CONFIRMED
+				END:VEVENT
+				`.replace(/\t/g, '');
+								formattedEvents.push(icsFormatted);
+							});
+
+							const icsCalendar = `BEGIN:VCALENDAR
+				VERSION:2.0
+				PRODID:-//YourBot//Discord Calendar//EN
+				${formattedEvents.join('')}
+				END:VCALENDAR
+				`.replace(/\t/g, '');
+
+			fs.writeFileSync('./events.ics', icsCalendar);
+		}
+
+		/******************************************************************************************************************/
+		// Initial reply to acknowledge the interaction.
+		await interaction.reply({
+			content: "Authenticating and fetching events...",
+			ephemeral: true,
+		});
+
+		// Define filters for dropdowns.
+		const filters = [
+			{
+				customId: "calendar_menu",
+				placeholder: "Select Calendar",
+				values: [],
+				newValues: [],
+				flag: true,
+				condition: (newValues, event) => {
+					const calendarName = event.calendarName?.toLowerCase() || "";
+					return newValues.some((value) => calendarName.includes(value.toLowerCase()));
+				},
+			},
+			{
+				customId: "class_name_menu",
+				placeholder: "Select Classes",
+				values: [],
+				newValues: [],
+				flag: true,
+				condition: (newValues, event) => {
+					const summary = event.summary?.toLowerCase() || "";
+					return newValues.some((value) => summary.includes(value.toLowerCase()));
+				},
+			},
+			{
+				customId: "location_type_menu",
+				placeholder: "Select Location Type",
+				values: ["In Person", "Virtual"],
+				newValues: [],
+				flag: true,
+				condition: (newValues, event) => {
+					const locString = event.summary.toLowerCase();
+					return newValues.some((value) => locString.includes(value.toLowerCase()));
+				},
+			},
+			{
+				customId: "week_menu",
+				placeholder: "Select Days of Week",
+				values: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+				newValues: [],
+				flag: true,
+				condition: (newValues, event) => {
+					if (!event.start?.dateTime) return false;
+					const dt = new Date(event.start.dateTime);
+					const weekdayIndex = dt.getDay(); // 0 = Sunday, 1 = Monday, etc.
+					const dayName = [
+						"Sunday",
+						"Monday",
+						"Tuesday",
+						"Wednesday",
+						"Thursday",
+						"Friday",
+						"Saturday",
+					][weekdayIndex];
+					return newValues.some((value) => value.toLowerCase() === dayName.toLowerCase());
+				},
+			},
+		];
+
+		// Set up Google Calendar API authorization.
+		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
 		const TOKEN_PATH = path.join(process.cwd(), "token.json");
 		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
+		const auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
+		const calendar = google.calendar({ version: "v3", auth });
 
-				
+		const MONGO_URI = process.env.DB_CONN_STRING || "";
+		const DB_NAME = "CalendarDatabase";
+		const COLLECTION_NAME = "calendarIds";
 
-		// Formats the date and time for events
-		function formatDateTime(dateTime?: string): string {
-			if (!dateTime) return "`NONE`";
-			const date = new Date(dateTime);
-			return date.toLocaleString("en-US", {
-				month: "long",
-				day: "numeric",
-				hour: "2-digit",
-				minute: "2-digit",
-				timeZoneName: "short",
-			});
+		// Fetch calendar IDs from MongoDB.
+		async function fetchCalendars() {
+			const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
+			await client.connect();
+			const db = client.db(DB_NAME);
+			const collection = db.collection(COLLECTION_NAME);
+
+			const calendarDocs = await collection.find().toArray();
+			await client.close();
+
+			const calendars = calendarDocs.map((doc) => ({
+				calendarId: doc.calendarId,
+				calendarName: doc.calendarName || "Unnamed Calendar",
+			}));
+
+			if (!calendars.some((c) => c.calendarId === MASTER_CALENDAR_ID)) {
+				calendars.push({
+					calendarId: MASTER_CALENDAR_ID,
+					calendarName: "Master Calendar",
+				});
+			}
+
+			return calendars;
 		}
 
-		/**
-		 * MongoDB connection variables. This is where you would add in the connection string to your own MongoDB database, as well as establishing
-		 * the collection you want the events to be saved to within that database. It is currently set up to store events in the database of the bot
-		 * which is running this command (Lineages), but feel free to make a specific database for the events or switch to your bot's database. 
-		 
+		let events = [];
+		try {
+			const calendars = await fetchCalendars();
+			const calendarMenu = filters.find((f) => f.customId === "calendar_menu");
+			if (calendarMenu) {
+				calendarMenu.values = calendars.map((c) => c.calendarName);
+			}
 
-		const connString = process.env.DB_CONN_STRING;
-		const client = await MongoClient.connect(connString);
-		const db = client.db('Lineages');
-		const eventsCollection = db.collection('events'); 
-
-		This code might not be entirely neccessary, but I'll keep it here just in case
-
-		*/
-
-		// Get the class name and location type arguments (if any)
-		const className = interaction.options.getString("classname") || "";
-		const locationType =
-			interaction.options.getString("locationtype")?.toUpperCase() || "";
-		const eventHolder = interaction.options.getString("eventholder") || "";
-		const eventDate = interaction.options.getString("eventdate") || "";
-		const dayOfWeek =
-			interaction.options.getString("dayofweek")?.toLowerCase() || "";
-
-		// Regex to validate that the class name starts with 'cisc' followed by exactly 3 digits
-		const classNameRegex = /^cisc\d{3}$/i;
-		// Validates the date format to make sure it is valid input
-		const dateRegex =
-			/^(?:january|february|march|april|may|june|july|august|september|october|november|december) (\d{1,2})$/;
-
-		// Validate class name format
-		if (className && !classNameRegex.test(className)) {
-			await interaction.reply({
-				content:
-					'Invalid class name format. Please enter a class name starting with "cisc" followed by exactly three digits (e.g., "cisc123").',
-				ephemeral: true, // Only visible to the user who entered the command
-			});
-			return;
-		}
-
-		// Map to get the day of the week from the date
-		const daysOfWeekMap: { [key: string]: number } = {
-			sunday: 0,
-			monday: 1,
-			tuesday: 2,
-			wednesday: 3,
-			thursday: 4,
-			friday: 5,
-			saturday: 6,
-		};
-
-		// Validate locationType input ("IP" for In-Person, "V" for Virtual)
-		if (locationType && !["IP", "V"].includes(locationType)) {
-			await interaction.reply({
-				content:
-					'Invalid location type. Please enter "IP" for In-Person or "V" for Virtual events.',
-				ephemeral: true, // Only visible to the user who entered the command
-			});
-			return;
-		}
-
-		// Makes sure the month is valid, otherwise it will not execute
-		if (eventDate && !dateRegex.test(eventDate)) {
-			await interaction.reply({
-				content:
-					'Invalid date format. Please enter a date starting with "month" followed by 1-2 digits (e.g., "december 9").',
-				ephemeral: true, // Only visible to the user who entered the command
-			});
-			return;
-		}
-
-		if (!className && !locationType && !eventHolder && !eventDate && !dayOfWeek) {
-			await interaction.reply({
-				content: "To search for calendar events, use **one or more** of the following filters:\n\n" +
-				"**Arguments:**\n" +
-				"`classname`: Enter the class name (e.g., 'cisc123') to filter by course.\n" +
-				"`locationtype`: Enter 'IP' for In-Person events or 'V' for Virtual events.\n" +
-				"`eventholder`: Enter the event holder's name (e.g., 'John Smith') to filter by instructor.\n" +
-				"`eventdate`: Enter a date in the format (e.g., 'December 9') to filter events by date.\n" +
-				"`dayofweek`: Enter the day of the week (e.g., 'Monday') to filter events by the day.\n\n" +
-				"**Filtering Events:**\n" +
-				"A filtering option is offered in your DMs after the command is sent.\n" +
-				"If you don't add any filters, all events over the next 10 days will be returned.\n\n" +
-				"Use `/calendar` with appropriate arguments to get started!",
-			  ephemeral: true, 
-			});
-			return;  // Prevents authentication attempt
-		  }
-
-		async function listEvents(
-			auth,
-			interaction: ChatInputCommandInteraction,
-			className: string,
-			locationType: string
-		) {
-			const calendar = google.calendar({ version: "v3", auth });
-			const now = new Date();
-			const timeMin = now.toISOString();
-			const timeMax = new Date(
-				now.getTime() + 10 * 24 * 60 * 60 * 1000
-			).toISOString();
-
-			try {
-				const res = await calendar.events.list({
-					calendarId:
-						"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com",
-					timeMin,
-					timeMax,
+			// IMPORTANT: Set singleEvents to false so that master events (with recurrence) are returned.
+			for (const cal of calendars) {
+				const response = await calendar.events.list({
+					calendarId: cal.calendarId,
+					timeMin: new Date().toISOString(),
+					timeMax: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
 					singleEvents: true,
-					orderBy: "startTime",
+					// Removed orderBy parameter since it's not allowed with singleEvents: false.
 				});
 
-				const events = res.data.items || [];
-				if (events.length === 0) {
-					await interaction.followUp(
-						"No events found over the next 10 days."
-					);
-					return;
+				if (response.data.items) {
+					response.data.items.forEach((event) => {
+						event.calendarName = cal.calendarName;
+					});
+					events.push(...response.data.items);
 				}
-				/**
-				 * before filtering the events, we store every single one in MongoDB. 
-				   This code might not be entirely neccessary, but I'll keep it here just in case
+			}
 
-				for (const event of events) {
-					const eventParts = event.summary.split("-");
-					const eventData: Event = {
-						eventId: event.id,
-						courseID: eventParts[0]?.trim() || "",
-						instructor: eventParts[1]?.trim() || "",
-						date: formatDateTime(
-							event.start?.dateTime || event.start?.date
-						),
-						start: event.start?.dateTime || event.start?.date || "",
-						end: event.end?.dateTime || event.end?.date || "",
-						location: event.location || "",
-						locationType: eventParts[2]
-							?.trim()
-							.toLowerCase()
-							.includes("virtual")
-							? "V"
-							: "IP",
-					};
+			// Sort events by their start time.
+			events.sort(
+				(a, b) =>
+					new Date(a.start?.dateTime || a.start?.date).getTime() -
+					new Date(b.start?.dateTime || b.start?.date).getTime()
+			);
+		} catch (error) {
+			console.error("Google Calendar API Error:", error);
+			await interaction.followUp({
+				content: "⚠️ Failed to retrieve calendar events due to an API issue. Please try again later.",
+				ephemeral: true,
+			});
+			return;
+		}
 
-					try {
-						// Update or insert the event
-						await eventsCollection.updateOne(
-							{ eventId: eventData.eventId },
-							{ $set: eventData },
-							{ upsert: true }
-						);
-					} catch (dbError) {
-						console.error(
-							"Error storing event in database:",
-							dbError
-						);
+		const eventsPerPage: number = 3;
+		let filteredEvents = await filterEvents(events, eventsPerPage, filters);
+		if (!filteredEvents.length) {
+			await interaction.followUp({
+				content: "No matching events found based on your filters. Please adjust your search criteria.",
+				ephemeral: true,
+			});
+			return;
+		}
+
+		let maxPage: number = filteredEvents.length;
+		let currentPage: number = 0;
+		const selectedEventsSet = new Set<string>();
+		const eventMap = {};
+		filteredEvents.forEach((pageEvents, pIndex) => {
+			pageEvents.forEach((evt, eIndex) => {
+				eventMap[`${pIndex}-${eIndex}`] = evt;
+			});
+		});
+
+		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
+		const buttonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
+		const toggleRow = generateEventSelectButtons(filteredEvents, currentPage);
+
+		const dm = await interaction.user.createDM();
+		let message;
+		try {
+			message = await dm.send({
+				embeds: [embed],
+				components: [toggleRow, buttonRow],
+			});
+		} catch (error) {
+			console.error("Failed to send DM:", error);
+			await interaction.followUp({
+				content: "⚠️ I couldn't send you a DM. Please check your privacy settings.",
+				ephemeral: true,
+			});
+			return;
+		}
+
+
+		const filterComponents = generateFilterMessage(filters);
+
+		const singlePageMenus: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
+		filterComponents.forEach((component) => {
+			if (component.menus.length > 1) {
+				component.generateRowsAndSendMenu(async (i) => {
+					await i.deferUpdate();
+					const filter = filters.find((f) => f.customId === i.customId);
+					if (filter) {
+						filter.newValues = i.values;
 					}
-				}
+					filteredEvents = await filterEvents(events, eventsPerPage, filters);
+					currentPage = 0;
+					maxPage = filteredEvents.length;
+					const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
+					const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
+					message.edit({
+						embeds: [newEmbed],
+						components: [newButtonRow],
+					});
+				}, interaction, dm)
+			}
+			else {
+				singlePageMenus.push(component.generateActionRows()[0]);
+			}
+		});
 
-				*/
-				
+		// Send filter message
+		let filterMessage;
+		try {
+			filterMessage = await dm.send({
+				components: singlePageMenus
+			});
+		} catch (error) {
+			console.error("Failed to send DM:", error);
+			await interaction.followUp({
+				content: "⚠️ I couldn't send you a DM. Please check your privacy settings.",
+				ephemeral: true,
+			});
+			return;
+		}
+		await filterMessage.edit({
+			components: singlePageMenus
+		});
 
-				// Filters are provided, filter events by the ones given by user
-				const filteredEvents = events.filter((event) => {
-					let matchClassName = true;
-					let matchLocationType = true;
-					let matchEventHolder = true;
-					let matchEventDate = true;
-					let matchDayOfWeek = true;
+		// Create collectors for button and menu interactions.
+		const buttonCollector = message.createMessageComponentCollector({ time: 300000 });
+		const menuCollector = filterMessage.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 300000 });
 
-					// Class name filter
-					if (className) {
-						matchClassName =
-							event.summary &&
-							event.summary
-								.toLowerCase()
-								.includes(className.toLowerCase());
-					}
-
-					// Event date filter
-					if (eventDate) {
-						const formattedEventDate = formatDateTime(
-							event.start?.dateTime.toLowerCase()
-						);
-						matchEventDate =
-							formattedEventDate &&
-							formattedEventDate
-								.toLowerCase()
-								.includes(eventDate.toLowerCase());
-					}
-
-					// Day of the week filter
-					if (dayOfWeek) {
-						const eventDate = new Date(
-							event.start?.dateTime || event.start?.date
-						);
-						const eventDayOfWeek = eventDate.getDay();
-						matchDayOfWeek =
-							eventDayOfWeek === daysOfWeekMap[dayOfWeek];
-					}
-
-					// Location type filter (In-Person or Virtual)
-					if (locationType) {
-						if (locationType === "IP") {
-							matchLocationType =
-								event.summary &&
-								event.summary
-									.toLowerCase()
-									.includes("in person");
-						} else if (locationType === "V") {
-							matchLocationType =
-								event.summary &&
-								event.summary.toLowerCase().includes("virtual");
+		buttonCollector.on("collect", async (btnInt) => {
+			try {
+				await btnInt.deferUpdate();
+				if (btnInt.customId.startsWith("toggle-")) {
+					const parts = btnInt.customId.split("-");
+					const key = `${parts[1]}-${parts[2]}`;
+					const event = eventMap[key];
+					if (selectedEventsSet.has(key)) {
+						selectedEventsSet.delete(key);
+						try {
+							const removeMsg = await dm.send(`Removed ${event.summary}`);
+							setTimeout(async () => {
+								try {
+									await removeMsg.delete();
+								} catch (err) {
+									console.error("Failed to delete removal message:", err);
+								}
+							}, 3000);
+						} catch (err) {
+							console.error("Error sending removal message:", err);
+						}
+					} else {
+						selectedEventsSet.add(key);
+						try {
+							const addMsg = await dm.send(`Added ${event.summary}`);
+							setTimeout(async () => {
+								try {
+									await addMsg.delete();
+								} catch (err) {
+									console.error("Failed to delete addition message:", err);
+								}
+							}, 3000);
+						} catch (err) {
+							console.error("Error sending addition message:", err);
 						}
 					}
-
-					// Event holder name filter
-					if (eventHolder) {
-						matchEventHolder =
-							event.summary &&
-							event.summary
-								.toLowerCase()
-								.includes(eventHolder.toLowerCase());
+				} else if (btnInt.customId === "next") {
+					if (currentPage + 1 >= maxPage) return;
+					currentPage++;
+				} else if (btnInt.customId === "prev") {
+					if (currentPage === 0) return;
+					currentPage--;
+				} else if (btnInt.customId === 'download_Cal') {
+					if (selectedEventsSet.size === 0) {
+						await dm.send("No events selected to download!");
+						return;
 					}
-
-					return (
-						matchClassName &&
-						matchLocationType &&
-						matchEventHolder &&
-						matchEventDate &&
-						matchDayOfWeek
-					);
-				});
-
-				if (filteredEvents.length === 0) {
-					let errorMessage = "No office hours available";
-
-					if (className && !classNameRegex.test(className)) {
-						errorMessage = `Invalid class name format: **${className}**. Class names should be in the format **"cisc123"**.`;
-					} else if (dayOfWeek && !(dayOfWeek in daysOfWeekMap)) {
-						errorMessage = `Invalid day of the week: **${dayOfWeek}**. Please enter a valid day (e.g., "Monday").`;
-					} else if (eventDate && !dateRegex.test(eventDate)) {
-						errorMessage = `Invalid date format: **${eventDate}**. Please enter a date in the format **"Month Day"** (e.g., "December 9").`;
-					} else if (
-						locationType &&
-						!["IP", "V"].includes(locationType)
-					) {
-						errorMessage = `Invalid location type: **${locationType}**. Please enter **"IP"** for In-Person or **"V"** for Virtual.`;
-					} else if (eventHolder) {
-						errorMessage = `No office hours found for instructor: **${eventHolder}**. They may not have scheduled any office hours.`;
-					} else if (className) {
-						errorMessage = `No office hours found for course: **${className}**. Please check back later or contact the instructor.`;
-					} else {
-						errorMessage =
-							"No office hours match your search criteria.";
+					const selectedEvents = [];
+					selectedEventsSet.forEach((key) => {
+						if (eventMap[key]) selectedEvents.push(eventMap[key]);
+					});
+					const downloadMessage = await dm.send({ content: 'Downloading selected events...' });
+					try {
+						await downloadSelectedEvents(selectedEvents, calendar, auth);
+						const filePath = path.join('./events.ics');
+						await downloadMessage.edit({
+							content: '',
+							files: [filePath]
+						});
+						fs.unlinkSync('./events.ics');
+					} catch {
+						await downloadMessage.edit({ content: '⚠️ Failed to download events' });
 					}
-
-					console.warn(
-						`Missing data: ${errorMessage} - Filters: Class: ${
-							className || "N/A"
-						}, LocationType: ${
-							locationType || "N/A"
-						}, EventHolder: ${eventHolder || "N/A"}, EventDate: ${
-							eventDate || "N/A"
-						}, DayOfWeek: ${dayOfWeek || "N/A"}`
-					);
-
-					await interaction.followUp(errorMessage);
+				} else if (btnInt.customId === "download_all") {
+					const allFilteredEvents = filteredEvents.flat();
+					if (!allFilteredEvents.length) {
+						await dm.send("No events to download!");
+						return;
+					}
+					const downloadMessage = await dm.send({ content: "Downloading all events..." });
+					try {
+						await downloadSelectedEvents(allFilteredEvents, calendar, auth);
+						const filePath = path.join('./events.ics');
+						await downloadMessage.edit({
+							content: '',
+							files: [filePath]
+						});
+						fs.unlinkSync('./events.ics');
+					} catch {
+						await downloadMessage.edit({ content: "⚠️ Failed to download all events." });
+					}
+				} else if (btnInt.customId === "done") {
+					await message.edit({
+						embeds: [],
+						components: [],
+						content: "📅 Calendar session closed.",
+					});
+					await filterMessage.edit({
+						embeds: [],
+						components: [],
+						content: "Filters closed.",
+					});
+					buttonCollector.stop();
+					menuCollector.stop();
 					return;
 				}
 
-				// Puts the event object into stringified fields for printing
-				const parsedEvents = filteredEvents.map((event, index) => ({
-					name: event.summary.split("-")[0] || `Event ${index + 1}`,
-					eventHolder: event.summary.split("-")[1],
-					eventType: event.summary.split("-")[2],
-					start: formatDateTime(
-						event.start?.dateTime || event.start?.date
-					),
-					end: formatDateTime(event.end?.dateTime || event.end?.date),
-					location: event.location || "`NONE`",
-				}));
-
-				// Display to the user with 3 events per page with a prev/next button to look through
-				let currentPage = 0;
-				const EVENTS_PER_PAGE = 3;
-
-				function generateEmbed(page: number): EmbedBuilder {
-					const embed = new EmbedBuilder()
-						.setColor("Green")
-						.setTitle(
-							`Upcoming Events ${
-								className ? `for ${className}` : ""
-							} (${
-								locationType
-									? locationType === "IP"
-										? "In-Person"
-										: "Virtual"
-									: ""
-							}) (Page ${page + 1} of ${Math.ceil(
-								parsedEvents.length / EVENTS_PER_PAGE
-							)})`
-						);
-
-					parsedEvents
-						.slice(
-							page * EVENTS_PER_PAGE,
-							(page + 1) * EVENTS_PER_PAGE
-						)
-						.forEach((event, index) => {
-							embed.addFields({
-								name: `Event ${
-									page * EVENTS_PER_PAGE + index + 1
-								}: ${event.name}`,
-								value: `**Event Holder:** ${event.eventHolder}\n**Start:** ${event.start}\n**End:** ${event.end}\n**Location:** ${event.location}\n**Event Type:** ${event.eventType}\n\n`,
-							});
-						});
-
-					return embed;
-				}
-
-				async function updateMessage(page: number, message) {
-					const embed = generateEmbed(page);
-					const buttons =
-						new ActionRowBuilder<ButtonBuilder>().addComponents(
-							new ButtonBuilder()
-								.setCustomId("prev")
-								.setLabel("Previous")
-								.setStyle(ButtonStyle.Primary)
-								.setDisabled(page === 0),
-							new ButtonBuilder()
-								.setCustomId("next")
-								.setLabel("Next")
-								.setStyle(ButtonStyle.Primary)
-								.setDisabled(
-									page ===
-										Math.ceil(
-											parsedEvents.length /
-												EVENTS_PER_PAGE
-										) -
-											1
-								),
-							new ButtonBuilder()
-								.setCustomId("done")
-								.setLabel("Done")
-								.setStyle(ButtonStyle.Danger)
-						);
-
-					await message.edit({
-						embeds: [embed],
-						components: [buttons],
-					});
-				}
-
-				// Send initial message via DM
-				const dmChannel = await interaction.user.createDM();
-				const initialEmbed = generateEmbed(currentPage);
-				const initialButtons =
-					new ActionRowBuilder<ButtonBuilder>().addComponents(
-						new ButtonBuilder()
-							.setCustomId("prev")
-							.setLabel("Previous")
-							.setStyle(ButtonStyle.Primary)
-							.setDisabled(true),
-						new ButtonBuilder()
-							.setCustomId("next")
-							.setLabel("Next")
-							.setStyle(ButtonStyle.Primary)
-							.setDisabled(
-								filteredEvents.length <= EVENTS_PER_PAGE
-							),
-						new ButtonBuilder()
-							.setCustomId("done")
-							.setLabel("Done")
-							.setStyle(ButtonStyle.Danger)
-					);
-
-				const message = await dmChannel.send({
-					embeds: [initialEmbed],
-					components: [initialButtons],
+				const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
+				const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
+				const newToggleRow = generateEventSelectButtons(filteredEvents, currentPage);
+				await message.edit({
+					embeds: [newEmbed],
+					components: [newToggleRow, newButtonRow],
 				});
-
-				const collector = message.createMessageComponentCollector({
-					time: 300000,
+			} catch (error) {
+				console.error("Button Collector Error:", error);
+				await btnInt.followUp({
+					content: "⚠️ An error occurred while navigating through events. Please try again.",
+					ephemeral: true,
 				});
-
-				collector.on("collect", async (btnInteraction) => {
-					if (btnInteraction.customId === "done") {
-						collector.stop();
-						await message.edit({ components: [] });
-						await btnInteraction.reply(
-							"Collector manually terminated."
-						);
-					} else {
-						if (btnInteraction.customId === "prev") currentPage--;
-						if (btnInteraction.customId === "next") currentPage++;
-						await updateMessage(currentPage, message);
-						await btnInteraction.deferUpdate();
-					}
-				});
-
-				collector.on("end", async () => {
-					await message.edit({ components: [] });
-				});
-			} catch (err) {
-				console.error(err);
-				await interaction.followUp(
-					"Failed to retrieve calendar events."
-				);
 			}
-		}
+		});
 
-		try {
-			await interaction.reply('Authenticating and fetching events...');
-			const auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
-			await listEvents(auth, interaction, className, locationType);
-		} catch (err) {
-			console.error(err);
-			await interaction.followUp("An error occurred.");
-		}
+		menuCollector.on("collect", async (i) => {
+			i.deferUpdate();
+			const filter = filters.find((f) => f.customId === i.customId);
+			if (filter) {
+				filter.newValues = i.values;
+			}
+			filteredEvents = await filterEvents(events, eventsPerPage, filters);
+			currentPage = 0;
+			maxPage = filteredEvents.length;
+			selectedEventsSet.clear();
+			filteredEvents.forEach((pageEvents, pIndex) => {
+				pageEvents.forEach((evt, eIndex) => {
+					eventMap[`${pIndex}-${eIndex}`] = evt;
+				});
+			});
+			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
+			const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
+			const newToggleRow = generateEventSelectButtons(filteredEvents, currentPage);
+			message.edit({
+				embeds: [newEmbed],
+				components: [newToggleRow, newButtonRow],
+			});
+		});
 	}
 }
