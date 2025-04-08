@@ -10,18 +10,16 @@ export default class extends Command {
 		await interaction.reply({
 			content:
 			"**📅 Command Help: /calendar**\n\n" +
-			"Use the `/calendar` command to view upcoming office hour events. After running the command, you'll receive a **DM** with additional filtering options such as class, location type (In-Person or Virtual), and day of the week. You can also select events to download and add to your personal calendar.\n\n" +
+			"Use the `/calendar` command to view upcoming office hour events. You'll **receive a DM** with office hour events over the next 10 days that allows for filtering and downloading events to add to your personal calendar.\n\n" +
 			
-			"**🔍 Optional Arguments:**\n" +
-			"`coursecode` — Filter by course code (e.g., `cisc123`)\n" +
-			"`locationtype` — Use `IP` for In-Person or `V` for Virtual events\n" +
-			"`eventholder` — Filter by the event holder's name (e.g., `John Smith`)\n" +
-			"`eventdate` — Filter by a specific date (e.g., `December 9`)\n" +
-			"`dayofweek` — Filter by the day of the week (e.g., `Monday`)\n\n" +
-
 			"**📬 Filtering in DMs:**\n" +
-			"If no filters are provided, all office hours within the next 10 days will be shown.\n\n" +
-			"Get started by running `/calendar` with any combination of the above filters!",
+			"`Class`, `Location Type` *(In-person/Virtual)*, and `Day of the Week` filtering options are available.\n\n" +
+
+			"**🔍 Optional Command Arguments:**\n" +
+			"`coursecode` — Automatically filters results by course (e.g., `cisc123`)\n\n" +
+
+			"Get started by running `/calendar`!",
+			
 			ephemeral: true,
 		});
 	}
