@@ -9,35 +9,37 @@ import {
 	ApplicationCommandStringOptionData,
 	ComponentType,
 	StringSelectMenuBuilder,
-	StringSelectMenuOptionBuilder,
+	ButtonInteraction,
+	CacheType,
+	StringSelectMenuInteraction,
+	Message,
 } from 'discord.js';
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
 import { MongoClient } from 'mongodb';
-import { authorize } from '../../lib/auth';
 import * as fs from 'fs';
 import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
+import { calendar_v3 } from 'googleapis';
+import { retrieveEvents } from '@root/src/lib/auth';
+import path from 'path';
 //import event from '@root/src/models/calEvent';
-
-const path = require("path");
-const process = require("process");
-
-const { google } = require("googleapis");
 
 // Define the Master Calendar ID constant.
 const MASTER_CALENDAR_ID =
 	"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com";
 
 interface Event {
-	eventId: string;
-	courseID: string;
-	instructor: string;
-	date: string;
-	start: string;
-	end: string;
-	location: string;
-	locationType: string;
-	email: string;
+	calEvent: calendar_v3.Schema$Event;
+	calendarName: string;
+}
+
+interface Filter {
+	customId: string;
+	placeholder: string,
+	values: string[];
+	newValues: string[];
+	flag: boolean;
+	condition: (newValues: string[], event: Event) => boolean;
 }
 
 export default class extends Command {
@@ -63,19 +65,19 @@ export default class extends Command {
 		/** Helper Functions **/
 
 		// Filters calendar events based on slash command inputs and filter dropdown selections.
-		async function filterEvents(events, eventsPerPage: number, filters) {
+		function filterEvents(events: Event[], eventsPerPage: number, filters: Filter[]) {
 			const eventHolder: string = interaction.options.getString("eventholder")?.toLowerCase();
 			const eventDate: string = interaction.options.getString("eventdate");
 
 			const newEventDate: string = eventDate ? new Date(eventDate + " 2025").toLocaleDateString() : "";
-			let temp = [];
-			let filteredEvents = [];
+			let temp: Event[] = [];
+			let filteredEvents: Event[][] = [];
 
 			let allFiltersFlags = true;
 			let eventHolderFlag: boolean = true;
 			let eventDateFlag: boolean = true;
 			events.forEach((event) => {
-				const lowerCaseSummary: string = event.summary.toLowerCase();
+				const lowerCaseSummary: string = event.calEvent.summary.toLowerCase();
 
 				// Extract class name (works for "CISC108-..." and "CISC374010")
 				const classNameMatch = lowerCaseSummary.match(/cisc\d+/i);
@@ -87,7 +89,7 @@ export default class extends Command {
 					classFilter.values.push(extractedClassName);
 				}
 
-				const currentEventDate: Date = new Date(event.start.dateTime);
+				const currentEventDate: Date = new Date(event.calEvent.start.dateTime);
 
 				if (filters.length) {
 					filters.forEach((filter) => {
@@ -119,7 +121,7 @@ export default class extends Command {
 		}
 
 		// Generates the embed for displaying events.
-		function generateEmbed(filteredEvents, currentPage: number, maxPage: number): EmbedBuilder {
+		function generateEmbed(filteredEvents: Event[][], currentPage: number, maxPage: number): EmbedBuilder {
 			let embed: EmbedBuilder;
 			if (
 				filteredEvents.length &&
@@ -131,11 +133,11 @@ export default class extends Command {
 					.setColor("Green");
 				filteredEvents[currentPage].forEach((event) => {
 					embed.addFields({
-						name: `**${event.summary}**`,
-						value: `Date: ${new Date(event.start.dateTime).toLocaleDateString()}
-						Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(event.end.dateTime).toLocaleTimeString()}
-						Location: ${event.location ? event.location : "`NONE`"}
-						Email: ${event.creator.email}\n`,
+						name: `**${event.calEvent.summary}**`,
+						value: `Date: ${new Date(event.calEvent.start.dateTime).toLocaleDateString()}
+						Time: ${new Date(event.calEvent.start.dateTime).toLocaleTimeString()} - ${new Date(event.calEvent.end.dateTime).toLocaleTimeString()}
+						Location: ${event.calEvent.location ? event.calEvent.location : "`NONE`"}
+						Email: ${event.calEvent.creator.email}\n`,
 					});
 				});
 			} else {
@@ -151,7 +153,7 @@ export default class extends Command {
 		}
 
 		// Generates the pagination buttons (Previous, Next, Download Calendar, Download All, Done).
-		function generateButtons(currentPage: number, maxPage: number, filteredEvents, downloadCount: number): ActionRowBuilder<ButtonBuilder> {
+		function generateButtons(currentPage: number, maxPage: number, downloadCount: number): ActionRowBuilder<ButtonBuilder> {
 			const nextButton = new ButtonBuilder()
 				.setCustomId("next")
 				.setLabel("Next")
@@ -190,7 +192,7 @@ export default class extends Command {
 		}
 
 		// Generates filter dropdown menus.
-		function generateFilterMessage(filters) {
+		function generateFilterMessage(filters: Filter[]) {
 			const filterMenus: PagifiedSelectMenu[] = filters.map((filter) => {
 				if (filter.values.length === 0) {
 					filter.values.push("No Data Available");
@@ -215,63 +217,97 @@ export default class extends Command {
 		}
 
 		// Generates a row of toggle buttons – one for each event on the current page.
-		function generateEventSelectButtons(filteredEvents, currentPage: number) {
-			const row = new ActionRowBuilder<ButtonBuilder>();
-			if (!filteredEvents[currentPage] || !filteredEvents[currentPage].length)
-				return row;
-			filteredEvents[currentPage].forEach((event, idx) => {
-				row.addComponents(
-					new ButtonBuilder()
-						.setCustomId(`toggle-${currentPage}-${idx}`)
-						.setLabel(`Select #${idx + 1}`)
-						.setStyle(ButtonStyle.Secondary)
-				);
-			});
-			return row;
+		function generateEventSelectButtons(eventsPerPage: number): ActionRowBuilder<ButtonBuilder> {
+			const selectEventButtons: ButtonBuilder[] = []
+
+			// This is to ensure that the number of buttons does not exceed to the limit per row
+			// We should probably change to a pagified select menu later on
+			if (eventsPerPage > 5) {
+				eventsPerPage = 5;
+			}
+
+			// Create buttons for each event on the page (up to 5)
+			for (let i = 1; i <= eventsPerPage; i++) {
+				const selectEvent = new ButtonBuilder()
+					.setCustomId(`toggle-${i}`)
+					.setLabel(`Select #${i}`)
+					.setStyle(ButtonStyle.Secondary);
+				selectEventButtons.push(selectEvent);
+			}
+
+			// Create row containing all of the select buttons
+			const selectRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+				...selectEventButtons
+			);
+
+			return selectRow;
 		}
 
 		// Downloads events by generating an ICS file.
 		// This version includes recurrence rules (if the event has them).
-		async function downloadSelectedEvents(selectedEvents, calendar, auth) {
+		async function downloadEvents(selectedEvents: Event[], calendars: {calendarId: string, calendarName: string}[]) {
 			const formattedEvents: string[] = [];
+			const parentEvents: calendar_v3.Schema$Event[] = [];
+
+			for (const calendar of calendars) {
+				const newParentEvents = await retrieveEvents(calendar.calendarId, interaction, false);
+				parentEvents.push(...newParentEvents)
+			}
+
+			const recurrenceRules: Record<string, string> = Object.fromEntries(parentEvents.map((event) => {
+				return [event.id, event.recurrence[0]];
+			}));
+
+			const recurringIds: Set<string> = new Set();
+
 			selectedEvents.forEach((event) => {
-				// Join recurrence rules (if any) into a string.
-				const recurrenceString = event.recurrence ? event.recurrence.join("\n") : "";
+				let append: boolean = false;
 				const iCalEvent = {
 					UID: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
-					CREATED: new Date(event.created)
-						.toISOString()
-						.replace(/[-:.]/g, ''),
-					DTSTAMP: event.updated.replace(/[-:.]/g, ''),
-					DTSTART: `TZID=${event.start.timeZone}:${event.start.dateTime.replace(/[-:.]/g, '')}`,
-					DTEND: `TZID=${event.end.timeZone}:${event.end.dateTime.replace(/[-:.]/g, '')}`,
-					SUMMARY: event.summary,
-					DESCRIPTION: `Contact Email: ${event.creator.email || 'NA'}`,
-					LOCATION: event.location ? event.location : 'NONE',
+					CREATED: new Date(event.calEvent.created).toISOString().replace(/[-:.]/g, ''),
+					DTSTAMP: event.calEvent.updated.replace(/[-:.]/g, ''),
+					DTSTART: `TZID=${event.calEvent.start.timeZone}:${event.calEvent.start.dateTime.replace(/[-:.]/g, '')}`,
+					DTEND: `TZID=${event.calEvent.end.timeZone}:${event.calEvent.end.dateTime.replace(/[-:.]/g, '')}`,
+					SUMMARY: event.calEvent.summary,
+					DESCRIPTION: `Contact Email: ${event.calEvent.creator.email || 'NA'}`,
+					LOCATION: event.calEvent.location ? event.calEvent.location : 'NONE',
 				};
 
-				const icsFormatted = `BEGIN:VEVENT
-				UID:${iCalEvent.UID}
-				CREATED:${iCalEvent.CREATED}
-				DTSTAMP:${iCalEvent.DTSTAMP}
-				DTSTART;${iCalEvent.DTSTART}
-				DTEND;${iCalEvent.DTEND}
-				SUMMARY:${iCalEvent.SUMMARY}
-				DESCRIPTION:${iCalEvent.DESCRIPTION}
-				LOCATION:${iCalEvent.LOCATION}
-				${recurrenceString ? recurrenceString + "\n" : ""}STATUS:CONFIRMED
-				END:VEVENT
-				`.replace(/\t/g, '');
-								formattedEvents.push(icsFormatted);
-							});
+				if (!event.calEvent.recurringEventId) {
+					append = true
+				}
+				else {
+					if (!recurringIds.has(event.calEvent.recurringEventId)) {
+						recurringIds.add(event.calEvent.recurringEventId);
+						append = true;
+					}
+				}
 
-							const icsCalendar = `BEGIN:VCALENDAR
-				VERSION:2.0
-				PRODID:-//YourBot//Discord Calendar//EN
-				${formattedEvents.join('')}
-				END:VCALENDAR
-				`.replace(/\t/g, '');
+				if (append) {
+					const icsFormatted = 
+					`BEGIN:VEVENT
+					UID:${iCalEvent.UID}
+					CREATED:${iCalEvent.CREATED}
+					DTSTAMP:${iCalEvent.DTSTAMP}
+					DTSTART;${iCalEvent.DTSTART}
+					DTEND;${iCalEvent.DTEND}
+					SUMMARY:${iCalEvent.SUMMARY}
+					DESCRIPTION:${iCalEvent.DESCRIPTION}
+					LOCATION:${iCalEvent.LOCATION}
+					STATUS:CONFIRMED
+					${event.calEvent.recurringEventId ? recurrenceRules[event.calEvent.recurringEventId] : ''}
+					END:VEVENT
+					`.replace(/\t/g, '');
+					formattedEvents.push(icsFormatted);
+				}
+			});
 
+			const icsCalendar = `BEGIN:VCALENDAR
+			VERSION:2.0
+			PRODID:-//YourBot//Discord Calendar//EN
+			${formattedEvents.join('')}
+			END:VCALENDAR
+			`.replace(/\t/g, '');
 			fs.writeFileSync('./events.ics', icsCalendar);
 		}
 
@@ -283,16 +319,16 @@ export default class extends Command {
 		});
 
 		// Define filters for dropdowns.
-		const filters = [
+		const filters: Filter[] = [
 			{
 				customId: "calendar_menu",
 				placeholder: "Select Calendar",
 				values: [],
 				newValues: [],
 				flag: true,
-				condition: (newValues, event) => {
-					const calendarName = event.calendarName?.toLowerCase() || "";
-					return newValues.some((value) => calendarName.includes(value.toLowerCase()));
+				condition: (newValues: string[], event: Event) => {
+					const calendarName = event.calendarName.toLowerCase() || "";
+					return newValues.some((value) => calendarName === value.toLowerCase());
 				},
 			},
 			{
@@ -301,8 +337,8 @@ export default class extends Command {
 				values: [],
 				newValues: [],
 				flag: true,
-				condition: (newValues, event) => {
-					const summary = event.summary?.toLowerCase() || "";
+				condition: (newValues: string[], event: Event) => {
+					const summary = event.calEvent.summary?.toLowerCase() || "";
 					return newValues.some((value) => summary.includes(value.toLowerCase()));
 				},
 			},
@@ -312,8 +348,8 @@ export default class extends Command {
 				values: ["In Person", "Virtual"],
 				newValues: [],
 				flag: true,
-				condition: (newValues, event) => {
-					const locString = event.summary.toLowerCase();
+				condition: (newValues: string[], event: Event) => {
+					const locString = event.calEvent.summary?.toLowerCase() || '';
 					return newValues.some((value) => locString.includes(value.toLowerCase()));
 				},
 			},
@@ -323,9 +359,9 @@ export default class extends Command {
 				values: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
 				newValues: [],
 				flag: true,
-				condition: (newValues, event) => {
-					if (!event.start?.dateTime) return false;
-					const dt = new Date(event.start.dateTime);
+				condition: (newValues: string[], event: Event) => {
+					if (!event.calEvent.start?.dateTime) return false;
+					const dt = new Date(event.calEvent.start.dateTime);
 					const weekdayIndex = dt.getDay(); // 0 = Sunday, 1 = Monday, etc.
 					const dayName = [
 						"Sunday",
@@ -341,13 +377,6 @@ export default class extends Command {
 			},
 		];
 
-		// Set up Google Calendar API authorization.
-		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
-		const TOKEN_PATH = path.join(process.cwd(), "token.json");
-		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
-		const auth = await authorize(TOKEN_PATH, SCOPES, CREDENTIALS_PATH);
-		const calendar = google.calendar({ version: "v3", auth });
-
 		const MONGO_URI = process.env.DB_CONN_STRING || "";
 		const DB_NAME = "CalendarDatabase";
 		const COLLECTION_NAME = "calendarIds";
@@ -362,7 +391,7 @@ export default class extends Command {
 			const calendarDocs = await collection.find().toArray();
 			await client.close();
 
-			const calendars = calendarDocs.map((doc) => ({
+			const calendars: {calendarId: string, calendarName: string}[] = calendarDocs.map((doc) => ({
 				calendarId: doc.calendarId,
 				calendarName: doc.calendarName || "Unnamed Calendar",
 			}));
@@ -377,49 +406,34 @@ export default class extends Command {
 			return calendars;
 		}
 
-		let events = [];
-		try {
-			const calendars = await fetchCalendars();
-			const calendarMenu = filters.find((f) => f.customId === "calendar_menu");
-			if (calendarMenu) {
-				calendarMenu.values = calendars.map((c) => c.calendarName);
-			}
-
-			// IMPORTANT: Set singleEvents to false so that master events (with recurrence) are returned.
-			for (const cal of calendars) {
-				const response = await calendar.events.list({
-					calendarId: cal.calendarId,
-					timeMin: new Date().toISOString(),
-					timeMax: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-					singleEvents: true,
-					// Removed orderBy parameter since it's not allowed with singleEvents: false.
-				});
-
-				if (response.data.items) {
-					response.data.items.forEach((event) => {
-						event.calendarName = cal.calendarName;
-					});
-					events.push(...response.data.items);
-				}
-			}
-
-			// Sort events by their start time.
-			events.sort(
-				(a, b) =>
-					new Date(a.start?.dateTime || a.start?.date).getTime() -
-					new Date(b.start?.dateTime || b.start?.date).getTime()
-			);
-		} catch (error) {
-			console.error("Google Calendar API Error:", error);
-			await interaction.followUp({
-				content: "⚠️ Failed to retrieve calendar events due to an API issue. Please try again later.",
-				ephemeral: true,
-			});
-			return;
+		// Retrieve events from all calendars in the database
+		let events: Event[] = [];
+		const calendars = await fetchCalendars();
+		const calendarMenu = filters.find((f) => f.customId === "calendar_menu");
+		if (calendarMenu) {
+			calendarMenu.values = calendars.map((c) => c.calendarName);
 		}
 
+		for (const cal of calendars) {
+			const retrivedEvents = await retrieveEvents(cal.calendarId, interaction)
+			if (retrivedEvents === null) {
+				return;
+			}
+			retrivedEvents.forEach((retrivedEvent) => {
+				const newEvent: Event = {calEvent: retrivedEvent, calendarName: cal.calendarName}
+				events.push(newEvent);
+			});
+		}
+
+		// Sort events by their start time.
+		events.sort(
+			(a, b) =>
+				new Date(a.calEvent.start?.dateTime || a.calEvent.start?.date).getTime() -
+				new Date(b.calEvent.start?.dateTime || b.calEvent.start?.date).getTime()
+		);
+
 		const eventsPerPage: number = 3;
-		let filteredEvents = await filterEvents(events, eventsPerPage, filters);
+		let filteredEvents: Event[][] = filterEvents(events, eventsPerPage, filters);
 		if (!filteredEvents.length) {
 			await interaction.followUp({
 				content: "No matching events found based on your filters. Please adjust your search criteria.",
@@ -430,24 +444,23 @@ export default class extends Command {
 
 		let maxPage: number = filteredEvents.length;
 		let currentPage: number = 0;
-		const selectedEventsSet = new Set<string>();
-		const eventMap = {};
-		filteredEvents.forEach((pageEvents, pIndex) => {
-			pageEvents.forEach((evt, eIndex) => {
-				eventMap[`${pIndex}-${eIndex}`] = evt;
-			});
-		});
+		let selectedEvents: Event[] = [];
 
 		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
-		const buttonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
-		const toggleRow = generateEventSelectButtons(filteredEvents, currentPage);
+		const initialComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+		initialComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+		if (filteredEvents[currentPage]) {
+			if (filteredEvents[currentPage].length) {
+				initialComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+			}
+		}
 
 		const dm = await interaction.user.createDM();
-		let message;
+		let message: Message<false>;
 		try {
 			message = await dm.send({
 				embeds: [embed],
-				components: [toggleRow, buttonRow],
+				components: initialComponents,
 			});
 		} catch (error) {
 			console.error("Failed to send DM:", error);
@@ -458,8 +471,8 @@ export default class extends Command {
 			return;
 		}
 
-
 		const filterComponents = generateFilterMessage(filters);
+		let content: string =  '**Select Filters**';
 
 		const singlePageMenus: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
 		filterComponents.forEach((component) => {
@@ -470,16 +483,24 @@ export default class extends Command {
 					if (filter) {
 						filter.newValues = i.values;
 					}
-					filteredEvents = await filterEvents(events, eventsPerPage, filters);
+					filteredEvents = filterEvents(events, eventsPerPage, filters);
 					currentPage = 0;
 					maxPage = filteredEvents.length;
+					selectedEvents = []
 					const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-					const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
+					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+					newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+					if (filteredEvents[currentPage]) {
+						if (filteredEvents[currentPage].length) {
+							newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+						}
+					}
 					message.edit({
 						embeds: [newEmbed],
-						components: [newButtonRow],
+						components: newComponents,
 					});
-				}, interaction, dm)
+				}, interaction, dm, content);
+				content = '';
 			}
 			else {
 				singlePageMenus.push(component.generateActionRows()[0]);
@@ -487,9 +508,10 @@ export default class extends Command {
 		});
 
 		// Send filter message
-		let filterMessage;
+		let filterMessage: Message<false>;
 		try {
 			filterMessage = await dm.send({
+				content: content,
 				components: singlePageMenus
 			});
 		} catch (error) {
@@ -501,6 +523,7 @@ export default class extends Command {
 			return;
 		}
 		await filterMessage.edit({
+			content: content,
 			components: singlePageMenus
 		});
 
@@ -508,17 +531,16 @@ export default class extends Command {
 		const buttonCollector = message.createMessageComponentCollector({ time: 300000 });
 		const menuCollector = filterMessage.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 300000 });
 
-		buttonCollector.on("collect", async (btnInt) => {
+		buttonCollector.on("collect", async (btnInt: ButtonInteraction<CacheType>) => {
 			try {
 				await btnInt.deferUpdate();
 				if (btnInt.customId.startsWith("toggle-")) {
-					const parts = btnInt.customId.split("-");
-					const key = `${parts[1]}-${parts[2]}`;
-					const event = eventMap[key];
-					if (selectedEventsSet.has(key)) {
-						selectedEventsSet.delete(key);
+					const eventIndex = Number(btnInt.customId.split('-')[1]) - 1;
+					const event = filteredEvents[currentPage][eventIndex];
+					if (selectedEvents.some((e) => e === event)) {
+						selectedEvents.splice(selectedEvents.indexOf(event), 1);
 						try {
-							const removeMsg = await dm.send(`Removed ${event.summary}`);
+							const removeMsg = await dm.send(`Removed ${event.calEvent.summary}`);
 							setTimeout(async () => {
 								try {
 									await removeMsg.delete();
@@ -530,9 +552,9 @@ export default class extends Command {
 							console.error("Error sending removal message:", err);
 						}
 					} else {
-						selectedEventsSet.add(key);
+						selectedEvents.push(event);
 						try {
-							const addMsg = await dm.send(`Added ${event.summary}`);
+							const addMsg = await dm.send(`Added ${event.calEvent.summary}`);
 							setTimeout(async () => {
 								try {
 									await addMsg.delete();
@@ -551,17 +573,13 @@ export default class extends Command {
 					if (currentPage === 0) return;
 					currentPage--;
 				} else if (btnInt.customId === 'download_Cal') {
-					if (selectedEventsSet.size === 0) {
+					if (selectedEvents.length === 0) {
 						await dm.send("No events selected to download!");
 						return;
 					}
-					const selectedEvents = [];
-					selectedEventsSet.forEach((key) => {
-						if (eventMap[key]) selectedEvents.push(eventMap[key]);
-					});
 					const downloadMessage = await dm.send({ content: 'Downloading selected events...' });
 					try {
-						await downloadSelectedEvents(selectedEvents, calendar, auth);
+						await downloadEvents(selectedEvents, calendars);
 						const filePath = path.join('./events.ics');
 						await downloadMessage.edit({
 							content: '',
@@ -572,14 +590,13 @@ export default class extends Command {
 						await downloadMessage.edit({ content: '⚠️ Failed to download events' });
 					}
 				} else if (btnInt.customId === "download_all") {
-					const allFilteredEvents = filteredEvents.flat();
-					if (!allFilteredEvents.length) {
+					if (!filteredEvents.length) {
 						await dm.send("No events to download!");
 						return;
 					}
 					const downloadMessage = await dm.send({ content: "Downloading all events..." });
 					try {
-						await downloadSelectedEvents(allFilteredEvents, calendar, auth);
+						await downloadEvents(filteredEvents.flat(), calendars);
 						const filePath = path.join('./events.ics');
 						await downloadMessage.edit({
 							content: '',
@@ -606,11 +623,16 @@ export default class extends Command {
 				}
 
 				const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-				const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
-				const newToggleRow = generateEventSelectButtons(filteredEvents, currentPage);
+				const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+				newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+				if (filteredEvents[currentPage]) {
+					if (filteredEvents[currentPage].length) {
+						newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+					}
+				}
 				await message.edit({
 					embeds: [newEmbed],
-					components: [newToggleRow, newButtonRow],
+					components: newComponents,
 				});
 			} catch (error) {
 				console.error("Button Collector Error:", error);
@@ -621,27 +643,27 @@ export default class extends Command {
 			}
 		});
 
-		menuCollector.on("collect", async (i) => {
-			i.deferUpdate();
+		menuCollector.on("collect", async (i: StringSelectMenuInteraction<CacheType>) => {
+			await i.deferUpdate();
 			const filter = filters.find((f) => f.customId === i.customId);
 			if (filter) {
 				filter.newValues = i.values;
 			}
-			filteredEvents = await filterEvents(events, eventsPerPage, filters);
+			filteredEvents = filterEvents(events, eventsPerPage, filters);
 			currentPage = 0;
 			maxPage = filteredEvents.length;
-			selectedEventsSet.clear();
-			filteredEvents.forEach((pageEvents, pIndex) => {
-				pageEvents.forEach((evt, eIndex) => {
-					eventMap[`${pIndex}-${eIndex}`] = evt;
-				});
-			});
+			selectedEvents = []
 			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-			const newButtonRow = generateButtons(currentPage, maxPage, filteredEvents, selectedEventsSet.size);
-			const newToggleRow = generateEventSelectButtons(filteredEvents, currentPage);
+			const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+			newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+			if (filteredEvents[currentPage]) {
+				if (filteredEvents[currentPage].length) {
+					newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+				}
+			}
 			message.edit({
 				embeds: [newEmbed],
-				components: [newToggleRow, newButtonRow],
+				components: newComponents,
 			});
 		});
 	}

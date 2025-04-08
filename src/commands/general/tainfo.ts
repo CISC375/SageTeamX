@@ -1,34 +1,15 @@
 /* eslint-disable */
 import {
 	ChatInputCommandInteraction,
-	ApplicationCommandOptionType,
 	ApplicationCommandStringOptionData,
-	StringSelectMenuBuilder,
-	ActionRowBuilder,
-	ComponentType,
 	StringSelectMenuInteraction,
-	Embed,
 	EmbedBuilder,
+	Message,
 } from "discord.js";
 import { Command } from "@lib/types/Command";
 import "dotenv/config";
-import { authorize } from "../../lib/auth";
+import { retrieveEvents } from "../../lib/auth";
 import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
-
-const path = require("path");
-const process = require("process");
-const { google } = require("googleapis");
-
-interface Event {
-	eventId: string;
-	courseID: string;
-	instructor: string;
-	date: string;
-	start: string;
-	end: string;
-	location: string;
-	locationType: string;
-}
 
 export default class extends Command {
 	name = "tainfo";
@@ -38,10 +19,6 @@ export default class extends Command {
 	options: ApplicationCommandStringOptionData[] = [];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		const SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"];
-		const TOKEN_PATH = path.join(process.cwd(), "token.json");
-		const CREDENTIALS_PATH = path.join(process.cwd(), "credentials.json");
-
 		const classOptions = [
 			"CISC106",
 			"CISC108",
@@ -74,34 +51,10 @@ export default class extends Command {
 				}
 
 				async function listEvents(
-					auth,
-					interaction: StringSelectMenuInteraction,
 					className: string
 				) {
-					const calendar = google.calendar({ version: "v3", auth });
-					const now = new Date();
-					const timeMin = now.toISOString();
-					const timeMax = new Date(
-						now.getTime() + 10 * 24 * 60 * 60 * 1000
-					).toISOString();
-
 					try {
-						const res = await calendar.events.list({
-							calendarId:
-								"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com",
-							timeMin,
-							timeMax,
-							singleEvents: true,
-							orderBy: "startTime",
-						});
-
-						const events = res.data.items || [];
-						if (events.length === 0) {
-							await i.editReply(
-								`No TAs found for course: **${className}**. Please check back later or contact the instructor.`
-							);
-							return;
-						}
+						const events = await retrieveEvents("c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com", interaction);
 
 						// Filter events by class name
 						const filteredEvents = events.filter((event) => {
@@ -120,27 +73,27 @@ export default class extends Command {
 							return;
 						}
 
-					// Extract unique event holders
-					const eventHolders = Array.from(
-						new Set(
-							filteredEvents.map((event) => {
-								// Extract email from the description if it exists
-								let emailFromDescription: string | undefined;
-								if (event.description) {
-									const emailMatch = event.description.match(/Email:\s*([^\s]+)/i);
-									if (emailMatch) {
-										emailFromDescription = emailMatch[1];
+						// Extract unique event holders
+						const eventHolders = Array.from(
+							new Set(
+								filteredEvents.map((event) => {
+									// Extract email from the description if it exists
+									let emailFromDescription: string | undefined;
+									if (event.description) {
+										const emailMatch = event.description.match(/Email:\s*([^\s]+)/i);
+										if (emailMatch) {
+											emailFromDescription = emailMatch[1];
+										}
 									}
-								}
-					
-								// Use email from description if found, otherwise fallback to creator's email
-								return {
-									name: event.summary.split("-")[1]?.trim(),
-									email: emailFromDescription || event.creator?.email,
-								};
-							})
-						)
-					).filter((holder: { name?: string; email?: string }) => holder.name && holder.email);
+						
+									// Use email from description if found, otherwise fallback to creator's email
+									return {
+										name: event.summary.split("-")[1]?.trim(),
+										email: emailFromDescription || event.creator?.email,
+									};
+								})
+							)
+						).filter((holder: { name?: string; email?: string }) => holder.name && holder.email);
 
 						if (eventHolders.length === 0) {
 							await i.editReply({
@@ -166,7 +119,7 @@ export default class extends Command {
 
 						// Send DM with list of TAs
 						const dm = await interaction.user.createDM();
-						let message;
+						let message: Message<false>;
 						try {
 							message = await dm.send({ embeds: [embed] });
 							await i.editReply({
@@ -189,12 +142,7 @@ export default class extends Command {
 
 				try {
 					await i.deferReply({ ephemeral: true });
-					const auth = await authorize(
-						TOKEN_PATH,
-						SCOPES,
-						CREDENTIALS_PATH
-					);
-					await listEvents(auth, i, className);
+					await listEvents(className);
 				} catch (err) {
 					console.error(err);
 					await i.editReply("An error occurred.");
