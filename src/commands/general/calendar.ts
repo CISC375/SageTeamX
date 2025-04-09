@@ -49,16 +49,10 @@ export default class extends Command {
 	options: ApplicationCommandStringOptionData[] = [
 		{
 			type: ApplicationCommandOptionType.String,
-			name: "eventholder",
+			name: "classname",
 			description: "Enter the event holder (e.g., class name).",
 			required: false,
-		},
-		{
-			type: ApplicationCommandOptionType.String,
-			name: "eventdate",
-			description: 'Enter the date (e.g., "December 12").',
-			required: false,
-		},
+		}
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -66,10 +60,6 @@ export default class extends Command {
 
 		// Filters calendar events based on slash command inputs and filter dropdown selections.
 		function filterEvents(events: Event[], eventsPerPage: number, filters: Filter[]) {
-			const eventHolder: string = interaction.options.getString("eventholder")?.toLowerCase();
-			const eventDate: string = interaction.options.getString("eventdate");
-
-			const newEventDate: string = eventDate ? new Date(eventDate + " 2025").toLocaleDateString() : "";
 			let temp: Event[] = [];
 			let filteredEvents: Event[][] = [];
 
@@ -89,8 +79,6 @@ export default class extends Command {
 					classFilter.values.push(extractedClassName);
 				}
 
-				const currentEventDate: Date = new Date(event.calEvent.start.dateTime);
-
 				if (filters.length) {
 					filters.forEach((filter) => {
 						filter.flag = true;
@@ -99,13 +87,6 @@ export default class extends Command {
 						}
 					});
 					allFiltersFlags = filters.every((f) => f.flag);
-				}
-
-				if (eventHolder) {
-					eventHolderFlag = lowerCaseSummary.includes(eventHolder);
-				}
-				if (eventDate) {
-					eventDateFlag = currentEventDate.toLocaleDateString() === newEventDate;
 				}
 
 				if (allFiltersFlags && eventHolderFlag && eventDateFlag) {
@@ -208,7 +189,13 @@ export default class extends Command {
 				);
 
 				filter.values.forEach((value) => {
-					filterMenu.addOption({label: value, value: value.toLowerCase()})
+					let isDefault: boolean = false;
+					if (filter.newValues[0]) {
+						if (filter.newValues[0].toLowerCase() === value.toLowerCase()) {
+							isDefault = true;
+						}
+					}
+					filterMenu.addOption({label: value, value: value.toLowerCase(), default: isDefault})
 				});
 				return filterMenu;
 			});
@@ -335,7 +322,7 @@ export default class extends Command {
 				customId: "class_name_menu",
 				placeholder: "Select Classes",
 				values: [],
-				newValues: [],
+				newValues: [interaction.options.getString('classname') ? interaction.options.getString('classname') : ''],
 				flag: true,
 				condition: (newValues: string[], event: Event) => {
 					const summary = event.calEvent.summary?.toLowerCase() || "";
