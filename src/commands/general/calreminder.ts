@@ -13,9 +13,9 @@ import {
 	ComponentType,
 } from "discord.js";
 import parse from "parse-duration";
-import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
-import { retrieveEvents } from '@root/src/lib/auth';
-import { calendar_v3 } from 'googleapis';
+import { PagifiedSelectMenu } from "@root/src/lib/utils/calendarUtils";
+import { retrieveEvents } from "@root/src/lib/auth";
+import { calendar_v3 } from "googleapis";
 
 export default class extends Command {
 	name = "calreminder";
@@ -33,25 +33,38 @@ export default class extends Command {
 		let eventMenu: PagifiedSelectMenu;
 		let offsetMenu: PagifiedSelectMenu;
 
-		function generateMessage(repeatInterval: "every_event" | null, chosenEvent?: calendar_v3.Schema$Event, chosenOffset?: number, renderMenus = false, eventCurrentPage = 0, offsetCurrentPage = 0) {
+		function generateMessage(
+			repeatInterval: "every_event" | null,
+			chosenEvent?: calendar_v3.Schema$Event,
+			chosenOffset?: number,
+			renderMenus = false,
+			eventCurrentPage = 0,
+			offsetCurrentPage = 0
+		) {
 			if (renderMenus) {
 				eventMenu = new PagifiedSelectMenu();
-				eventMenu.createSelectMenu({customId: 'select_event', placeHolder: 'Select an event', minimumValues: 1});
+				eventMenu.createSelectMenu({
+					customId: "select_event",
+					placeHolder: "Select an event",
+					minimumValues: 1,
+				});
 				filteredEvents.forEach((event, index) => {
 					let isDefault: boolean = false;
 					if (chosenEvent) {
-						if (chosenEvent.start.dateTime === event.start.dateTime) {
+						if (
+							chosenEvent.start.dateTime === event.start.dateTime
+						) {
 							isDefault = true;
 						}
 					}
-					eventMenu.addOption(
-						{
-							label: event.summary, 
-							value: `${event.start.dateTime}::${index}`,
-							description: `Starts at: ${new Date(event.start.dateTime).toLocaleString()}`,
-							default: isDefault
-						}
-					)
+					eventMenu.addOption({
+						label: event.summary,
+						value: `${event.start.dateTime}::${index}`,
+						description: `Starts at: ${new Date(
+							event.start.dateTime
+						).toLocaleString()}`,
+						default: isDefault,
+					});
 				});
 				eventMenu.currentPage = eventCurrentPage;
 
@@ -65,7 +78,11 @@ export default class extends Command {
 				];
 
 				offsetMenu = new PagifiedSelectMenu();
-				offsetMenu.createSelectMenu({customId: 'select_offset', placeHolder: 'Select reminder offset', maximumValues: 1});
+				offsetMenu.createSelectMenu({
+					customId: "select_offset",
+					placeHolder: "Select reminder offset",
+					maximumValues: 1,
+				});
 				offsetOptions.forEach((option) => {
 					let isDefault: boolean = false;
 					if (chosenOffset) {
@@ -73,13 +90,11 @@ export default class extends Command {
 							isDefault = true;
 						}
 					}
-					offsetMenu.addOption(
-						{
-							label: option.label,
-							value: option.value,
-							default: isDefault
-						}
-					)
+					offsetMenu.addOption({
+						label: option.label,
+						value: option.value,
+						default: isDefault,
+					});
 				});
 				offsetMenu.currentPage = offsetCurrentPage;
 			}
@@ -106,15 +121,24 @@ export default class extends Command {
 				.setLabel("Set Reminder")
 				.setStyle(ButtonStyle.Success);
 
-			const setReminderAndRepeatRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-				toggleRepeatButton, setReminder
-			);
+			const setReminderAndRepeatRow =
+				new ActionRowBuilder<ButtonBuilder>().addComponents(
+					toggleRepeatButton,
+					setReminder
+				);
 
-			return [...eventMenuRows, ...offsetMenuRows, setReminderAndRepeatRow]
+			return [
+				...eventMenuRows,
+				...offsetMenuRows,
+				setReminderAndRepeatRow,
+			];
 		}
 
 		// Retreive events
-		const events = await retrieveEvents("c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com", interaction);
+		const events = await retrieveEvents(
+			"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com",
+			interaction
+		);
 		if (!events) {
 			return;
 		}
@@ -140,11 +164,16 @@ export default class extends Command {
 		let repeatInterval: "every_event" = null;
 		let activeReminderId: string = null;
 
-		const initialComponents = generateMessage(repeatInterval, chosenEvent, chosenOffset, true);
+		const initialComponents = generateMessage(
+			repeatInterval,
+			chosenEvent,
+			chosenOffset,
+			true
+		);
 
 		const replyMessage = await interaction.reply({
 			components: initialComponents,
-			ephemeral: true
+			ephemeral: true,
 		});
 
 		// Main collector for event & offset
@@ -154,13 +183,12 @@ export default class extends Command {
 		});
 
 		collector.on("collect", async (i) => {
-			if (i.customId === 'select_event') {
+			if (i.customId === "select_event") {
 				const [eventDateStr, indexStr] = i.values[0].split("::");
 				const selectedIndex = parseInt(indexStr);
 				chosenEvent = filteredEvents[selectedIndex];
 				await i.deferUpdate();
-			}
-			else if (i.customId === "select_offset") {
+			} else if (i.customId === "select_offset") {
 				const rawOffsetStr = i.values[0];
 				chosenOffset = rawOffsetStr === "0" ? 0 : parse(rawOffsetStr);
 				await i.deferUpdate();
@@ -177,7 +205,14 @@ export default class extends Command {
 			if (btnInt.customId === "toggle_repeat") {
 				repeatInterval = repeatInterval ? null : "every_event";
 
-				const updatedComponents = generateMessage(repeatInterval, chosenEvent, chosenOffset, true, eventMenu.currentPage, offsetMenu.currentPage);
+				const updatedComponents = generateMessage(
+					repeatInterval,
+					chosenEvent,
+					chosenOffset,
+					true,
+					eventMenu.currentPage,
+					offsetMenu.currentPage
+				);
 
 				await btnInt.update({
 					components: updatedComponents,
@@ -245,9 +280,9 @@ export default class extends Command {
 
 				// Update ephemeral message with final reminder text + Cancel button
 				await btnInt.editReply({
-					content: `✅ Your reminder is set!\nI'll remind you at **${reminderTime(
-						reminder
-					)}** about:\n\`\`\`\n${reminder.content}\n\`\`\`${
+					content: `✅ Your reminder is set!\nI'll remind you at **${remindDate.toLocaleString()}** about:\n\`\`\`\n${
+						reminder.content
+					}\n\`\`\`${
 						repeatInterval
 							? `\n🔁 Repeats every event (for up to 180 days)
 `
@@ -283,10 +318,10 @@ export default class extends Command {
 			}
 
 			const actions: Record<string, () => void> = {
-				'next_button:select_event': () => eventMenu.currentPage++,
-				'prev_button:select_event': () => eventMenu.currentPage--,
-				'next_button:select_offset': () => offsetMenu.currentPage++,
-				'prev_button:select_offset': () => offsetMenu.currentPage--,
+				"next_button:select_event": () => eventMenu.currentPage++,
+				"prev_button:select_event": () => eventMenu.currentPage--,
+				"next_button:select_offset": () => offsetMenu.currentPage++,
+				"prev_button:select_offset": () => offsetMenu.currentPage--,
 			};
 			const action = actions[btnInt.customId];
 
