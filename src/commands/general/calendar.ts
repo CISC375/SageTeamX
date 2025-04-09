@@ -18,6 +18,7 @@ import { Command } from '@lib/types/Command';
 import 'dotenv/config';
 import { MongoClient } from 'mongodb';
 import * as fs from 'fs';
+import { CALENDAR_CONFIG } from '@lib/CalendarConfig';
 import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
 import { calendar_v3 } from 'googleapis';
 import { retrieveEvents } from '@root/src/lib/auth';
@@ -25,8 +26,7 @@ import path from 'path';
 //import event from '@root/src/models/calEvent';
 
 // Define the Master Calendar ID constant.
-const MASTER_CALENDAR_ID =
-	"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com";
+const MASTER_CALENDAR_ID = CALENDAR_CONFIG.MASTER_ID;
 
 interface Event {
 	calEvent: calendar_v3.Schema$Event;

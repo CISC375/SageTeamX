@@ -10,6 +10,7 @@ import { MongoClient } from "mongodb";
 import "dotenv/config";
 import { google } from "googleapis";
 import { retrieveEvents } from '@root/src/lib/auth';
+import { validateCalendarId } from '../../lib/CalendarConfig';
 
 // MongoDB Connection Settings
 const MONGO_URI = process.env.DB_CONN_STRING || "";
@@ -58,6 +59,14 @@ export default class extends Command {
 		// Get Calendar ID & Name from command
 		const calendarId = interaction.options.getString("calendarid");
 		const calendarName = interaction.options.getString("calendarname");
+
+		if (!validateCalendarId(calendarId)) {
+			await interaction.reply({
+			  content: "❌ Invalid Calendar ID format. Please check the ID and try again.",
+			  ephemeral: true,
+			});
+			return;
+		  }
 
 		// Connect to MongoDB
 		const client = new MongoClient(MONGO_URI);
