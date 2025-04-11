@@ -13,6 +13,7 @@ import {
 	CacheType,
 	StringSelectMenuInteraction,
 	Message,
+
 } from 'discord.js';
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
@@ -52,16 +53,20 @@ export default class extends Command {
 			name: "classname",
 			description: "Enter the event holder (e.g., class name).",
 			required: false,
+
 		}
+
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
 		/** Helper Functions **/
 
+
 		// Filters calendar events based on slash command inputs and filter dropdown selections.
 		function filterEvents(events: Event[], eventsPerPage: number, filters: Filter[]) {
 			let temp: Event[] = [];
 			let filteredEvents: Event[][] = [];
+
 
 			let allFiltersFlags = true;
 			let eventHolderFlag: boolean = true;
@@ -95,6 +100,7 @@ export default class extends Command {
 						filteredEvents.push(temp);
 						temp = [];
 					}
+					
 				}
 			});
 			if (temp.length) filteredEvents.push(temp);
@@ -110,15 +116,33 @@ export default class extends Command {
 				filteredEvents[currentPage].length
 			) {
 				embed = new EmbedBuilder()
-					.setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
-					.setColor("Green");
+					.setTitle(`OFFICE HOURS`)
+					.setDescription('Please use the **Prev** and **Next** to access all events fetched based on your request.')
+					.setColor("Purple")
+					.setFooter({text : `Page ${currentPage + 1} of ${maxPage}`})
+
 				filteredEvents[currentPage].forEach((event) => {
+					//formatting title to make it clear
+					const input = event.summary;
+					const locationTypeindex = input.lastIndexOf('-');
+					const output = input.substring(0, locationTypeindex).trim();
+					const formattedOutput = output.replace('-', ' - ');
+					const typeoflocation = input.substring(locationTypeindex + 1).trim();
+
 					embed.addFields({
-						name: `**${event.calEvent.summary}**`,
-						value: `Date: ${new Date(event.calEvent.start.dateTime).toLocaleDateString()}
-						Time: ${new Date(event.calEvent.start.dateTime).toLocaleTimeString()} - ${new Date(event.calEvent.end.dateTime).toLocaleTimeString()}
-						Location: ${event.calEvent.location ? event.calEvent.location : "`NONE`"}
-						Email: ${event.calEvent.creator.email}\n`,
+
+						name: `**${formattedOutput}**`,
+						value: `Date: ${new Date(
+							event.start.dateTime
+						).toLocaleDateString()}
+								Time: ${new Date(event.start.dateTime).toLocaleTimeString()} - ${new Date(
+							event.end.dateTime
+						).toLocaleTimeString()}
+								Location Type : ${typeoflocation}
+								Location: ${event.location ? event.location : "`NONE`"}
+								Email: ${event.calEvent.creator.email}\n`,\n` 
+
+
 					});
 				});
 			} else {
@@ -138,13 +162,13 @@ export default class extends Command {
 			const nextButton = new ButtonBuilder()
 				.setCustomId("next")
 				.setLabel("Next")
-				.setStyle(ButtonStyle.Primary)
+				.setStyle(ButtonStyle.Secondary)
 				.setDisabled(currentPage + 1 >= maxPage);
 
 			const prevButton = new ButtonBuilder()
 				.setCustomId("prev")
 				.setLabel("Previous")
-				.setStyle(ButtonStyle.Primary)
+				.setStyle(ButtonStyle.Secondary)
 				.setDisabled(currentPage === 0);
 
 			const downloadCal = new ButtonBuilder()
