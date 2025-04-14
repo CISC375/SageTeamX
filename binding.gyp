@@ -5,3 +5,4 @@
       "sources": ["src/sage.ts"]
     }
   ]
+}
