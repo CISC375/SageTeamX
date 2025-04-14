@@ -1,4 +1,4 @@
-/* eslint-disable */
+/* eslint-disable camelcase */
 import {
 	ChatInputCommandInteraction,
 	ButtonBuilder,
@@ -12,7 +12,7 @@ import {
 	ButtonInteraction,
 	CacheType,
 	StringSelectMenuInteraction,
-	Message,
+	Message
 } from 'discord.js';
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
@@ -23,7 +23,6 @@ import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
 import { calendar_v3 } from 'googleapis';
 import { retrieveEvents } from '@root/src/lib/auth';
 import path from 'path';
-//import event from '@root/src/models/calEvent';
 
 // Define the Master Calendar ID constant.
 const MASTER_CALENDAR_ID = CALENDAR_CONFIG.MASTER_ID;
@@ -43,15 +42,16 @@ interface Filter {
 }
 
 export default class extends Command {
-	name = "calendar";
-	description = "Retrieve calendar events with pagination and filters";
+
+	name = 'calendar';
+	description = 'Retrieve calendar events with pagination and filters';
 
 	options: ApplicationCommandStringOptionData[] = [
 		{
 			type: ApplicationCommandOptionType.String,
-			name: "classname",
-			description: "Enter the event holder (e.g., class name).",
-			required: false,
+			name: 'classname',
+			description: 'Enter the event holder (e.g., class name).',
+			required: false
 		}
 	];
 
@@ -61,20 +61,20 @@ export default class extends Command {
 		// Filters calendar events based on slash command inputs and filter dropdown selections.
 		function filterEvents(events: Event[], eventsPerPage: number, filters: Filter[]) {
 			let temp: Event[] = [];
-			let filteredEvents: Event[][] = [];
+			const filteredEvents: Event[][] = [];
 
 			let allFiltersFlags = true;
-			let eventHolderFlag: boolean = true;
-			let eventDateFlag: boolean = true;
+			const eventHolderFlag = true;
+			const eventDateFlag = true;
 			events.forEach((event) => {
 				const lowerCaseSummary: string = event.calEvent.summary.toLowerCase();
 
 				// Extract class name (works for "CISC108-..." and "CISC374010")
 				const classNameMatch = lowerCaseSummary.match(/cisc\d+/i);
-				const extractedClassName = classNameMatch ? classNameMatch[0].toUpperCase() : "";
+				const extractedClassName = classNameMatch ? classNameMatch[0].toUpperCase() : '';
 
 				// Dynamically update filter options.
-				const classFilter = filters.find((f) => f.customId === "class_name_menu");
+				const classFilter = filters.find((f) => f.customId === 'class_name_menu');
 				if (extractedClassName && classFilter && !classFilter.values.includes(extractedClassName)) {
 					classFilter.values.push(extractedClassName);
 				}
@@ -105,29 +105,29 @@ export default class extends Command {
 		function generateEmbed(filteredEvents: Event[][], currentPage: number, maxPage: number): EmbedBuilder {
 			let embed: EmbedBuilder;
 			if (
-				filteredEvents.length &&
-				filteredEvents[currentPage] &&
-				filteredEvents[currentPage].length
+				filteredEvents.length
+				&& filteredEvents[currentPage]
+				&& filteredEvents[currentPage].length
 			) {
 				embed = new EmbedBuilder()
 					.setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
-					.setColor("Green");
+					.setColor('Green');
 				filteredEvents[currentPage].forEach((event) => {
 					embed.addFields({
 						name: `**${event.calEvent.summary}**`,
 						value: `Date: ${new Date(event.calEvent.start.dateTime).toLocaleDateString()}
 						Time: ${new Date(event.calEvent.start.dateTime).toLocaleTimeString()} - ${new Date(event.calEvent.end.dateTime).toLocaleTimeString()}
-						Location: ${event.calEvent.location ? event.calEvent.location : "`NONE`"}
-						Email: ${event.calEvent.creator.email}\n`,
+						Location: ${event.calEvent.location ? event.calEvent.location : '`NONE`'}
+						Email: ${event.calEvent.creator.email}\n`
 					});
 				});
 			} else {
 				embed = new EmbedBuilder()
-					.setTitle("No Events Found")
-					.setColor("Green")
+					.setTitle('No Events Found')
+					.setColor('Green')
 					.addFields({
-						name: "Try adjusting your filters",
-						value: "No events match your selections, please change them!",
+						name: 'Try adjusting your filters',
+						value: 'No events match your selections, please change them!'
 					});
 			}
 			return embed;
@@ -136,31 +136,31 @@ export default class extends Command {
 		// Generates the pagination buttons (Previous, Next, Download Calendar, Download All, Done).
 		function generateButtons(currentPage: number, maxPage: number, downloadCount: number): ActionRowBuilder<ButtonBuilder> {
 			const nextButton = new ButtonBuilder()
-				.setCustomId("next")
-				.setLabel("Next")
+				.setCustomId('next')
+				.setLabel('Next')
 				.setStyle(ButtonStyle.Primary)
 				.setDisabled(currentPage + 1 >= maxPage);
 
 			const prevButton = new ButtonBuilder()
-				.setCustomId("prev")
-				.setLabel("Previous")
+				.setCustomId('prev')
+				.setLabel('Previous')
 				.setStyle(ButtonStyle.Primary)
 				.setDisabled(currentPage === 0);
 
 			const downloadCal = new ButtonBuilder()
-				.setCustomId("download_Cal")
+				.setCustomId('download_Cal')
 				.setLabel(`Download Calendar (${downloadCount})`)
 				.setStyle(ButtonStyle.Success)
 				.setDisabled(downloadCount === 0);
 
 			const downloadAll = new ButtonBuilder()
-				.setCustomId("download_all")
-				.setLabel("Download All")
+				.setCustomId('download_all')
+				.setLabel('Download All')
 				.setStyle(ButtonStyle.Secondary);
 
 			const done = new ButtonBuilder()
-				.setCustomId("done")
-				.setLabel("Done")
+				.setCustomId('done')
+				.setLabel('Done')
 				.setStyle(ButtonStyle.Danger);
 
 			return new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -176,7 +176,7 @@ export default class extends Command {
 		function generateFilterMessage(filters: Filter[]) {
 			const filterMenus: PagifiedSelectMenu[] = filters.map((filter) => {
 				if (filter.values.length === 0) {
-					filter.values.push("No Data Available");
+					filter.values.push('No Data Available');
 				}
 				const filterMenu = new PagifiedSelectMenu();
 				filterMenu.createSelectMenu(
@@ -189,13 +189,13 @@ export default class extends Command {
 				);
 
 				filter.values.forEach((value) => {
-					let isDefault: boolean = false;
+					let isDefault = false;
 					if (filter.newValues[0]) {
 						if (filter.newValues[0].toLowerCase() === value.toLowerCase()) {
 							isDefault = true;
 						}
 					}
-					filterMenu.addOption({label: value, value: value.toLowerCase(), default: isDefault})
+					filterMenu.addOption({ label: value, value: value.toLowerCase(), default: isDefault });
 				});
 				return filterMenu;
 			});
@@ -205,7 +205,7 @@ export default class extends Command {
 
 		// Generates a row of toggle buttons – one for each event on the current page.
 		function generateEventSelectButtons(eventsPerPage: number): ActionRowBuilder<ButtonBuilder> {
-			const selectEventButtons: ButtonBuilder[] = []
+			const selectEventButtons: ButtonBuilder[] = [];
 
 			// This is to ensure that the number of buttons does not exceed to the limit per row
 			// We should probably change to a pagified select menu later on
@@ -238,17 +238,15 @@ export default class extends Command {
 
 			for (const calendar of calendars) {
 				const newParentEvents = await retrieveEvents(calendar.calendarId, interaction, false);
-				parentEvents.push(...newParentEvents)
+				parentEvents.push(...newParentEvents);
 			}
 
-			const recurrenceRules: Record<string, string> = Object.fromEntries(parentEvents.map((event) => {
-				return [event.id, event.recurrence[0]];
-			}));
+			const recurrenceRules: Record<string, string> = Object.fromEntries(parentEvents.map((event) => [event.id, event.recurrence[0]]));
 
 			const recurringIds: Set<string> = new Set();
 
 			selectedEvents.forEach((event) => {
-				let append: boolean = false;
+				let append = false;
 				const iCalEvent = {
 					UID: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
 					CREATED: new Date(event.calEvent.created).toISOString().replace(/[-:.]/g, ''),
@@ -257,22 +255,19 @@ export default class extends Command {
 					DTEND: `TZID=${event.calEvent.end.timeZone}:${event.calEvent.end.dateTime.replace(/[-:.]/g, '')}`,
 					SUMMARY: event.calEvent.summary,
 					DESCRIPTION: `Contact Email: ${event.calEvent.creator.email || 'NA'}`,
-					LOCATION: event.calEvent.location ? event.calEvent.location : 'NONE',
+					LOCATION: event.calEvent.location ? event.calEvent.location : 'NONE'
 				};
 
 				if (!event.calEvent.recurringEventId) {
-					append = true
-				}
-				else {
-					if (!recurringIds.has(event.calEvent.recurringEventId)) {
-						recurringIds.add(event.calEvent.recurringEventId);
-						append = true;
-					}
+					append = true;
+				} else if (!recurringIds.has(event.calEvent.recurringEventId)) {
+					recurringIds.add(event.calEvent.recurringEventId);
+					append = true;
 				}
 
 				if (append) {
-					const icsFormatted = 
-					`BEGIN:VEVENT
+					const icsFormatted
+					= `BEGIN:VEVENT
 					UID:${iCalEvent.UID}
 					CREATED:${iCalEvent.CREATED}
 					DTSTAMP:${iCalEvent.DTSTAMP}
@@ -298,52 +293,52 @@ export default class extends Command {
 			fs.writeFileSync('./events.ics', icsCalendar);
 		}
 
-		/******************************************************************************************************************/
+		/** ****************************************************************************************************************/
 		// Initial reply to acknowledge the interaction.
 		await interaction.reply({
-			content: "Authenticating and fetching events...",
-			ephemeral: true,
+			content: 'Authenticating and fetching events...',
+			ephemeral: true
 		});
 
 		// Define filters for dropdowns.
 		const filters: Filter[] = [
 			{
-				customId: "calendar_menu",
-				placeholder: "Select Calendar",
+				customId: 'calendar_menu',
+				placeholder: 'Select Calendar',
 				values: [],
 				newValues: [],
 				flag: true,
 				condition: (newValues: string[], event: Event) => {
-					const calendarName = event.calendarName.toLowerCase() || "";
+					const calendarName = event.calendarName.toLowerCase() || '';
 					return newValues.some((value) => calendarName === value.toLowerCase());
-				},
+				}
 			},
 			{
-				customId: "class_name_menu",
-				placeholder: "Select Classes",
+				customId: 'class_name_menu',
+				placeholder: 'Select Classes',
 				values: [],
 				newValues: [interaction.options.getString('classname') ? interaction.options.getString('classname') : ''],
 				flag: true,
 				condition: (newValues: string[], event: Event) => {
-					const summary = event.calEvent.summary?.toLowerCase() || "";
+					const summary = event.calEvent.summary?.toLowerCase() || '';
 					return newValues.some((value) => summary.includes(value.toLowerCase()));
-				},
+				}
 			},
 			{
-				customId: "location_type_menu",
-				placeholder: "Select Location Type",
-				values: ["In Person", "Virtual"],
+				customId: 'location_type_menu',
+				placeholder: 'Select Location Type',
+				values: ['In Person', 'Virtual'],
 				newValues: [],
 				flag: true,
 				condition: (newValues: string[], event: Event) => {
 					const locString = event.calEvent.summary?.toLowerCase() || '';
 					return newValues.some((value) => locString.includes(value.toLowerCase()));
-				},
+				}
 			},
 			{
-				customId: "week_menu",
-				placeholder: "Select Days of Week",
-				values: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+				customId: 'week_menu',
+				placeholder: 'Select Days of Week',
+				values: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
 				newValues: [],
 				flag: true,
 				condition: (newValues: string[], event: Event) => {
@@ -351,22 +346,22 @@ export default class extends Command {
 					const dt = new Date(event.calEvent.start.dateTime);
 					const weekdayIndex = dt.getDay(); // 0 = Sunday, 1 = Monday, etc.
 					const dayName = [
-						"Sunday",
-						"Monday",
-						"Tuesday",
-						"Wednesday",
-						"Thursday",
-						"Friday",
-						"Saturday",
+						'Sunday',
+						'Monday',
+						'Tuesday',
+						'Wednesday',
+						'Thursday',
+						'Friday',
+						'Saturday'
 					][weekdayIndex];
 					return newValues.some((value) => value.toLowerCase() === dayName.toLowerCase());
-				},
-			},
+				}
+			}
 		];
 
-		const MONGO_URI = process.env.DB_CONN_STRING || "";
-		const DB_NAME = "CalendarDatabase";
-		const COLLECTION_NAME = "calendarIds";
+		const MONGO_URI = process.env.DB_CONN_STRING || '';
+		const DB_NAME = 'CalendarDatabase';
+		const COLLECTION_NAME = 'calendarIds';
 
 		// Fetch calendar IDs from MongoDB.
 		async function fetchCalendars() {
@@ -380,13 +375,13 @@ export default class extends Command {
 
 			const calendars: {calendarId: string, calendarName: string}[] = calendarDocs.map((doc) => ({
 				calendarId: doc.calendarId,
-				calendarName: doc.calendarName || "Unnamed Calendar",
+				calendarName: doc.calendarName || 'Unnamed Calendar'
 			}));
 
 			if (!calendars.some((c) => c.calendarId === MASTER_CALENDAR_ID)) {
 				calendars.push({
 					calendarId: MASTER_CALENDAR_ID,
-					calendarName: "Master Calendar",
+					calendarName: 'Master Calendar'
 				});
 			}
 
@@ -394,20 +389,20 @@ export default class extends Command {
 		}
 
 		// Retrieve events from all calendars in the database
-		let events: Event[] = [];
+		const events: Event[] = [];
 		const calendars = await fetchCalendars();
-		const calendarMenu = filters.find((f) => f.customId === "calendar_menu");
+		const calendarMenu = filters.find((f) => f.customId === 'calendar_menu');
 		if (calendarMenu) {
 			calendarMenu.values = calendars.map((c) => c.calendarName);
 		}
 
 		for (const cal of calendars) {
-			const retrivedEvents = await retrieveEvents(cal.calendarId, interaction)
+			const retrivedEvents = await retrieveEvents(cal.calendarId, interaction);
 			if (retrivedEvents === null) {
 				return;
 			}
 			retrivedEvents.forEach((retrivedEvent) => {
-				const newEvent: Event = {calEvent: retrivedEvent, calendarName: cal.calendarName}
+				const newEvent: Event = { calEvent: retrivedEvent, calendarName: cal.calendarName };
 				events.push(newEvent);
 			});
 		}
@@ -419,18 +414,18 @@ export default class extends Command {
 				new Date(b.calEvent.start?.dateTime || b.calEvent.start?.date).getTime()
 		);
 
-		const eventsPerPage: number = 3;
+		const eventsPerPage = 3;
 		let filteredEvents: Event[][] = filterEvents(events, eventsPerPage, filters);
 		if (!filteredEvents.length) {
 			await interaction.followUp({
-				content: "No matching events found based on your filters. Please adjust your search criteria.",
-				ephemeral: true,
+				content: 'No matching events found based on your filters. Please adjust your search criteria.',
+				ephemeral: true
 			});
 			return;
 		}
 
 		let maxPage: number = filteredEvents.length;
-		let currentPage: number = 0;
+		let currentPage = 0;
 		let selectedEvents: Event[] = [];
 
 		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
@@ -447,19 +442,19 @@ export default class extends Command {
 		try {
 			message = await dm.send({
 				embeds: [embed],
-				components: initialComponents,
+				components: initialComponents
 			});
 		} catch (error) {
-			console.error("Failed to send DM:", error);
+			console.error('Failed to send DM:', error);
 			await interaction.followUp({
 				content: "⚠️ I couldn't send you a DM. Please check your privacy settings.",
-				ephemeral: true,
+				ephemeral: true
 			});
 			return;
 		}
 
 		const filterComponents = generateFilterMessage(filters);
-		let content: string =  '**Select Filters**';
+		let content = '**Select Filters**';
 
 		const singlePageMenus: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
 		filterComponents.forEach((component) => {
@@ -473,7 +468,7 @@ export default class extends Command {
 					filteredEvents = filterEvents(events, eventsPerPage, filters);
 					currentPage = 0;
 					maxPage = filteredEvents.length;
-					selectedEvents = []
+					selectedEvents = [];
 					const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
 					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
 					newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
@@ -484,12 +479,11 @@ export default class extends Command {
 					}
 					message.edit({
 						embeds: [newEmbed],
-						components: newComponents,
+						components: newComponents
 					});
 				}, interaction, dm, content);
 				content = '';
-			}
-			else {
+			} else {
 				singlePageMenus.push(component.generateActionRows()[0]);
 			}
 		});
@@ -502,10 +496,10 @@ export default class extends Command {
 				components: singlePageMenus
 			});
 		} catch (error) {
-			console.error("Failed to send DM:", error);
+			console.error('Failed to send DM:', error);
 			await interaction.followUp({
 				content: "⚠️ I couldn't send you a DM. Please check your privacy settings.",
-				ephemeral: true,
+				ephemeral: true
 			});
 			return;
 		}
@@ -518,10 +512,10 @@ export default class extends Command {
 		const buttonCollector = message.createMessageComponentCollector({ time: 300000 });
 		const menuCollector = filterMessage.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 300000 });
 
-		buttonCollector.on("collect", async (btnInt: ButtonInteraction<CacheType>) => {
+		buttonCollector.on('collect', async (btnInt: ButtonInteraction<CacheType>) => {
 			try {
 				await btnInt.deferUpdate();
-				if (btnInt.customId.startsWith("toggle-")) {
+				if (btnInt.customId.startsWith('toggle-')) {
 					const eventIndex = Number(btnInt.customId.split('-')[1]) - 1;
 					const event = filteredEvents[currentPage][eventIndex];
 					if (selectedEvents.some((e) => e === event)) {
@@ -532,11 +526,11 @@ export default class extends Command {
 								try {
 									await removeMsg.delete();
 								} catch (err) {
-									console.error("Failed to delete removal message:", err);
+									console.error('Failed to delete removal message:', err);
 								}
 							}, 3000);
 						} catch (err) {
-							console.error("Error sending removal message:", err);
+							console.error('Error sending removal message:', err);
 						}
 					} else {
 						selectedEvents.push(event);
@@ -546,22 +540,22 @@ export default class extends Command {
 								try {
 									await addMsg.delete();
 								} catch (err) {
-									console.error("Failed to delete addition message:", err);
+									console.error('Failed to delete addition message:', err);
 								}
 							}, 3000);
 						} catch (err) {
-							console.error("Error sending addition message:", err);
+							console.error('Error sending addition message:', err);
 						}
 					}
-				} else if (btnInt.customId === "next") {
+				} else if (btnInt.customId === 'next') {
 					if (currentPage + 1 >= maxPage) return;
 					currentPage++;
-				} else if (btnInt.customId === "prev") {
+				} else if (btnInt.customId === 'prev') {
 					if (currentPage === 0) return;
 					currentPage--;
 				} else if (btnInt.customId === 'download_Cal') {
 					if (selectedEvents.length === 0) {
-						await dm.send("No events selected to download!");
+						await dm.send('No events selected to download!');
 						return;
 					}
 					const downloadMessage = await dm.send({ content: 'Downloading selected events...' });
@@ -576,12 +570,12 @@ export default class extends Command {
 					} catch {
 						await downloadMessage.edit({ content: '⚠️ Failed to download events' });
 					}
-				} else if (btnInt.customId === "download_all") {
+				} else if (btnInt.customId === 'download_all') {
 					if (!filteredEvents.length) {
-						await dm.send("No events to download!");
+						await dm.send('No events to download!');
 						return;
 					}
-					const downloadMessage = await dm.send({ content: "Downloading all events..." });
+					const downloadMessage = await dm.send({ content: 'Downloading all events...' });
 					try {
 						await downloadEvents(filteredEvents.flat(), calendars);
 						const filePath = path.join('./events.ics');
@@ -591,18 +585,18 @@ export default class extends Command {
 						});
 						fs.unlinkSync('./events.ics');
 					} catch {
-						await downloadMessage.edit({ content: "⚠️ Failed to download all events." });
+						await downloadMessage.edit({ content: '⚠️ Failed to download all events.' });
 					}
-				} else if (btnInt.customId === "done") {
+				} else if (btnInt.customId === 'done') {
 					await message.edit({
 						embeds: [],
 						components: [],
-						content: "📅 Calendar session closed.",
+						content: '📅 Calendar session closed.'
 					});
 					await filterMessage.edit({
 						embeds: [],
 						components: [],
-						content: "Filters closed.",
+						content: 'Filters closed.'
 					});
 					buttonCollector.stop();
 					menuCollector.stop();
@@ -619,18 +613,18 @@ export default class extends Command {
 				}
 				await message.edit({
 					embeds: [newEmbed],
-					components: newComponents,
+					components: newComponents
 				});
 			} catch (error) {
-				console.error("Button Collector Error:", error);
+				console.error('Button Collector Error:', error);
 				await btnInt.followUp({
-					content: "⚠️ An error occurred while navigating through events. Please try again.",
-					ephemeral: true,
+					content: '⚠️ An error occurred while navigating through events. Please try again.',
+					ephemeral: true
 				});
 			}
 		});
 
-		menuCollector.on("collect", async (i: StringSelectMenuInteraction<CacheType>) => {
+		menuCollector.on('collect', async (i: StringSelectMenuInteraction<CacheType>) => {
 			await i.deferUpdate();
 			const filter = filters.find((f) => f.customId === i.customId);
 			if (filter) {
@@ -639,7 +633,7 @@ export default class extends Command {
 			filteredEvents = filterEvents(events, eventsPerPage, filters);
 			currentPage = 0;
 			maxPage = filteredEvents.length;
-			selectedEvents = []
+			selectedEvents = [];
 			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
 			const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
 			newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
@@ -650,8 +644,9 @@ export default class extends Command {
 			}
 			message.edit({
 				embeds: [newEmbed],
-				components: newComponents,
+				components: newComponents
 			});
 		});
 	}
+
 }
