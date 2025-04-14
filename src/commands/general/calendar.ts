@@ -74,7 +74,7 @@ export default class extends Command {
 				const extractedClassName = classNameMatch ? classNameMatch[0].toUpperCase() : '';
 
 				// Dynamically update filter options.
-				const classFilter = filters.find((f) => f.customId === 'class_name_menu');
+				const classFilter = filters.find((filter) => filter.customId === 'class_name_menu');
 				if (extractedClassName && classFilter && !classFilter.values.includes(extractedClassName)) {
 					classFilter.values.push(extractedClassName);
 				}
@@ -86,7 +86,7 @@ export default class extends Command {
 							filter.flag = filter.condition(filter.newValues, event);
 						}
 					});
-					allFiltersFlags = filters.every((f) => f.flag);
+					allFiltersFlags = filters.every((filter) => filter.flag);
 				}
 
 				if (allFiltersFlags && eventHolderFlag && eventDateFlag) {
@@ -391,7 +391,7 @@ export default class extends Command {
 		// Retrieve events from all calendars in the database
 		const events: Event[] = [];
 		const calendars = await fetchCalendars();
-		const calendarMenu = filters.find((f) => f.customId === 'calendar_menu');
+		const calendarMenu = filters.find((fi) => fi.customId === 'calendar_menu');
 		if (calendarMenu) {
 			calendarMenu.values = calendars.map((c) => c.calendarName);
 		}
@@ -461,7 +461,7 @@ export default class extends Command {
 			if (component.menus.length > 1) {
 				component.generateRowsAndSendMenu(async (i) => {
 					await i.deferUpdate();
-					const filter = filters.find((f) => f.customId === i.customId);
+					const filter = filters.find((fi) => fi.customId === i.customId);
 					if (filter) {
 						filter.newValues = i.values;
 					}
@@ -626,7 +626,7 @@ export default class extends Command {
 
 		menuCollector.on('collect', async (i: StringSelectMenuInteraction<CacheType>) => {
 			await i.deferUpdate();
-			const filter = filters.find((f) => f.customId === i.customId);
+			const filter = filters.find((fi) => fi.customId === i.customId);
 			if (filter) {
 				filter.newValues = i.values;
 			}
