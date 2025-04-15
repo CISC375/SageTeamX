@@ -96,7 +96,7 @@ export default class extends Command {
 		}
 
 		// Generates the embed for displaying events.
-		function generateEmbed(filteredEvents: Event[], currentPage: number, itemsPerPage: number): EmbedBuilder {
+		function generateEmbed(filteredEvents: Event[], currentPage: number, itemsPerPage: number): EmbedBuilder[] {
 			const embeds: EmbedBuilder[] = [];
 			let embed: EmbedBuilder;
 
@@ -133,8 +133,9 @@ export default class extends Command {
 						name: 'Try adjusting your filters',
 						value: 'No events match your selections, please change them!'
 					});
+				embeds.push(embed);
 			}
-			return embed;
+			return embeds;
 		}
 
 		// Generates the pagination buttons (Previous, Next, Download Calendar, Download All, Done).
@@ -432,12 +433,12 @@ export default class extends Command {
 		let currentPage = 0;
 		let selectedEvents: Event[] = [];
 
-		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
+		let embeds = generateEmbed(filteredEvents, currentPage, eventsPerPage);
 		const initialComponents: ActionRowBuilder<ButtonBuilder>[] = [];
 		initialComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
-		if (filteredEvents[currentPage]) {
-			if (filteredEvents[currentPage].length) {
-				initialComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+		if (embeds[currentPage]) {
+			if (embeds[currentPage].data.fields.length) {
+				initialComponents.push(generateEventSelectButtons(embeds[currentPage].data.fields.length));
 			}
 		}
 
@@ -445,7 +446,7 @@ export default class extends Command {
 		let message: Message<false>;
 		try {
 			message = await dm.send({
-				embeds: [embed],
+				embeds: [embeds[currentPage]],
 				components: initialComponents
 			});
 		} catch (error) {
@@ -469,20 +470,20 @@ export default class extends Command {
 					if (filter) {
 						filter.newValues = i.values;
 					}
-					filteredEvents = filterEvents(events, eventsPerPage, filters);
+					filteredEvents = await filterEvents(events, filters);
 					currentPage = 0;
 					maxPage = filteredEvents.length;
 					selectedEvents = [];
-					const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
+					embeds = generateEmbed(filteredEvents, currentPage, eventsPerPage);
 					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
 					newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
-					if (filteredEvents[currentPage]) {
-						if (filteredEvents[currentPage].length) {
-							newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+					if (embeds[currentPage]) {
+						if (embeds[currentPage].data.fields.length) {
+							newComponents.push(generateEventSelectButtons(embeds[currentPage].data.fields.length));
 						}
 					}
 					message.edit({
-						embeds: [newEmbed],
+						embeds: [embeds[currentPage]],
 						components: newComponents
 					});
 				}, interaction, dm, content);
@@ -591,34 +592,21 @@ export default class extends Command {
 					} catch {
 						await downloadMessage.edit({ content: '⚠️ Failed to download all events.' });
 					}
-				} else if (btnInt.customId === 'done') {
-					await message.edit({
-						embeds: [],
-						components: [],
-						content: '📅 Calendar session closed.'
-					});
-					await filterMessage.edit({
-						embeds: [],
-						components: [],
-						content: 'Filters closed.'
-					});
-					buttonCollector.stop();
-					menuCollector.stop();
-					return;
 				}
 
-				const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-				const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-				newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
-				if (filteredEvents[currentPage]) {
-					if (filteredEvents[currentPage].length) {
-						newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+				if (btnInt.customId === 'next' || btnInt.customId === 'prev') {
+					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+					newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+					if (embeds[currentPage]) {
+						if (embeds[currentPage].data.fields.length) {
+							newComponents.push(generateEventSelectButtons(embeds[currentPage].data.fields.length));
+						}
 					}
+					await message.edit({
+						embeds: [embeds[currentPage]],
+						components: newComponents
+					});
 				}
-				await message.edit({
-					embeds: [newEmbed],
-					components: newComponents
-				});
 			} catch (error) {
 				console.error('Button Collector Error:', error);
 				await btnInt.followUp({
@@ -634,20 +622,20 @@ export default class extends Command {
 			if (filter) {
 				filter.newValues = i.values;
 			}
-			filteredEvents = filterEvents(events, eventsPerPage, filters);
+			filteredEvents = await filterEvents(events, filters);
 			currentPage = 0;
 			maxPage = filteredEvents.length;
 			selectedEvents = [];
-			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
+			embeds = generateEmbed(filteredEvents, currentPage, eventsPerPage);
 			const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
 			newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
-			if (filteredEvents[currentPage]) {
-				if (filteredEvents[currentPage].length) {
-					newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+			if (embeds[currentPage]) {
+				if (embeds[currentPage].data.fields.length) {
+					newComponents.push(generateEventSelectButtons(embeds[currentPage].data.fields.length));
 				}
 			}
 			message.edit({
-				embeds: [newEmbed],
+				embeds: [embeds[currentPage]],
 				components: newComponents
 			});
 		});
