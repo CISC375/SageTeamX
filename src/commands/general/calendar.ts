@@ -68,17 +68,6 @@ export default class extends Command {
 				}
 			},
 			{
-				customId: 'class_name_menu',
-				placeholder: 'Select Classes',
-				values: [],
-				newValues: [interaction.options.getString('classname') ? interaction.options.getString('classname') : ''],
-				flag: true,
-				condition: (newValues: string[], event: Event) => {
-					const summary = event.calEvent.summary?.toLowerCase() || '';
-					return newValues.some((value) => summary.includes(value.toLowerCase()));
-				}
-			},
-			{
 				customId: 'location_type_menu',
 				placeholder: 'Select Location Type',
 				values: ['In Person', 'Virtual'],
