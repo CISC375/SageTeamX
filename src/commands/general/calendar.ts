@@ -385,7 +385,7 @@ export default class extends Command {
 			calendarMenu.values = calendars.map((c) => c.calendarName);
 		}
 
-		for (const cal of calendars) {
+		await Promise.all(calendars.map(async (cal) => {
 			const retrivedEvents = await retrieveEvents(cal.calendarId, interaction);
 			if (retrivedEvents === null) {
 				return;
@@ -394,7 +394,17 @@ export default class extends Command {
 				const newEvent: Event = { calEvent: retrivedEvent, calendarName: cal.calendarName };
 				events.push(newEvent);
 			});
-		}
+		}));
+		// for (const cal of calendars) {
+		// 	const retrivedEvents = await retrieveEvents(cal.calendarId, interaction);
+		// 	if (retrivedEvents === null) {
+		// 		return;
+		// 	}
+		// 	retrivedEvents.forEach((retrivedEvent) => {
+		// 		const newEvent: Event = { calEvent: retrivedEvent, calendarName: cal.calendarName };
+		// 		events.push(newEvent);
+		// 	});
+		// }
 
 		// Sort events by their start time.
 		events.sort(
