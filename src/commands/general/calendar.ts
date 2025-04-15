@@ -59,14 +59,12 @@ export default class extends Command {
 		/** Helper Functions **/
 
 		// Filters calendar events based on slash command inputs and filter dropdown selections.
-		function filterEvents(events: Event[], eventsPerPage: number, filters: Filter[]) {
-			let temp: Event[] = [];
-			const filteredEvents: Event[][] = [];
+		async function filterEvents(events: Event[], filters: Filter[]) {
+			const filteredEvents: Event[] = [];
 
 			let allFiltersFlags = true;
-			const eventHolderFlag = true;
-			const eventDateFlag = true;
-			events.forEach((event) => {
+
+			await Promise.all(events.map(async (event) => {
 				const lowerCaseSummary: string = event.calEvent.summary.toLowerCase();
 
 				// Extract class name (works for "CISC108-..." and "CISC374010")
@@ -89,26 +87,20 @@ export default class extends Command {
 					allFiltersFlags = filters.every((filter) => filter.flag);
 				}
 
-				if (allFiltersFlags && eventHolderFlag && eventDateFlag) {
-					temp.push(event);
-					if (temp.length % eventsPerPage === 0) {
-						filteredEvents.push(temp);
-						temp = [];
-					}
+				if (allFiltersFlags) {
+					filteredEvents.push(event);
 				}
-			});
-			if (temp.length) filteredEvents.push(temp);
+			}));
+
 			return filteredEvents;
 		}
 
 		// Generates the embed for displaying events.
-		function generateEmbed(filteredEvents: Event[][], currentPage: number, maxPage: number): EmbedBuilder {
+		function generateEmbed(filteredEvents: Event[], currentPage: number, maxPage: number): EmbedBuilder {
+			const embeds: EmbedBuilder[] = [];
 			let embed: EmbedBuilder;
-			if (
-				filteredEvents.length
-				&& filteredEvents[currentPage]
-				&& filteredEvents[currentPage].length
-			) {
+
+			if (filteredEvents.length) {
 				embed = new EmbedBuilder()
 					.setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
 					.setColor('Green');
@@ -415,7 +407,7 @@ export default class extends Command {
 		);
 
 		const eventsPerPage = 3;
-		let filteredEvents: Event[][] = filterEvents(events, eventsPerPage, filters);
+		let filteredEvents: Event[] = await filterEvents(events, filters);
 		if (!filteredEvents.length) {
 			await interaction.followUp({
 				content: 'No matching events found based on your filters. Please adjust your search criteria.',
