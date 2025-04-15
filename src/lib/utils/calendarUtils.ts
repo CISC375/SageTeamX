@@ -52,11 +52,10 @@ export async function filterCalendarEvents(events: Event[], filters: Filter[]): 
  * This function will create embeds to contain all the events passed into the function
  *
  * @param {Event[]} events The events you want to display in the embed
- * @param {number} currentPage ...
  * @param {number} itemsPerPage The number of events you want to display on one embed
  * @returns {EmbedBuilder[]} Embeds containing all of the calendar events
  */
-export function generateCalendarEmbed(events: Event[], currentPage: number, itemsPerPage: number): EmbedBuilder[] {
+export function generateCalendarEmbed(events: Event[], itemsPerPage: number): EmbedBuilder[] {
 	const embeds: EmbedBuilder[] = [];
 	let embed: EmbedBuilder;
 
@@ -65,7 +64,7 @@ export function generateCalendarEmbed(events: Event[], currentPage: number, item
 		const maxPage: number = Math.ceil(events.length / itemsPerPage);
 
 		embed = new EmbedBuilder()
-			.setTitle(`Events - ${currentPage + numEmbeds} of ${maxPage}`)
+			.setTitle(`Events - ${numEmbeds} of ${maxPage}`)
 			.setColor('Green');
 
 		let i = 1;
@@ -82,7 +81,7 @@ export function generateCalendarEmbed(events: Event[], currentPage: number, item
 				numEmbeds++;
 				embeds.push(embed);
 				embed = new EmbedBuilder()
-					.setTitle(`Events - ${currentPage + numEmbeds} of ${maxPage}`)
+					.setTitle(`Events - ${numEmbeds} of ${maxPage}`)
 					.setColor('Green');
 			} else if (events.length - 1 === index) {
 				embeds.push(embed);
@@ -105,8 +104,8 @@ export function generateCalendarEmbed(events: Event[], currentPage: number, item
 /**
  * Generates pagification buttons and download buttons for the calendar embeds
  *
- * @param {number} currentPage ..
- * @param {number} maxPage ...
+ * @param {number} currentPage The current embed page
+ * @param {number} maxPage The total number of embeds
  * @param {number} downloadCount The number of selected events to be downloaded
  * @returns {ActionRowBuilder<ButtonBuilder>}  All of the needed buttons to control the calendar embeds
  */

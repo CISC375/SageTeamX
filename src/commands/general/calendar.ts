@@ -112,38 +112,29 @@ export default class extends Command {
 			}
 		];
 
+		// Fetch calendar IDs from MongoDB.
 		const MONGO_URI = process.env.DB_CONN_STRING || '';
 		const DB_NAME = 'CalendarDatabase';
 		const COLLECTION_NAME = 'calendarIds';
-
-		// Fetch calendar IDs from MongoDB.
-		async function fetchCalendars() {
-			const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
-			await client.connect();
-			const db = client.db(DB_NAME);
-			const collection = db.collection(COLLECTION_NAME);
-
-			const calendarDocs = await collection.find().toArray();
-			await client.close();
-
-			const calendars: {calendarId: string, calendarName: string}[] = calendarDocs.map((doc) => ({
-				calendarId: doc.calendarId,
-				calendarName: doc.calendarName || 'Unnamed Calendar'
-			}));
-
-			if (!calendars.some((c) => c.calendarId === MASTER_CALENDAR_ID)) {
-				calendars.push({
-					calendarId: MASTER_CALENDAR_ID,
-					calendarName: 'Master Calendar'
-				});
-			}
-
-			return calendars;
+		const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
+		await client.connect();
+		const db = client.db(DB_NAME);
+		const collection = db.collection(COLLECTION_NAME);
+		const calendarDocs = await collection.find().toArray();
+		await client.close();
+		const calendars: {calendarId: string, calendarName: string}[] = calendarDocs.map((doc) => ({
+			calendarId: doc.calendarId,
+			calendarName: doc.calendarName || 'Unnamed Calendar'
+		}));
+		if (!calendars.some((c) => c.calendarId === MASTER_CALENDAR_ID)) {
+			calendars.push({
+				calendarId: MASTER_CALENDAR_ID,
+				calendarName: 'Master Calendar'
+			});
 		}
 
 		// Retrieve events from all calendars in the database
 		const events: Event[] = [];
-		const calendars = await fetchCalendars();
 		const calendarMenu = filters.find((fi) => fi.customId === 'calendar_menu');
 		if (calendarMenu) {
 			calendarMenu.values = calendars.map((c) => c.calendarName);
@@ -178,7 +169,7 @@ export default class extends Command {
 
 		let currentPage = 0;
 		let selectedEvents: Event[] = [];
-		let embeds = generateCalendarEmbed(filteredEvents, currentPage, eventsPerPage);
+		let embeds = generateCalendarEmbed(filteredEvents, eventsPerPage);
 		let maxPage: number = embeds.length;
 
 		const initialComponents: ActionRowBuilder<ButtonBuilder>[] = [];
@@ -220,7 +211,7 @@ export default class extends Command {
 					filteredEvents = await filterCalendarEvents(events, filters);
 					currentPage = 0;
 					selectedEvents = [];
-					embeds = generateCalendarEmbed(filteredEvents, currentPage, eventsPerPage);
+					embeds = generateCalendarEmbed(filteredEvents, eventsPerPage);
 					maxPage = embeds.length;
 					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
 					newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
@@ -371,7 +362,7 @@ export default class extends Command {
 			filteredEvents = await filterCalendarEvents(events, filters);
 			currentPage = 0;
 			selectedEvents = [];
-			embeds = generateCalendarEmbed(filteredEvents, currentPage, eventsPerPage);
+			embeds = generateCalendarEmbed(filteredEvents, eventsPerPage);
 			maxPage = embeds.length;
 			const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
 			newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
