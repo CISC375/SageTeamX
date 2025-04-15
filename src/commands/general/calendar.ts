@@ -241,10 +241,6 @@ export default class extends Command {
 			});
 			return;
 		}
-		await filterMessage.edit({
-			content: content,
-			components: singlePageMenus
-		});
 
 		// Create collectors for button and menu interactions.
 		const buttonCollector = message.createMessageComponentCollector({ time: 300000 });
