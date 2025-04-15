@@ -506,7 +506,7 @@ export default class extends Command {
 				await btnInt.deferUpdate();
 				if (btnInt.customId.startsWith('toggle-')) {
 					const eventIndex = Number(btnInt.customId.split('-')[1]) - 1;
-					const event = filteredEvents[currentPage][eventIndex];
+					const event = filteredEvents[(currentPage * eventsPerPage) + eventIndex];
 					if (selectedEvents.some((e) => e === event)) {
 						selectedEvents.splice(selectedEvents.indexOf(event), 1);
 						try {
@@ -578,19 +578,18 @@ export default class extends Command {
 					}
 				}
 
-				if (btnInt.customId === 'next' || btnInt.customId === 'prev') {
-					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-					newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
-					if (embeds[currentPage]) {
-						if (embeds[currentPage].data.fields.length) {
-							newComponents.push(generateEventSelectButtons(embeds[currentPage].data.fields.length));
-						}
+
+				const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+				newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+				if (embeds[currentPage]) {
+					if (embeds[currentPage].data.fields.length) {
+						newComponents.push(generateEventSelectButtons(embeds[currentPage].data.fields.length));
 					}
-					await message.edit({
-						embeds: [embeds[currentPage]],
-						components: newComponents
-					});
 				}
+				await message.edit({
+					embeds: [embeds[currentPage]],
+					components: newComponents
+				});
 			} catch (error) {
 				console.error('Button Collector Error:', error);
 				await btnInt.followUp({
