@@ -19,7 +19,14 @@ export interface Filter {
 	condition: (newValues: string[], event: Event) => boolean;
 }
 
-export async function filterEvents(events: Event[], filters: Filter[]): Promise<Event[]> {
+/**
+ * This function will filter out events based on the given filter array
+ *
+ * @param {Event[]} events The events that you want to filter
+ * @param {Filter[]} filters The filters that you want to use to filter the events
+ * @returns {Promise<Event[]>} This function will return an async promise of the filtered events in an array
+ */
+export async function filterCalendarEvents(events: Event[], filters: Filter[]): Promise<Event[]> {
 	const filteredEvents: Event[] = [];
 
 	let allFiltersFlags = true;
@@ -41,21 +48,28 @@ export async function filterEvents(events: Event[], filters: Filter[]): Promise<
 	return filteredEvents;
 }
 
-// Generates the embed for displaying events.
-export function generateEmbed(filteredEvents: Event[], currentPage: number, itemsPerPage: number): EmbedBuilder[] {
+/**
+ * This function will create embeds to contain all the events passed into the function
+ *
+ * @param {Event[]} events The events you want to display in the embed
+ * @param {number} currentPage ...
+ * @param {number} itemsPerPage The number of events you want to display on one embed
+ * @returns {EmbedBuilder[]} Embeds containing all of the calendar events
+ */
+export function generateCalendarEmbed(events: Event[], currentPage: number, itemsPerPage: number): EmbedBuilder[] {
 	const embeds: EmbedBuilder[] = [];
 	let embed: EmbedBuilder;
 
-	if (filteredEvents.length) {
+	if (events.length) {
 		let numEmbeds = 1;
-		const maxPage: number = Math.ceil(filteredEvents.length / itemsPerPage);
+		const maxPage: number = Math.ceil(events.length / itemsPerPage);
 
 		embed = new EmbedBuilder()
 			.setTitle(`Events - ${currentPage + numEmbeds} of ${maxPage}`)
 			.setColor('Green');
 
 		let i = 1;
-		filteredEvents.forEach((event, index) => {
+		events.forEach((event, index) => {
 			embed.addFields({
 				name: `**${event.calEvent.summary}**`,
 				value: `Date: ${new Date(event.calEvent.start.dateTime).toLocaleDateString()}
@@ -70,7 +84,7 @@ export function generateEmbed(filteredEvents: Event[], currentPage: number, item
 				embed = new EmbedBuilder()
 					.setTitle(`Events - ${currentPage + numEmbeds} of ${maxPage}`)
 					.setColor('Green');
-			} else if (filteredEvents.length - 1 === index) {
+			} else if (events.length - 1 === index) {
 				embeds.push(embed);
 			}
 			i++;
@@ -88,8 +102,15 @@ export function generateEmbed(filteredEvents: Event[], currentPage: number, item
 	return embeds;
 }
 
-// Generates the pagination buttons (Previous, Next, Download Calendar, Download All, Done).
-export function generateButtons(currentPage: number, maxPage: number, downloadCount: number): ActionRowBuilder<ButtonBuilder> {
+/**
+ * Generates pagification buttons and download buttons for the calendar embeds
+ *
+ * @param {number} currentPage ..
+ * @param {number} maxPage ...
+ * @param {number} downloadCount The number of selected events to be downloaded
+ * @returns {ActionRowBuilder<ButtonBuilder>}  All of the needed buttons to control the calendar embeds
+ */
+export function generateCalendarButtons(currentPage: number, maxPage: number, downloadCount: number): ActionRowBuilder<ButtonBuilder> {
 	const nextButton = new ButtonBuilder()
 		.setCustomId('next')
 		.setLabel('Next')
@@ -121,8 +142,13 @@ export function generateButtons(currentPage: number, maxPage: number, downloadCo
 	);
 }
 
-// Generates filter dropdown menus.
-export function generateFilterMessage(filters: Filter[]): PagifiedSelectMenu[] {
+/**
+ * Creates pagified select menus with the given filters
+ *
+ * @param {Filter[]} filters The filters to use to create the pagified select menus
+ * @returns {PagifiedSelectMenu[]} The created pagified select menus based on the given filters
+ */
+export function generateCalendarFilterMessage(filters: Filter[]): PagifiedSelectMenu[] {
 	const filterMenus: PagifiedSelectMenu[] = filters.map((filter) => {
 		if (filter.values.length === 0) {
 			filter.values.push('No Data Available');
@@ -152,7 +178,12 @@ export function generateFilterMessage(filters: Filter[]): PagifiedSelectMenu[] {
 	return filterMenus;
 }
 
-// Generates a row of toggle buttons – one for each event on the current page.
+/**
+ * Creates buttons that selects calendar events to be downloaded
+ *
+ * @param {number} eventsPerPage The number of events per embed
+ * @returns {ActionRowBuilder<ButtonBuilder>} Buttons to select what events from the embed you want to download
+ */
 export function generateEventSelectButtons(eventsPerPage: number): ActionRowBuilder<ButtonBuilder> {
 	const selectEventButtons: ButtonBuilder[] = [];
 
@@ -179,8 +210,13 @@ export function generateEventSelectButtons(eventsPerPage: number): ActionRowBuil
 	return selectRow;
 }
 
-// Downloads events by generating an ICS file.
-// This version includes recurrence rules (if the event has them).
+/**
+ * Creates an ics file containing all of the selected events
+ *
+ * @param {Event[]} selectedEvents The selected events to download
+ * @param {{calendarId: string, calendarName: string}[]} calendars An arry of all of the calendars retrived from MongoDB
+ * @param {ChatInputCommandInteraction} interaction The interaction created by calling /calendar
+ */
 export async function downloadEvents(selectedEvents: Event[], calendars: {calendarId: string, calendarName: string}[], interaction: ChatInputCommandInteraction): Promise<void> {
 	const formattedEvents: string[] = [];
 	const parentEvents: calendar_v3.Schema$Event[] = [];

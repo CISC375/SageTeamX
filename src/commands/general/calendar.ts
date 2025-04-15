@@ -19,7 +19,15 @@ import * as fs from 'fs';
 import { CALENDAR_CONFIG } from '@lib/CalendarConfig';
 import { retrieveEvents } from '@root/src/lib/auth';
 import path from 'path';
-import { downloadEvents, Filter, filterEvents, generateButtons, generateEmbed, generateEventSelectButtons, generateFilterMessage, Event } from '@root/src/lib/utils/calendarUtils';
+import
+{ downloadEvents,
+	Filter,
+	filterCalendarEvents,
+	generateCalendarButtons,
+	generateCalendarEmbed,
+	generateEventSelectButtons,
+	generateCalendarFilterMessage,
+	Event } from '@root/src/lib/utils/calendarUtils';
 
 // Define the Master Calendar ID constant.
 const MASTER_CALENDAR_ID = CALENDAR_CONFIG.MASTER_ID;
@@ -159,7 +167,7 @@ export default class extends Command {
 		);
 
 		const eventsPerPage = 3;
-		let filteredEvents: Event[] = await filterEvents(events, filters);
+		let filteredEvents: Event[] = await filterCalendarEvents(events, filters);
 		if (!filteredEvents.length) {
 			await interaction.followUp({
 				content: 'No matching events found based on your filters. Please adjust your search criteria.',
@@ -170,11 +178,11 @@ export default class extends Command {
 
 		let currentPage = 0;
 		let selectedEvents: Event[] = [];
-		let embeds = generateEmbed(filteredEvents, currentPage, eventsPerPage);
+		let embeds = generateCalendarEmbed(filteredEvents, currentPage, eventsPerPage);
 		let maxPage: number = embeds.length;
 
 		const initialComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-		initialComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+		initialComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
 		if (embeds[currentPage]) {
 			if (embeds[currentPage].data.fields.length) {
 				initialComponents.push(generateEventSelectButtons(embeds[currentPage].data.fields.length));
@@ -197,7 +205,7 @@ export default class extends Command {
 			return;
 		}
 
-		const filterComponents = generateFilterMessage(filters);
+		const filterComponents = generateCalendarFilterMessage(filters);
 		let content = '**Select Filters**';
 
 		const singlePageMenus: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
@@ -209,13 +217,13 @@ export default class extends Command {
 					if (filter) {
 						filter.newValues = i.values;
 					}
-					filteredEvents = await filterEvents(events, filters);
+					filteredEvents = await filterCalendarEvents(events, filters);
 					currentPage = 0;
 					selectedEvents = [];
-					embeds = generateEmbed(filteredEvents, currentPage, eventsPerPage);
+					embeds = generateCalendarEmbed(filteredEvents, currentPage, eventsPerPage);
 					maxPage = embeds.length;
 					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-					newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+					newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
 					if (embeds[currentPage]) {
 						if (embeds[currentPage].data.fields.length) {
 							newComponents.push(generateEventSelectButtons(embeds[currentPage].data.fields.length));
@@ -335,7 +343,7 @@ export default class extends Command {
 
 
 				const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-				newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+				newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
 				if (embeds[currentPage]) {
 					if (embeds[currentPage].data.fields.length) {
 						newComponents.push(generateEventSelectButtons(embeds[currentPage].data.fields.length));
@@ -360,13 +368,13 @@ export default class extends Command {
 			if (filter) {
 				filter.newValues = i.values;
 			}
-			filteredEvents = await filterEvents(events, filters);
+			filteredEvents = await filterCalendarEvents(events, filters);
 			currentPage = 0;
 			selectedEvents = [];
-			embeds = generateEmbed(filteredEvents, currentPage, eventsPerPage);
+			embeds = generateCalendarEmbed(filteredEvents, currentPage, eventsPerPage);
 			maxPage = embeds.length;
 			const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-			newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+			newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
 			if (embeds[currentPage]) {
 				if (embeds[currentPage].data.fields.length) {
 					newComponents.push(generateEventSelectButtons(embeds[currentPage].data.fields.length));
