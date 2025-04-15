@@ -52,13 +52,9 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		// Initial reply to acknowledge the interaction.
-		await interaction.reply({
-			content: 'Authenticating and fetching events...',
-			ephemeral: true
-		});
-
-		// Define filters for dropdowns.
+		// Define local variables
+		let currentPage = 0;
+		let selectedEvents: Event[] = [];
 		const filters: Filter[] = [
 			{
 				customId: 'calendar_menu',
@@ -109,6 +105,14 @@ export default class extends Command {
 			}
 		];
 
+		// ************************************************************************************************* \\
+
+		// Initial reply to acknowledge the interaction.
+		await interaction.reply({
+			content: 'Authenticating and fetching events...',
+			ephemeral: true
+		});
+
 		// Fetch calendar IDs from MongoDB.
 		const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
 		await client.connect();
@@ -127,13 +131,14 @@ export default class extends Command {
 			});
 		}
 
-		// Retrieve events from all calendars in the database
+		// Add all calendar menu names to calendar menu filter
 		const events: Event[] = [];
 		const calendarMenu = filters.find((fi) => fi.customId === 'calendar_menu');
 		if (calendarMenu) {
 			calendarMenu.values = calendars.map((c) => c.calendarName);
 		}
 
+		// Retrieve events from every calendar in the database
 		await Promise.all(calendars.map(async (cal) => {
 			const retrivedEvents = await retrieveEvents(cal.calendarId, interaction);
 			if (retrivedEvents === null) {
@@ -145,12 +150,14 @@ export default class extends Command {
 			});
 		}));
 
+		// Sort the events by date
 		events.sort(
 			(a, b) =>
 				new Date(a.calEvent.start?.dateTime || a.calEvent.start?.date).getTime() -
 				new Date(b.calEvent.start?.dateTime || b.calEvent.start?.date).getTime()
 		);
 
+		// Filter inital events
 		let filteredEvents: Event[] = await filterCalendarEvents(events, filters);
 		if (!filteredEvents.length) {
 			await interaction.followUp({
@@ -160,11 +167,11 @@ export default class extends Command {
 			return;
 		}
 
-		let currentPage = 0;
-		let selectedEvents: Event[] = [];
+		// Create initial embed
 		let embeds = generateCalendarEmbeds(filteredEvents, EVENTS_PER_PAGE);
 		let maxPage: number = embeds.length;
 
+		// Create initial componenets
 		const initialComponents: ActionRowBuilder<ButtonBuilder>[] = [];
 		const selectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
 		initialComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
@@ -172,6 +179,8 @@ export default class extends Command {
 			initialComponents.push(selectButtons);
 		}
 
+
+		// Send dm with first embed in the embeds array and the initial componenets
 		const dm = await interaction.user.createDM();
 		let message: Message<false>;
 		try {
@@ -188,9 +197,11 @@ export default class extends Command {
 			return;
 		}
 
-		const filterComponents = generateCalendarFilterMessage(filters);
+		// Create pagified select menus based on the filters
 		let content = '**Select Filters**';
+		const filterComponents = generateCalendarFilterMessage(filters);
 
+		// Separate single page menus and pagified menus. Send pagified menus in a separate message
 		const singlePageMenus: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
 		filterComponents.forEach((component) => {
 			if (component.menus.length > 1) {
