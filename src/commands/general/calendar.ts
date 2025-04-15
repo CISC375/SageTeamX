@@ -65,27 +65,13 @@ export default class extends Command {
 			let allFiltersFlags = true;
 
 			await Promise.all(events.map(async (event) => {
-				const lowerCaseSummary: string = event.calEvent.summary.toLowerCase();
-
-				// Extract class name (works for "CISC108-..." and "CISC374010")
-				const classNameMatch = lowerCaseSummary.match(/cisc\d+/i);
-				const extractedClassName = classNameMatch ? classNameMatch[0].toUpperCase() : '';
-
-				// Dynamically update filter options.
-				const classFilter = filters.find((filter) => filter.customId === 'class_name_menu');
-				if (extractedClassName && classFilter && !classFilter.values.includes(extractedClassName)) {
-					classFilter.values.push(extractedClassName);
-				}
-
-				if (filters.length) {
-					filters.forEach((filter) => {
-						filter.flag = true;
-						if (filter.newValues.length) {
-							filter.flag = filter.condition(filter.newValues, event);
-						}
-					});
-					allFiltersFlags = filters.every((filter) => filter.flag);
-				}
+				filters.forEach((filter) => {
+					filter.flag = true;
+					if (filter.newValues.length) {
+						filter.flag = filter.condition(filter.newValues, event);
+					}
+				});
+				allFiltersFlags = filters.every((filter) => filter.flag);
 
 				if (allFiltersFlags) {
 					filteredEvents.push(event);
@@ -108,6 +94,7 @@ export default class extends Command {
 					.setTitle(`Events - ${currentPage + numEmbeds} of ${maxPage}`)
 					.setColor('Green');
 
+				let i = 1;
 				filteredEvents.forEach((event, index) => {
 					embed.addFields({
 						name: `**${event.calEvent.summary}**`,
@@ -117,13 +104,16 @@ export default class extends Command {
 						Email: ${event.calEvent.creator.email}\n`
 					});
 
-					if (index % itemsPerPage === 0) {
+					if (i % itemsPerPage === 0) {
 						numEmbeds++;
 						embeds.push(embed);
 						embed = new EmbedBuilder()
 							.setTitle(`Events - ${currentPage + numEmbeds} of ${maxPage}`)
 							.setColor('Green');
+					} else if (filteredEvents.length - 1 === index) {
+						embeds.push(embed);
 					}
+					i++;
 				});
 			} else {
 				embed = new EmbedBuilder()
@@ -163,17 +153,11 @@ export default class extends Command {
 				.setLabel('Download All')
 				.setStyle(ButtonStyle.Secondary);
 
-			const done = new ButtonBuilder()
-				.setCustomId('done')
-				.setLabel('Done')
-				.setStyle(ButtonStyle.Danger);
-
 			return new ActionRowBuilder<ButtonBuilder>().addComponents(
 				prevButton,
 				nextButton,
 				downloadCal,
-				downloadAll,
-				done
+				downloadAll
 			);
 		}
 
@@ -429,11 +413,11 @@ export default class extends Command {
 			return;
 		}
 
-		let maxPage: number = filteredEvents.length;
 		let currentPage = 0;
 		let selectedEvents: Event[] = [];
-
 		let embeds = generateEmbed(filteredEvents, currentPage, eventsPerPage);
+		let maxPage: number = embeds.length;
+
 		const initialComponents: ActionRowBuilder<ButtonBuilder>[] = [];
 		initialComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
 		if (embeds[currentPage]) {
@@ -472,9 +456,9 @@ export default class extends Command {
 					}
 					filteredEvents = await filterEvents(events, filters);
 					currentPage = 0;
-					maxPage = filteredEvents.length;
 					selectedEvents = [];
 					embeds = generateEmbed(filteredEvents, currentPage, eventsPerPage);
+					maxPage = embeds.length;
 					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
 					newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
 					if (embeds[currentPage]) {
@@ -624,9 +608,9 @@ export default class extends Command {
 			}
 			filteredEvents = await filterEvents(events, filters);
 			currentPage = 0;
-			maxPage = filteredEvents.length;
 			selectedEvents = [];
 			embeds = generateEmbed(filteredEvents, currentPage, eventsPerPage);
+			maxPage = embeds.length;
 			const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
 			newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
 			if (embeds[currentPage]) {
