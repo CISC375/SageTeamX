@@ -96,15 +96,19 @@ export default class extends Command {
 		}
 
 		// Generates the embed for displaying events.
-		function generateEmbed(filteredEvents: Event[], currentPage: number, maxPage: number): EmbedBuilder {
+		function generateEmbed(filteredEvents: Event[], currentPage: number, itemsPerPage: number): EmbedBuilder {
 			const embeds: EmbedBuilder[] = [];
 			let embed: EmbedBuilder;
 
 			if (filteredEvents.length) {
+				let numEmbeds = 1;
+				const maxPage: number = Math.ceil(filteredEvents.length / itemsPerPage);
+
 				embed = new EmbedBuilder()
-					.setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
+					.setTitle(`Events - ${currentPage + numEmbeds} of ${maxPage}`)
 					.setColor('Green');
-				filteredEvents[currentPage].forEach((event) => {
+
+				filteredEvents.forEach((event, index) => {
 					embed.addFields({
 						name: `**${event.calEvent.summary}**`,
 						value: `Date: ${new Date(event.calEvent.start.dateTime).toLocaleDateString()}
@@ -112,6 +116,14 @@ export default class extends Command {
 						Location: ${event.calEvent.location ? event.calEvent.location : '`NONE`'}
 						Email: ${event.calEvent.creator.email}\n`
 					});
+
+					if (index % itemsPerPage === 0) {
+						numEmbeds++;
+						embeds.push(embed);
+						embed = new EmbedBuilder()
+							.setTitle(`Events - ${currentPage + numEmbeds} of ${maxPage}`)
+							.setColor('Green');
+					}
 				});
 			} else {
 				embed = new EmbedBuilder()
