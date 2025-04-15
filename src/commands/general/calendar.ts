@@ -19,7 +19,7 @@ import 'dotenv/config';
 import { MongoClient } from 'mongodb';
 import * as fs from 'fs';
 import { CALENDAR_CONFIG } from '@lib/CalendarConfig';
-import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
+import { PagifiedSelectMenu } from '@root/src/lib/types/PagifiedSelect';
 import { calendar_v3 } from 'googleapis';
 import { retrieveEvents } from '@root/src/lib/auth';
 import path from 'path';
@@ -395,18 +395,7 @@ export default class extends Command {
 				events.push(newEvent);
 			});
 		}));
-		// for (const cal of calendars) {
-		// 	const retrivedEvents = await retrieveEvents(cal.calendarId, interaction);
-		// 	if (retrivedEvents === null) {
-		// 		return;
-		// 	}
-		// 	retrivedEvents.forEach((retrivedEvent) => {
-		// 		const newEvent: Event = { calEvent: retrivedEvent, calendarName: cal.calendarName };
-		// 		events.push(newEvent);
-		// 	});
-		// }
 
-		// Sort events by their start time.
 		events.sort(
 			(a, b) =>
 				new Date(a.calEvent.start?.dateTime || a.calEvent.start?.date).getTime() -

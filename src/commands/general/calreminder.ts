@@ -13,7 +13,7 @@ import {
 	ComponentType,
 } from "discord.js";
 import parse from "parse-duration";
-import { PagifiedSelectMenu } from "@root/src/lib/utils/calendarUtils";
+import { PagifiedSelectMenu } from '@root/src/lib/types/PagifiedSelect';
 import { retrieveEvents } from "@root/src/lib/auth";
 import { calendar_v3 } from "googleapis";
 

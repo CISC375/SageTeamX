@@ -9,7 +9,7 @@ import {
 import { Command } from "@lib/types/Command";
 import "dotenv/config";
 import { retrieveEvents } from "../../lib/auth";
-import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
+import { PagifiedSelectMenu } from '@root/src/lib/types/PagifiedSelect';
 
 export default class extends Command {
 	name = "tainfo";
