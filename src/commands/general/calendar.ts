@@ -24,13 +24,18 @@ import
 	Filter,
 	filterCalendarEvents,
 	generateCalendarButtons,
-	generateCalendarEmbed,
+	generateCalendarEmbeds,
 	generateEventSelectButtons,
 	generateCalendarFilterMessage,
 	Event } from '@root/src/lib/utils/calendarUtils';
 
-// Define the Master Calendar ID constant.
+// Define global constants
 const MASTER_CALENDAR_ID = CALENDAR_CONFIG.MASTER_ID;
+const MONGO_URI = process.env.DB_CONN_STRING || '';
+const DB_NAME = 'CalendarDatabase';
+const COLLECTION_NAME = 'calendarIds';
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const EVENTS_PER_PAGE = 3;
 
 export default class extends Command {
 
@@ -91,31 +96,20 @@ export default class extends Command {
 			{
 				customId: 'week_menu',
 				placeholder: 'Select Days of Week',
-				values: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+				values: WEEKDAYS,
 				newValues: [],
 				flag: true,
 				condition: (newValues: string[], event: Event) => {
 					if (!event.calEvent.start?.dateTime) return false;
 					const dt = new Date(event.calEvent.start.dateTime);
 					const weekdayIndex = dt.getDay(); // 0 = Sunday, 1 = Monday, etc.
-					const dayName = [
-						'Sunday',
-						'Monday',
-						'Tuesday',
-						'Wednesday',
-						'Thursday',
-						'Friday',
-						'Saturday'
-					][weekdayIndex];
+					const dayName = WEEKDAYS[weekdayIndex];
 					return newValues.some((value) => value.toLowerCase() === dayName.toLowerCase());
 				}
 			}
 		];
 
 		// Fetch calendar IDs from MongoDB.
-		const MONGO_URI = process.env.DB_CONN_STRING || '';
-		const DB_NAME = 'CalendarDatabase';
-		const COLLECTION_NAME = 'calendarIds';
 		const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
 		await client.connect();
 		const db = client.db(DB_NAME);
@@ -157,7 +151,6 @@ export default class extends Command {
 				new Date(b.calEvent.start?.dateTime || b.calEvent.start?.date).getTime()
 		);
 
-		const eventsPerPage = 3;
 		let filteredEvents: Event[] = await filterCalendarEvents(events, filters);
 		if (!filteredEvents.length) {
 			await interaction.followUp({
@@ -169,15 +162,14 @@ export default class extends Command {
 
 		let currentPage = 0;
 		let selectedEvents: Event[] = [];
-		let embeds = generateCalendarEmbed(filteredEvents, eventsPerPage);
+		let embeds = generateCalendarEmbeds(filteredEvents, EVENTS_PER_PAGE);
 		let maxPage: number = embeds.length;
 
 		const initialComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+		const selectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
 		initialComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-		if (embeds[currentPage]) {
-			if (embeds[currentPage].data.fields.length) {
-				initialComponents.push(generateEventSelectButtons(embeds[currentPage].data.fields.length));
-			}
+		if (selectButtons) {
+			initialComponents.push(selectButtons);
 		}
 
 		const dm = await interaction.user.createDM();
@@ -208,18 +200,21 @@ export default class extends Command {
 					if (filter) {
 						filter.newValues = i.values;
 					}
+
 					filteredEvents = await filterCalendarEvents(events, filters);
+					embeds = generateCalendarEmbeds(filteredEvents, EVENTS_PER_PAGE);
+
 					currentPage = 0;
 					selectedEvents = [];
-					embeds = generateCalendarEmbed(filteredEvents, eventsPerPage);
 					maxPage = embeds.length;
+
 					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+					const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
 					newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-					if (embeds[currentPage]) {
-						if (embeds[currentPage].data.fields.length) {
-							newComponents.push(generateEventSelectButtons(embeds[currentPage].data.fields.length));
-						}
+					if (newSelectButtons) {
+						newComponents.push(newSelectButtons);
 					}
+
 					message.edit({
 						embeds: [embeds[currentPage]],
 						components: newComponents
@@ -260,7 +255,7 @@ export default class extends Command {
 				await btnInt.deferUpdate();
 				if (btnInt.customId.startsWith('toggle-')) {
 					const eventIndex = Number(btnInt.customId.split('-')[1]) - 1;
-					const event = filteredEvents[(currentPage * eventsPerPage) + eventIndex];
+					const event = filteredEvents[(currentPage * EVENTS_PER_PAGE) + eventIndex];
 					if (selectedEvents.some((e) => e === event)) {
 						selectedEvents.splice(selectedEvents.indexOf(event), 1);
 						try {
@@ -334,12 +329,12 @@ export default class extends Command {
 
 
 				const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+				const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
 				newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-				if (embeds[currentPage]) {
-					if (embeds[currentPage].data.fields.length) {
-						newComponents.push(generateEventSelectButtons(embeds[currentPage].data.fields.length));
-					}
+				if (newSelectButtons) {
+					newComponents.push(newSelectButtons);
 				}
+
 				await message.edit({
 					embeds: [embeds[currentPage]],
 					components: newComponents
@@ -359,18 +354,21 @@ export default class extends Command {
 			if (filter) {
 				filter.newValues = i.values;
 			}
+
 			filteredEvents = await filterCalendarEvents(events, filters);
+			embeds = generateCalendarEmbeds(filteredEvents, EVENTS_PER_PAGE);
+
 			currentPage = 0;
 			selectedEvents = [];
-			embeds = generateCalendarEmbed(filteredEvents, eventsPerPage);
 			maxPage = embeds.length;
+
 			const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+			const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
 			newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-			if (embeds[currentPage]) {
-				if (embeds[currentPage].data.fields.length) {
-					newComponents.push(generateEventSelectButtons(embeds[currentPage].data.fields.length));
-				}
+			if (newSelectButtons) {
+				newComponents.push(newSelectButtons);
 			}
+
 			message.edit({
 				embeds: [embeds[currentPage]],
 				components: newComponents

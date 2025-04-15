@@ -55,7 +55,7 @@ export async function filterCalendarEvents(events: Event[], filters: Filter[]): 
  * @param {number} itemsPerPage The number of events you want to display on one embed
  * @returns {EmbedBuilder[]} Embeds containing all of the calendar events
  */
-export function generateCalendarEmbed(events: Event[], itemsPerPage: number): EmbedBuilder[] {
+export function generateCalendarEmbeds(events: Event[], itemsPerPage: number): EmbedBuilder[] {
 	const embeds: EmbedBuilder[] = [];
 	let embed: EmbedBuilder;
 
@@ -178,35 +178,37 @@ export function generateCalendarFilterMessage(filters: Filter[]): PagifiedSelect
 }
 
 /**
- * Creates buttons that selects calendar events to be downloaded
  *
- * @param {number} eventsPerPage The number of events per embed
- * @returns {ActionRowBuilder<ButtonBuilder>} Buttons to select what events from the embed you want to download
+ * @param {EmbedBuilder} embed ...
+ * @param {Event[]} events ...
+ * @returns {ActionRowBuilder<ButtonBuilder>} ...
  */
-export function generateEventSelectButtons(eventsPerPage: number): ActionRowBuilder<ButtonBuilder> {
+export function generateEventSelectButtons(embed: EmbedBuilder, events: Event[]): ActionRowBuilder<ButtonBuilder> | void {
 	const selectEventButtons: ButtonBuilder[] = [];
 
-	// This is to ensure that the number of buttons does not exceed to the limit per row
-	// We should probably change to a pagified select menu later on
-	if (eventsPerPage > 5) {
-		eventsPerPage = 5;
+	if (events.length && embed) {
+		// This is to ensure that the number of buttons does not exceed to the limit per row
+		let eventsInEmbed = embed.data.fields.length;
+		if (eventsInEmbed > 5) {
+			eventsInEmbed = 5;
+		}
+
+		// Create buttons for each event on the page (up to 5)
+		for (let i = 1; i <= eventsInEmbed; i++) {
+			const selectEvent = new ButtonBuilder()
+				.setCustomId(`toggle-${i}`)
+				.setLabel(`Select #${i}`)
+				.setStyle(ButtonStyle.Secondary);
+			selectEventButtons.push(selectEvent);
+		}
+
+		// Create row containing all of the select buttons
+		const selectRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+			...selectEventButtons
+		);
+
+		return selectRow;
 	}
-
-	// Create buttons for each event on the page (up to 5)
-	for (let i = 1; i <= eventsPerPage; i++) {
-		const selectEvent = new ButtonBuilder()
-			.setCustomId(`toggle-${i}`)
-			.setLabel(`Select #${i}`)
-			.setStyle(ButtonStyle.Secondary);
-		selectEventButtons.push(selectEvent);
-	}
-
-	// Create row containing all of the select buttons
-	const selectRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-		...selectEventButtons
-	);
-
-	return selectRow;
 }
 
 /**
