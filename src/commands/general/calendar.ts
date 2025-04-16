@@ -10,7 +10,8 @@ import {
 	ButtonInteraction,
 	CacheType,
 	StringSelectMenuInteraction,
-	Message
+	Message,
+	InteractionResponse
 } from 'discord.js';
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
@@ -28,6 +29,7 @@ import
 	generateEventSelectButtons,
 	generateCalendarFilterMessage,
 	Event } from '@root/src/lib/utils/calendarUtils';
+import { PagifiedSelectMenu } from '@root/src/lib/types/PagifiedSelect';
 
 // Define global constants
 const MASTER_CALENDAR_ID = CALENDAR_CONFIG.MASTER_ID;
@@ -171,68 +173,214 @@ export default class extends Command {
 
 		// Send dm with first embed in the embeds array and the initial componenets
 		const dm = await interaction.user.createDM();
-		let message: Message<false>;
+		let message: Message<boolean> | InteractionResponse<boolean>;
+		let filterMessage: Message<false>;
+		const calendarFilter = filters.find((filter) => filter.customId === 'calendar_menu');
+		const calendarSelectMenu = new PagifiedSelectMenu();
+		calendarSelectMenu.createSelectMenu(
+			{
+				customId: `${calendarFilter.customId}1`,
+				placeHolder: calendarFilter.placeholder,
+				minimumValues: 0
+			}
+		);
+		calendarFilter.values.forEach((calendar) => {
+			calendarSelectMenu.addOption({ label: calendar, value: calendar });
+		});
 		try {
-			message = await dm.send({
-				embeds: [embeds[currentPage]],
-				components: initialComponents
-			});
-		} catch (error) {
-			console.error('Failed to send DM:', error);
-			await interaction.followUp({
-				content: "⚠️ I couldn't send you a DM. Please check your privacy settings.",
-				ephemeral: true
-			});
-			return;
-		}
-
-		// Create pagified select menus based on the filters
-		let content = '**Select Filters**';
-		const filterComponents = generateCalendarFilterMessage(filters);
-
-		// Separate single page menus and pagified menus. Send pagified menus in a separate message
-		const singlePageMenus: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
-		filterComponents.forEach((component) => {
-			if (component.menus.length > 1) {
-				component.generateRowsAndSendMenu(async (i) => {
-					await i.deferUpdate();
-					const filter = filters.find((fi) => fi.customId === i.customId);
-					if (filter) {
-						filter.newValues = i.values;
-					}
-
-					filteredEvents = await filterCalendarEvents(events, filters);
-					embeds = generateCalendarEmbeds(filteredEvents, EVENTS_PER_PAGE);
-
-					currentPage = 0;
-					selectedEvents = [];
-					maxPage = embeds.length;
-
-					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-					const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
-					newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-					if (newSelectButtons) {
-						newComponents.push(newSelectButtons);
-					}
-
+			message = await calendarSelectMenu.generateRowsAndSendMenu(async (menuI) => {
+				if (menuI.customId === 'calendar_menu1') {
+					calendarFilter.newValues = menuI.values;
 					message.edit({
 						embeds: [embeds[currentPage]],
-						components: newComponents
+						components: initialComponents
 					});
-				}, interaction, dm, content);
-				content = '';
-			} else {
-				singlePageMenus.push(component.generateActionRows()[0]);
-			}
-		});
 
-		// Send filter message
-		let filterMessage: Message<false>;
-		try {
-			filterMessage = await dm.send({
-				content: content,
-				components: singlePageMenus
-			});
+					// Create pagified select menus based on the filters
+					let content = '**Select Filters**';
+					const filterComponents = generateCalendarFilterMessage(filters);
+
+					// Separate single page menus and pagified menus. Send pagified menus in a separate message
+					const singlePageMenus: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
+					filterComponents.forEach((component) => {
+						if (component.menus.length > 1) {
+							component.generateRowsAndSendMenu(async (i) => {
+								await i.deferUpdate();
+								const filter = filters.find((fi) => fi.customId === i.customId);
+								if (filter) {
+									filter.newValues = i.values;
+								}
+
+								filteredEvents = await filterCalendarEvents(events, filters);
+								embeds = generateCalendarEmbeds(filteredEvents, EVENTS_PER_PAGE);
+
+								currentPage = 0;
+								selectedEvents = [];
+								maxPage = embeds.length;
+
+								const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+								const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
+								newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
+								if (newSelectButtons) {
+									newComponents.push(newSelectButtons);
+								}
+
+								message.edit({
+									embeds: [embeds[currentPage]],
+									components: newComponents
+								});
+							}, interaction, dm, content);
+							content = '';
+						} else {
+							singlePageMenus.push(component.generateActionRows()[0]);
+						}
+					});
+
+					// Send filter message
+					try {
+						filterMessage = await dm.send({
+							content: content,
+							components: singlePageMenus
+						});
+					} catch (error) {
+						console.error('Failed to send DM:', error);
+						await interaction.followUp({
+							content: "⚠️ I couldn't send you a DM. Please check your privacy settings.",
+							ephemeral: true
+						});
+						return;
+					}
+
+					// Create collectors for button and menu interactions.
+					const buttonCollector = message.createMessageComponentCollector({ time: 300000 });
+					const menuCollector = filterMessage.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 300000 });
+
+					buttonCollector.on('collect', async (btnInt: ButtonInteraction<CacheType>) => {
+						try {
+							await btnInt.deferUpdate();
+							if (btnInt.customId.startsWith('toggle-')) {
+								const eventIndex = Number(btnInt.customId.split('-')[1]) - 1;
+								const event = filteredEvents[(currentPage * EVENTS_PER_PAGE) + eventIndex];
+								if (selectedEvents.some((e) => e === event)) {
+									selectedEvents.splice(selectedEvents.indexOf(event), 1);
+									try {
+										const removeMsg = await dm.send(`Removed ${event.calEvent.summary}`);
+										setTimeout(async () => {
+											try {
+												await removeMsg.delete();
+											} catch (err) {
+												console.error('Failed to delete removal message:', err);
+											}
+										}, 3000);
+									} catch (err) {
+										console.error('Error sending removal message:', err);
+									}
+								} else {
+									selectedEvents.push(event);
+									try {
+										const addMsg = await dm.send(`Added ${event.calEvent.summary}`);
+										setTimeout(async () => {
+											try {
+												await addMsg.delete();
+											} catch (err) {
+												console.error('Failed to delete addition message:', err);
+											}
+										}, 3000);
+									} catch (err) {
+										console.error('Error sending addition message:', err);
+									}
+								}
+							} else if (btnInt.customId === 'next') {
+								if (currentPage + 1 >= maxPage) return;
+								currentPage++;
+							} else if (btnInt.customId === 'prev') {
+								if (currentPage === 0) return;
+								currentPage--;
+							} else if (btnInt.customId === 'download_Cal') {
+								if (selectedEvents.length === 0) {
+									await dm.send('No events selected to download!');
+									return;
+								}
+								const downloadMessage = await dm.send({ content: 'Downloading selected events...' });
+								try {
+									await downloadEvents(selectedEvents, calendars, interaction);
+									const filePath = path.join('./events.ics');
+									await downloadMessage.edit({
+										content: '',
+										files: [filePath]
+									});
+									fs.unlinkSync('./events.ics');
+								} catch {
+									await downloadMessage.edit({ content: '⚠️ Failed to download events' });
+								}
+							} else if (btnInt.customId === 'download_all') {
+								if (!filteredEvents.length) {
+									await dm.send('No events to download!');
+									return;
+								}
+								const downloadMessage = await dm.send({ content: 'Downloading all events...' });
+								try {
+									await downloadEvents(filteredEvents.flat(), calendars, interaction);
+									const filePath = path.join('./events.ics');
+									await downloadMessage.edit({
+										content: '',
+										files: [filePath]
+									});
+									fs.unlinkSync('./events.ics');
+								} catch {
+									await downloadMessage.edit({ content: '⚠️ Failed to download all events.' });
+								}
+							}
+
+
+							const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+							const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
+							newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
+							if (newSelectButtons) {
+								newComponents.push(newSelectButtons);
+							}
+
+							await message.edit({
+								embeds: [embeds[currentPage]],
+								components: newComponents
+							});
+						} catch (error) {
+							console.error('Button Collector Error:', error);
+							await btnInt.followUp({
+								content: '⚠️ An error occurred while navigating through events. Please try again.',
+								ephemeral: true
+							});
+						}
+					});
+
+					menuCollector.on('collect', async (i: StringSelectMenuInteraction<CacheType>) => {
+						await i.deferUpdate();
+						const filter = filters.find((fi) => fi.customId === i.customId);
+						if (filter) {
+							filter.newValues = i.values;
+						}
+
+						filteredEvents = await filterCalendarEvents(events, filters);
+						embeds = generateCalendarEmbeds(filteredEvents, EVENTS_PER_PAGE);
+
+						currentPage = 0;
+						selectedEvents = [];
+						maxPage = embeds.length;
+
+						const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+						const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
+						newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
+						if (newSelectButtons) {
+							newComponents.push(newSelectButtons);
+						}
+
+						message.edit({
+							embeds: [embeds[currentPage]],
+							components: newComponents
+						});
+					});
+				}
+			}, interaction, dm, '**Select Calendar**');
 		} catch (error) {
 			console.error('Failed to send DM:', error);
 			await interaction.followUp({
@@ -241,135 +389,6 @@ export default class extends Command {
 			});
 			return;
 		}
-
-		// Create collectors for button and menu interactions.
-		const buttonCollector = message.createMessageComponentCollector({ time: 300000 });
-		const menuCollector = filterMessage.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 300000 });
-
-		buttonCollector.on('collect', async (btnInt: ButtonInteraction<CacheType>) => {
-			try {
-				await btnInt.deferUpdate();
-				if (btnInt.customId.startsWith('toggle-')) {
-					const eventIndex = Number(btnInt.customId.split('-')[1]) - 1;
-					const event = filteredEvents[(currentPage * EVENTS_PER_PAGE) + eventIndex];
-					if (selectedEvents.some((e) => e === event)) {
-						selectedEvents.splice(selectedEvents.indexOf(event), 1);
-						try {
-							const removeMsg = await dm.send(`Removed ${event.calEvent.summary}`);
-							setTimeout(async () => {
-								try {
-									await removeMsg.delete();
-								} catch (err) {
-									console.error('Failed to delete removal message:', err);
-								}
-							}, 3000);
-						} catch (err) {
-							console.error('Error sending removal message:', err);
-						}
-					} else {
-						selectedEvents.push(event);
-						try {
-							const addMsg = await dm.send(`Added ${event.calEvent.summary}`);
-							setTimeout(async () => {
-								try {
-									await addMsg.delete();
-								} catch (err) {
-									console.error('Failed to delete addition message:', err);
-								}
-							}, 3000);
-						} catch (err) {
-							console.error('Error sending addition message:', err);
-						}
-					}
-				} else if (btnInt.customId === 'next') {
-					if (currentPage + 1 >= maxPage) return;
-					currentPage++;
-				} else if (btnInt.customId === 'prev') {
-					if (currentPage === 0) return;
-					currentPage--;
-				} else if (btnInt.customId === 'download_Cal') {
-					if (selectedEvents.length === 0) {
-						await dm.send('No events selected to download!');
-						return;
-					}
-					const downloadMessage = await dm.send({ content: 'Downloading selected events...' });
-					try {
-						await downloadEvents(selectedEvents, calendars, interaction);
-						const filePath = path.join('./events.ics');
-						await downloadMessage.edit({
-							content: '',
-							files: [filePath]
-						});
-						fs.unlinkSync('./events.ics');
-					} catch {
-						await downloadMessage.edit({ content: '⚠️ Failed to download events' });
-					}
-				} else if (btnInt.customId === 'download_all') {
-					if (!filteredEvents.length) {
-						await dm.send('No events to download!');
-						return;
-					}
-					const downloadMessage = await dm.send({ content: 'Downloading all events...' });
-					try {
-						await downloadEvents(filteredEvents.flat(), calendars, interaction);
-						const filePath = path.join('./events.ics');
-						await downloadMessage.edit({
-							content: '',
-							files: [filePath]
-						});
-						fs.unlinkSync('./events.ics');
-					} catch {
-						await downloadMessage.edit({ content: '⚠️ Failed to download all events.' });
-					}
-				}
-
-
-				const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-				const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
-				newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-				if (newSelectButtons) {
-					newComponents.push(newSelectButtons);
-				}
-
-				await message.edit({
-					embeds: [embeds[currentPage]],
-					components: newComponents
-				});
-			} catch (error) {
-				console.error('Button Collector Error:', error);
-				await btnInt.followUp({
-					content: '⚠️ An error occurred while navigating through events. Please try again.',
-					ephemeral: true
-				});
-			}
-		});
-
-		menuCollector.on('collect', async (i: StringSelectMenuInteraction<CacheType>) => {
-			await i.deferUpdate();
-			const filter = filters.find((fi) => fi.customId === i.customId);
-			if (filter) {
-				filter.newValues = i.values;
-			}
-
-			filteredEvents = await filterCalendarEvents(events, filters);
-			embeds = generateCalendarEmbeds(filteredEvents, EVENTS_PER_PAGE);
-
-			currentPage = 0;
-			selectedEvents = [];
-			maxPage = embeds.length;
-
-			const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-			const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
-			newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-			if (newSelectButtons) {
-				newComponents.push(newSelectButtons);
-			}
-
-			message.edit({
-				embeds: [embeds[currentPage]],
-				components: newComponents
-			});
-		});
 	}
 
 }

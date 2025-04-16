@@ -188,6 +188,7 @@ export class PagifiedSelectMenu {
 	 * @param {(ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[]} rows The action rows that contains the select menu and navigation buttons
 	 * @param {DMChannel} dmChannel Optional: Sends messages to given DM channel
 	 * @param {string} content Optional: Sets the message content
+	 * @returns {Promise<Message<boolean> | InteractionResponse<boolean>>} The message sent by the bot
 	 */
 	async generateMessage(
 		collectorLogic: (i: StringSelectMenuInteraction<CacheType>) => void,
@@ -250,9 +251,14 @@ export class PagifiedSelectMenu {
 	 * @param {ChatInputCommandInteraction} interaction The Discord interaction created by the called command
 	 * @param {DMChannel} dmChannel Optional: Sends messages to given DM channel
 	 * @param {string} content Optional: Sets the message content
+	 * @returns {Promise<Message<boolean> | InteractionResponse<boolean>>} The message sent by the bot
 	 */
-	async generateRowsAndSendMenu(collectorLogic: (i: StringSelectMenuInteraction<CacheType>) => void, interaction: ChatInputCommandInteraction, dmChannel?: DMChannel, content?: string): Promise<void> {
-		await this.generateMessage(collectorLogic, interaction, this.generateActionRows(), dmChannel, content);
+	async generateRowsAndSendMenu(
+		collectorLogic: (i: StringSelectMenuInteraction<CacheType>) => void,
+		interaction: ChatInputCommandInteraction,
+		dmChannel?: DMChannel,
+		content?: string): Promise<Message<boolean> | InteractionResponse<boolean>> {
+		return await this.generateMessage(collectorLogic, interaction, this.generateActionRows(), dmChannel, content);
 	}
 
 }
