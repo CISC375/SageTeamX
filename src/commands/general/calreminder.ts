@@ -1,8 +1,6 @@
-/* eslint-disable */
 import { DB } from "@root/config";
 import { Command } from "@root/src/lib/types/Command";
 import { Reminder } from "@root/src/lib/types/Reminder";
-import { reminderTime } from "@root/src/lib/utils/generalUtils";
 import {
 	ActionRowBuilder,
 	ApplicationCommandOptionData,
@@ -48,15 +46,17 @@ export default class extends Command {
 					placeHolder: "Select an event",
 					minimumValues: 1,
 				});
+				let defaultSet = false;
+
 				filteredEvents.forEach((event, index) => {
-					let isDefault: boolean = false;
-					if (chosenEvent) {
-						if (
-							chosenEvent.start.dateTime === event.start.dateTime
-						) {
-							isDefault = true;
-						}
-					}
+					if (!event.start?.dateTime) return;
+
+					const isDefault =
+						!defaultSet &&
+						chosenEvent?.start?.dateTime === event.start?.dateTime;
+
+					if (isDefault) defaultSet = true;
+
 					eventMenu.addOption({
 						label: event.summary,
 						value: `${event.start.dateTime}::${index}`,
@@ -66,6 +66,7 @@ export default class extends Command {
 						default: isDefault,
 					});
 				});
+
 				eventMenu.currentPage = eventCurrentPage;
 
 				// Create offset select menu
@@ -83,19 +84,22 @@ export default class extends Command {
 					placeHolder: "Select reminder offset",
 					maximumValues: 1,
 				});
+
+				let offsetDefaultSet = false;
+
 				offsetOptions.forEach((option) => {
-					let isDefault: boolean = false;
-					if (chosenOffset) {
-						if (chosenOffset === parse(option.value)) {
-							isDefault = true;
-						}
-					}
+					const isDefault =
+						!offsetDefaultSet &&
+						chosenOffset === parse(option.value);
+					if (isDefault) offsetDefaultSet = true;
+
 					offsetMenu.addOption({
 						label: option.label,
 						value: option.value,
 						default: isDefault,
 					});
 				});
+
 				offsetMenu.currentPage = offsetCurrentPage;
 			}
 
@@ -139,12 +143,25 @@ export default class extends Command {
 			"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com",
 			interaction
 		);
+
 		if (!events) {
+			await interaction.reply({
+				content:
+					"⚠️ Failed to fetch calendar events. Please try again later.",
+				ephemeral: true,
+			});
 			return;
 		}
 
 		// Command input
 		const className = interaction.options.getString("classname");
+		if (!className) {
+			await interaction.reply({
+				content: "❗ You must specify a class name.",
+				ephemeral: true,
+			});
+			return;
+		}
 
 		// Filter events
 		const filteredEvents = events.filter((event) =>
@@ -262,10 +279,22 @@ export default class extends Command {
 					repeat: repeatInterval,
 				};
 
-				const result = await btnInt.client.mongo
-					.collection(DB.REMINDERS)
-					.insertOne(reminder);
-				activeReminderId = result.insertedId;
+				let result;
+				try {
+					result = await btnInt.client.mongo
+						.collection(DB.REMINDERS)
+						.insertOne(reminder);
+					activeReminderId = result.insertedId;
+				} catch (err) {
+					console.error("Failed to insert reminder:", err);
+					await btnInt.editReply({
+						content:
+							"❌ Failed to save reminder. Please try again later.",
+						components: [],
+					});
+					buttonCollector.stop();
+					return;
+				}
 
 				// Build Cancel button row
 				const cancelButton = new ButtonBuilder()
