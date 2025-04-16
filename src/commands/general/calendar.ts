@@ -60,7 +60,7 @@ export default class extends Command {
 		const filters: Filter[] = [
 			{
 				customId: 'calendar_menu',
-				placeholder: 'Select Calendar',
+				placeholder: 'Select Course',
 				values: [],
 				newValues: [],
 				flag: true,
@@ -155,7 +155,7 @@ export default class extends Command {
 		const calendarSelectMenu = new PagifiedSelectMenu();
 		calendarSelectMenu.createSelectMenu(
 			{
-				customId: `${calendarFilter.customId}1`,
+				customId: `${calendarFilter.customId}0`,
 				placeHolder: calendarFilter.placeholder,
 				minimumValues: 0
 			}
@@ -166,7 +166,7 @@ export default class extends Command {
 		try {
 			message = await calendarSelectMenu.generateRowsAndSendMenu(async (menuI) => {
 				await menuI.deferUpdate();
-				if (menuI.customId === 'calendar_menu1') {
+				if (menuI.customId === 'calendar_menu0') {
 					// Add selected calendar into the new values array of the calendar filter
 					calendarFilter.newValues = menuI.values;
 
@@ -373,7 +373,7 @@ export default class extends Command {
 						});
 					});
 				}
-			}, interaction, dm, '**Select Calendar**');
+			}, interaction, dm, '**Select Course**');
 		} catch (error) {
 			console.error('Failed to send DM:', error);
 			await interaction.followUp({
