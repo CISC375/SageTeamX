@@ -124,9 +124,9 @@ export default class extends Command {
 
 		// Add all calendar menu names to calendar menu filter
 		const events: Event[] = [];
-		const calendarMenu = filters.find((fi) => fi.customId === 'calendar_menu');
-		if (calendarMenu) {
-			calendarMenu.values = calendars.map((c) => c.calendarName);
+		const calendarFilter = filters.find((filter) => filter.customId === 'calendar_menu');
+		if (calendarFilter) {
+			calendarFilter.values = calendars.map((c) => c.calendarName);
 		}
 
 		// Retrieve events from every calendar in the database
@@ -148,34 +148,10 @@ export default class extends Command {
 				new Date(b.calEvent.start?.dateTime || b.calEvent.start?.date).getTime()
 		);
 
-		// Filter inital events
-		let filteredEvents: Event[] = await filterCalendarEvents(events, filters);
-		if (!filteredEvents.length) {
-			await interaction.followUp({
-				content: 'No matching events found based on your filters. Please adjust your search criteria.',
-				ephemeral: true
-			});
-			return;
-		}
-
-		// Create initial embed
-		let embeds = generateCalendarEmbeds(filteredEvents, EVENTS_PER_PAGE);
-		let maxPage: number = embeds.length;
-
-		// Create initial componenets
-		const initialComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-		const selectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
-		initialComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-		if (selectButtons) {
-			initialComponents.push(selectButtons);
-		}
-
-
 		// Send dm with first embed in the embeds array and the initial componenets
 		const dm = await interaction.user.createDM();
 		let message: Message<boolean> | InteractionResponse<boolean>;
 		let filterMessage: Message<false>;
-		const calendarFilter = filters.find((filter) => filter.customId === 'calendar_menu');
 		const calendarSelectMenu = new PagifiedSelectMenu();
 		calendarSelectMenu.createSelectMenu(
 			{
@@ -189,8 +165,31 @@ export default class extends Command {
 		});
 		try {
 			message = await calendarSelectMenu.generateRowsAndSendMenu(async (menuI) => {
+				await menuI.deferUpdate();
 				if (menuI.customId === 'calendar_menu1') {
 					calendarFilter.newValues = menuI.values;
+					// Filter inital events
+					let filteredEvents: Event[] = await filterCalendarEvents(events, filters);
+					if (!filteredEvents.length) {
+						await interaction.followUp({
+							content: 'No matching events found based on your filters. Please adjust your search criteria.',
+							ephemeral: true
+						});
+						return;
+					}
+
+					// Create initial embed
+					let embeds = generateCalendarEmbeds(filteredEvents, EVENTS_PER_PAGE);
+					let maxPage: number = embeds.length;
+
+					// Create initial componenets
+					const initialComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+					const selectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
+					initialComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
+					if (selectButtons) {
+						initialComponents.push(selectButtons);
+					}
+
 					message.edit({
 						embeds: [embeds[currentPage]],
 						components: initialComponents
