@@ -148,7 +148,7 @@ export default class extends Command {
 				new Date(b.calEvent.start?.dateTime || b.calEvent.start?.date).getTime()
 		);
 
-		// Send dm with first embed in the embeds array and the initial componenets
+		// Send inital dm to ask user to select calendar events to display
 		const dm = await interaction.user.createDM();
 		let message: Message<boolean> | InteractionResponse<boolean>;
 		let filterMessage: Message<false>;
@@ -167,7 +167,9 @@ export default class extends Command {
 			message = await calendarSelectMenu.generateRowsAndSendMenu(async (menuI) => {
 				await menuI.deferUpdate();
 				if (menuI.customId === 'calendar_menu1') {
+					// Add selected calendar into the new values array of the calendar filter
 					calendarFilter.newValues = menuI.values;
+
 					// Filter inital events
 					let filteredEvents: Event[] = await filterCalendarEvents(events, filters);
 					if (!filteredEvents.length) {
@@ -190,6 +192,7 @@ export default class extends Command {
 						initialComponents.push(selectButtons);
 					}
 
+					// Edit dm with first embed in the embeds array and the initial componenets
 					message.edit({
 						embeds: [embeds[currentPage]],
 						components: initialComponents
@@ -236,19 +239,10 @@ export default class extends Command {
 					});
 
 					// Send filter message
-					try {
-						filterMessage = await dm.send({
-							content: content,
-							components: singlePageMenus
-						});
-					} catch (error) {
-						console.error('Failed to send DM:', error);
-						await interaction.followUp({
-							content: "⚠️ I couldn't send you a DM. Please check your privacy settings.",
-							ephemeral: true
-						});
-						return;
-					}
+					filterMessage = await dm.send({
+						content: content,
+						components: singlePageMenus
+					});
 
 					// Create collectors for button and menu interactions.
 					const buttonCollector = message.createMessageComponentCollector({ time: 300000 });
