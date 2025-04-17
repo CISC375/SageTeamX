@@ -172,10 +172,11 @@ export function generateCalendarFilterMessage(filters: Filter[]): PagifiedSelect
 }
 
 /**
+ * This function will generate select buttons for each event on the given embed (up to 5 events)
  *
- * @param {EmbedBuilder} embed ...
- * @param {Event[]} events ...
- * @returns {ActionRowBuilder<ButtonBuilder>} ...
+ * @param {EmbedBuilder} embed The embed to generate buttons for
+ * @param {Event[]} events All of the events retrieved from the google calendar
+ * @returns {ActionRowBuilder<ButtonBuilder>} An action row containing all of the select butttons
  */
 export function generateEventSelectButtons(embed: EmbedBuilder, events: Event[]): ActionRowBuilder<ButtonBuilder> | void {
 	const selectEventButtons: ButtonBuilder[] = [];
