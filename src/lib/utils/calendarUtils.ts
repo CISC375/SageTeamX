@@ -209,20 +209,13 @@ export function generateEventSelectButtons(embed: EmbedBuilder, events: Event[])
  * Creates an ics file containing all of the selected events
  *
  * @param {Event[]} selectedEvents The selected events to download
- * @param {{calendarId: string, calendarName: string}[]} calendars An arry of all of the calendars retrived from MongoDB
+ * @param {{calendarId: string, calendarName: string}} calendar An arry of all of the calendars retrived from MongoDB
  * @param {ChatInputCommandInteraction} interaction The interaction created by calling /calendar
  */
-export async function downloadEvents(selectedEvents: Event[], calendars: {calendarId: string, calendarName: string}[], interaction: ChatInputCommandInteraction): Promise<void> {
+export async function downloadEvents(selectedEvents: Event[], calendar: {calendarId: string, calendarName: string}, interaction: ChatInputCommandInteraction): Promise<void> {
 	const formattedEvents: string[] = [];
-	const parentEvents: calendar_v3.Schema$Event[] = [];
-
-	for (const calendar of calendars) {
-		const newParentEvents = await retrieveEvents(calendar.calendarId, interaction, false);
-		parentEvents.push(...newParentEvents);
-	}
-
+	const parentEvents: calendar_v3.Schema$Event[] = await retrieveEvents(calendar.calendarId, interaction, false);
 	const recurrenceRules: Record<string, string> = Object.fromEntries(parentEvents.map((event) => [event.id, event.recurrence[0]]));
-
 	const recurringIds: Set<string> = new Set();
 
 	selectedEvents.forEach((event) => {

@@ -16,7 +16,6 @@ import { Command } from '@lib/types/Command';
 import 'dotenv/config';
 import { MongoClient } from 'mongodb';
 import * as fs from 'fs';
-import { CALENDAR_CONFIG } from '@lib/CalendarConfig';
 import { retrieveEvents } from '@root/src/lib/auth';
 import path from 'path';
 import
@@ -30,7 +29,6 @@ import
 	Event } from '@root/src/lib/utils/calendarUtils';
 
 // Define global constants
-const MASTER_CALENDAR_ID = CALENDAR_CONFIG.MASTER_ID;
 const MONGO_URI = process.env.DB_CONN_STRING || '';
 const DB_NAME = 'CalendarDatabase';
 const COLLECTION_NAME = 'calendarIds';
@@ -45,9 +43,9 @@ export default class extends Command {
 	options: ApplicationCommandStringOptionData[] = [
 		{
 			type: ApplicationCommandOptionType.String,
-			name: 'classname',
-			description: 'Enter the event holder (e.g., class name).',
-			required: false
+			name: 'coursecode',
+			description: 'Enter the course code for the class calendar you want (e.g., cisc108).',
+			required: true
 		}
 	];
 
@@ -55,6 +53,7 @@ export default class extends Command {
 		// Define local variables
 		let currentPage = 0;
 		let selectedEvents: Event[] = [];
+		const courseCode = interaction.options.getString(this.options[0].name, this.options[0].required);
 		const filters: Filter[] = [
 			{
 				customId: 'location_type_menu',
@@ -91,36 +90,29 @@ export default class extends Command {
 			ephemeral: true
 		});
 
-		// Fetch calendar IDs from MongoDB.
+		// Fetch the calendar from the database that matches with the inputed course code.
 		const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
 		await client.connect();
 		const db = client.db(DB_NAME);
 		const collection = db.collection(COLLECTION_NAME);
-		const calendarDocs = await collection.find().toArray();
+		const calendarInDB = await collection.findOne({ calendarName: courseCode });
+		console.log(calendarInDB);
 		await client.close();
-		const calendars: {calendarId: string, calendarName: string}[] = calendarDocs.map((doc) => ({
-			calendarId: doc.calendarId,
-			calendarName: doc.calendarName || 'Unnamed Calendar'
-		}));
-		if (!calendars.some((c) => c.calendarId === MASTER_CALENDAR_ID)) {
-			calendars.push({
-				calendarId: MASTER_CALENDAR_ID,
-				calendarName: 'Master Calendar'
-			});
-		}
+		const calendar: {calendarId: string, calendarName: string} = {
+			calendarId: calendarInDB.calendarId,
+			calendarName: calendarInDB.calendarName
+		};
 
 		// Retrieve events from every calendar in the database
 		const events: Event[] = [];
-		await Promise.all(calendars.map(async (cal) => {
-			const retrivedEvents = await retrieveEvents(cal.calendarId, interaction);
-			if (retrivedEvents === null) {
-				return;
-			}
-			retrivedEvents.forEach((retrivedEvent) => {
-				const newEvent: Event = { calEvent: retrivedEvent, calendarName: cal.calendarName };
-				events.push(newEvent);
-			});
-		}));
+		const retrivedEvents = await retrieveEvents(calendar.calendarId, interaction);
+		if (retrivedEvents === null) {
+			return;
+		}
+		retrivedEvents.forEach((retrivedEvent) => {
+			const newEvent: Event = { calEvent: retrivedEvent, calendarName: calendar.calendarName };
+			events.push(newEvent);
+		});
 
 		// Sort the events by date
 		events.sort(
@@ -276,7 +268,7 @@ export default class extends Command {
 					}
 					const downloadMessage = await dm.send({ content: 'Downloading selected events...' });
 					try {
-						await downloadEvents(selectedEvents, calendars, interaction);
+						await downloadEvents(selectedEvents, calendar, interaction);
 						const filePath = path.join('./events.ics');
 						await downloadMessage.edit({
 							content: '',
@@ -293,7 +285,7 @@ export default class extends Command {
 					}
 					const downloadMessage = await dm.send({ content: 'Downloading all events...' });
 					try {
-						await downloadEvents(filteredEvents.flat(), calendars, interaction);
+						await downloadEvents(filteredEvents.flat(), calendar, interaction);
 						const filePath = path.join('./events.ics');
 						await downloadMessage.edit({
 							content: '',
