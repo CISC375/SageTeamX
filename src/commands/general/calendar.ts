@@ -91,17 +91,22 @@ export default class extends Command {
 		});
 
 		// Fetch the calendar from the database that matches with the inputed course code.
-		const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
-		await client.connect();
-		const db = client.db(DB_NAME);
-		const collection = db.collection(COLLECTION_NAME);
-		const calendarInDB = await collection.findOne({ calendarName: courseCode });
-		console.log(calendarInDB);
-		await client.close();
-		const calendar: {calendarId: string, calendarName: string} = {
-			calendarId: calendarInDB.calendarId,
-			calendarName: calendarInDB.calendarName
-		};
+		let calendar: {calendarId: string, calendarName: string};
+		try {
+			const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
+			await client.connect();
+			const db = client.db(DB_NAME);
+			const collection = db.collection(COLLECTION_NAME);
+			const calendarInDB = await collection.findOne({ calendarName: courseCode });
+			await client.close();
+			calendar = { calendarId: calendarInDB.calendarId, calendarName: calendarInDB.calendarName };
+		} catch (error) {
+			await interaction.followUp({
+				content: `There are no matching calendars with course code **${courseCode}**.`,
+				ephemeral: true
+			});
+			return;
+		}
 
 		// Retrieve events from every calendar in the database
 		const events: Event[] = [];
@@ -121,15 +126,8 @@ export default class extends Command {
 				new Date(b.calEvent.start?.dateTime || b.calEvent.start?.date).getTime()
 		);
 
-		// Filter inital events
-		let filteredEvents: Event[] = await filterCalendarEvents(events, filters);
-		if (!filteredEvents.length) {
-			await interaction.followUp({
-				content: 'No matching events found based on your filters. Please adjust your search criteria.',
-				ephemeral: true
-			});
-			return;
-		}
+		// Create a filtered events variable to keep the original array intact
+		let filteredEvents: Event[] = events;
 
 		// Create initial embed
 		let embeds = generateCalendarEmbeds(filteredEvents, EVENTS_PER_PAGE);
