@@ -216,7 +216,7 @@ export function generateEventSelectButtons(embed: EmbedBuilder, events: Event[])
 export async function downloadEvents(selectedEvents: Event[], calendar: {calendarId: string, calendarName: string}, interaction: ChatInputCommandInteraction): Promise<void> {
 	const formattedEvents: string[] = [];
 	const parentEvents: calendar_v3.Schema$Event[] = await retrieveEvents(calendar.calendarId, interaction, false);
-	const recurrenceRules: Record<string, string> = Object.fromEntries(parentEvents.map((event) => [event.id, event.recurrence[0]]));
+	const recurrenceRules: Record<string, string[]> = Object.fromEntries(parentEvents.map((event) => [event.id, event.recurrence]));
 	const recurringIds: Set<string> = new Set();
 
 	selectedEvents.forEach((event) => {
@@ -251,7 +251,7 @@ export async function downloadEvents(selectedEvents: Event[], calendar: {calenda
 			DESCRIPTION:${iCalEvent.DESCRIPTION}
 			LOCATION:${iCalEvent.LOCATION}
 			STATUS:CONFIRMED
-			${event.calEvent.recurringEventId ? recurrenceRules[event.calEvent.recurringEventId] : ''}
+			${event.calEvent.recurringEventId ? recurrenceRules[event.calEvent.recurringEventId].join('\n') : ''}
 			END:VEVENT
 			`.replace(/\t/g, '');
 			formattedEvents.push(icsFormatted);
