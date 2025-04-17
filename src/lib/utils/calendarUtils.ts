@@ -206,6 +206,12 @@ export function generateEventSelectButtons(embed: EmbedBuilder, events: Event[])
 	}
 }
 
+function formatTime(dateTimeString: string) {
+	const [date, time] = dateTimeString.split('T');
+	const formattedTime = time.split(/[-+]/)[0];
+	return `${date}T${formattedTime}`.replace(/[-:.]/g, '');
+}
+
 /**
  * Creates an ics file containing all of the selected events
  *
@@ -225,8 +231,8 @@ export async function downloadEvents(selectedEvents: Event[], calendar: {calenda
 			UID: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
 			CREATED: new Date(event.calEvent.created).toISOString().replace(/[-:.]/g, ''),
 			DTSTAMP: event.calEvent.updated.replace(/[-:.]/g, ''),
-			DTSTART: `TZID=${event.calEvent.start.timeZone}:${event.calEvent.start.dateTime.replace(/[-:.]/g, '')}`,
-			DTEND: `TZID=${event.calEvent.end.timeZone}:${event.calEvent.end.dateTime.replace(/[-:.]/g, '')}`,
+			DTSTART: `TZID=${event.calEvent.start.timeZone}:${formatTime(event.calEvent.start.dateTime)}`,
+			DTEND: `TZID=${event.calEvent.end.timeZone}:${formatTime(event.calEvent.end.dateTime)}`,
 			SUMMARY: event.calEvent.summary,
 			DESCRIPTION: `Contact Email: ${event.calEvent.creator.email || 'NA'}`,
 			LOCATION: event.calEvent.location ? event.calEvent.location : 'NONE'

@@ -44,7 +44,7 @@ export default class extends Command {
 		{
 			type: ApplicationCommandOptionType.String,
 			name: 'coursecode',
-			description: 'Enter the course code for the class calendar you want (e.g., cisc108).',
+			description: 'Enter the course code for the class calendar you want (e.g., CISC108).',
 			required: true
 		}
 	];
@@ -107,7 +107,7 @@ export default class extends Command {
 			return;
 		}
 
-		// Retrieve events from every calendar in the database
+		// Retrieve events from selected calendar
 		const events: Event[] = [];
 		const retrivedEvents = await retrieveEvents(calendar.calendarId, interaction);
 		if (retrivedEvents === null) {
