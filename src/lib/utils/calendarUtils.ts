@@ -163,13 +163,7 @@ export function generateCalendarFilterMessage(filters: Filter[]): PagifiedSelect
 		);
 
 		filter.values.forEach((value) => {
-			let isDefault = false;
-			if (filter.newValues[0]) {
-				if (filter.newValues[0].toLowerCase() === value.toLowerCase()) {
-					isDefault = true;
-				}
-			}
-			filterMenu.addOption({ label: value, value: value.toLowerCase(), default: isDefault });
+			filterMenu.addOption({ label: value, value: value.toLowerCase() });
 		});
 		return filterMenu;
 	});
