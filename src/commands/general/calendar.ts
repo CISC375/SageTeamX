@@ -85,8 +85,8 @@ export default class extends Command {
 		// ************************************************************************************************* //
 
 		// Initial reply to acknowledge the interaction.
-		await interaction.reply({
-			content: 'Authenticating and fetching events...',
+		const initalReply = await interaction.reply({
+			content: 'Fetching events. This may take a few moments...',
 			ephemeral: true
 		});
 
@@ -101,9 +101,8 @@ export default class extends Command {
 			await client.close();
 			calendar = { calendarId: calendarInDB.calendarId, calendarName: calendarInDB.calendarName };
 		} catch (error) {
-			await interaction.followUp({
-				content: `There are no matching calendars with course code **${courseCode}**.`,
-				ephemeral: true
+			await initalReply.edit({
+				content: `⚠️ There are no matching calendars with course code **${courseCode}**.`
 			});
 			return;
 		}
