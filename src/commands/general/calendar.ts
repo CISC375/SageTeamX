@@ -28,7 +28,7 @@ import
 	generateCalendarFilterMessage,
 	Event } from '@root/src/lib/utils/calendarUtils';
 
-// Define global constants
+// Global constants
 const MONGO_URI = process.env.DB_CONN_STRING || '';
 const DB_NAME = 'CalendarDatabase';
 const COLLECTION_NAME = 'calendarIds';
@@ -50,7 +50,7 @@ export default class extends Command {
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		// Define local variables
+		// Local variables
 		let currentPage = 0;
 		let selectedEvents: Event[] = [];
 		const courseCode = interaction.options.getString(this.options[0].name, this.options[0].required);
