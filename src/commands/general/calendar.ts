@@ -97,7 +97,7 @@ export default class extends Command {
 			await client.connect();
 			const db = client.db(DB_NAME);
 			const collection = db.collection(COLLECTION_NAME);
-			const calendarInDB = await collection.findOne({ calendarName: courseCode });
+			const calendarInDB = await collection.findOne({ calendarName: courseCode.toUpperCase() });
 			await client.close();
 			calendar = { calendarId: calendarInDB.calendarId, calendarName: calendarInDB.calendarName };
 		} catch (error) {

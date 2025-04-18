@@ -206,7 +206,13 @@ export function generateEventSelectButtons(embed: EmbedBuilder, events: Event[])
 	}
 }
 
-function formatTime(dateTimeString: string) {
+/**
+ * Helper function for download events that formats the date and time properly
+ *
+ * @param {string} dateTimeString The date and time string to be formatted
+ * @returns {string} The formatted version of the date and time
+ */
+function formatTime(dateTimeString: string): string {
 	const [date, time] = dateTimeString.split('T');
 	const formattedTime = time.split(/[-+]/)[0];
 	return `${date}T${formattedTime}`.replace(/[-:.]/g, '');
