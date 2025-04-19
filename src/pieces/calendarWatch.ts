@@ -8,7 +8,7 @@ async function register(): Promise<void> {
 		requestBody: {
 			id: randomUUID(),
 			type: 'web_hook',
-			address: 'localhost:3001'
+			address: 'localhost:3001/calendarWebhook'
 		}
 	}));
 }
