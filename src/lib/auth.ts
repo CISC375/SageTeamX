@@ -90,3 +90,14 @@ export async function retrieveEvents(calendarId: string, interaction?: ChatInput
 
 	return events;
 }
+
+export async function retrieveCalendarToken(): Promise<calendar_v3.Calendar> {
+	// Retrieve an authenticaiton token
+	const auth = new JWT({
+		keyFile: KEY_PATH,
+		scopes: SCOPES
+	});
+
+	// Authorize access to google calendar and retrieve the calendar
+	return google.calendar({ version: 'v3', auth: auth });
+}
