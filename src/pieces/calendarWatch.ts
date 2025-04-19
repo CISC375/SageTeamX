@@ -1,5 +1,8 @@
 import { randomUUID } from 'crypto';
 import { retrieveCalendarToken } from '../lib/auth';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 async function register(): Promise<void> {
 	const calendar = await retrieveCalendarToken();
@@ -8,7 +11,7 @@ async function register(): Promise<void> {
 		requestBody: {
 			id: randomUUID(),
 			type: 'web_hook',
-			address: ''
+			address: process.env.WEBHOOK_ADDRESS
 		}
 	}));
 }
