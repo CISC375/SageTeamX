@@ -3,7 +3,9 @@ import { calendar_v3, google } from 'googleapis';
 import { JWT } from 'google-auth-library';
 import { ChatInputCommandInteraction } from 'discord.js';
 import { GaxiosResponse } from 'gaxios';
+import dotenv from 'dotenv';
 
+dotenv.config();
 const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 const KEY_PATH = process.env.MYPATH;
 
@@ -17,6 +19,7 @@ const KEY_PATH = process.env.MYPATH;
  */
 export async function retrieveEvents(calendarId: string, interaction?: ChatInputCommandInteraction, singleEvents = true): Promise<calendar_v3.Schema$Event[]> {
 	// Retrieve an authenticaiton token
+	console.log(KEY_PATH);
 	const auth = new JWT({
 		keyFile: KEY_PATH,
 		scopes: SCOPES
