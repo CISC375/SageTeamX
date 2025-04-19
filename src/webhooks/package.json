@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/calendarWebhook.ts",
-	"build": "tsc",
-	"start": "node dist/calendarWebhook.js"
+    "build": "tsc",
+    "start": "node dist/calendarWebhook.js"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +16,7 @@
     "@types/node": "^22.14.1",
     "express": "^5.1.0",
     "nodemon": "^3.1.9",
+    "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }
 }
