@@ -15,9 +15,10 @@ const KEY_PATH = process.env.MYPATH;
  * @param {string} calendarId The ID of the calendar you want to retrieve
  * @param {ChatInputCommandInteraction} interaction Optional: Current Discord interacton
  * @param {boolean} singleEvents Optional: Determines whether to list out each event instead of just the parent events - Default: true
+ * @param {string} syncToken ...
  * @returns {Promise<GaxiosResponse<calendar_v3.Schema$Events>>} Return the events of the given calendar ID
  */
-export async function retrieveEvents(calendarId: string, interaction?: ChatInputCommandInteraction, singleEvents = true): Promise<calendar_v3.Schema$Event[]> {
+export async function retrieveEvents(calendarId: string, interaction?: ChatInputCommandInteraction, singleEvents = true, syncToken = ''): Promise<calendar_v3.Schema$Event[]> {
 	// Retrieve an authenticaiton token
 	console.log(KEY_PATH);
 	const auth = new JWT({
@@ -60,7 +61,8 @@ export async function retrieveEvents(calendarId: string, interaction?: ChatInput
 				timeMin: new Date().toISOString(),
 				timeMax: new Date(Date.now() + (10 * 24 * 60 * 60 * 1000)).toISOString(),
 				singleEvents: singleEvents,
-				orderBy: 'startTime'
+				orderBy: 'startTime',
+				syncToken: syncToken
 			});
 		} else {
 			response = await calendar.events.list({
@@ -103,4 +105,23 @@ export async function retrieveCalendarToken(): Promise<calendar_v3.Calendar> {
 
 	// Authorize access to google calendar and retrieve the calendar
 	return google.calendar({ version: 'v3', auth: auth });
+}
+
+export async function retrieveSyncToken(syncToken?: string): Promise<string> {
+	const auth = new JWT({
+		keyFile: KEY_PATH,
+		scopes: SCOPES
+	});
+
+	const calendar = google.calendar({ version: 'v3', auth: auth });
+	const response = await calendar.events.list({
+		calendarId: 'c_8f94fb19936943d5980f19eac62aeb0c9379581cfbad111862852765f624bb1b@group.calendar.google.com',
+		timeMin: new Date().toISOString(),
+		timeMax: new Date(Date.now() + (10 * 24 * 60 * 60 * 1000)).toISOString(),
+		singleEvents: true,
+		orderBy: 'startTime',
+		syncToken: syncToken
+	});
+
+	return response.data.nextSyncToken;
 }
