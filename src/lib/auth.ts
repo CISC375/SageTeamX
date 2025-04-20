@@ -18,9 +18,8 @@ const KEY_PATH = process.env.MYPATH;
  * @param {string} syncToken ...
  * @returns {Promise<GaxiosResponse<calendar_v3.Schema$Events>>} Return the events of the given calendar ID
  */
-export async function retrieveEvents(calendarId: string, interaction?: ChatInputCommandInteraction, singleEvents = true, syncToken = ''): Promise<calendar_v3.Schema$Event[]> {
+export async function retrieveEvents(calendarId: string, interaction?: ChatInputCommandInteraction, singleEvents = true, syncToken?: string): Promise<calendar_v3.Schema$Event[]> {
 	// Retrieve an authenticaiton token
-	console.log(KEY_PATH);
 	const auth = new JWT({
 		keyFile: KEY_PATH,
 		scopes: SCOPES
@@ -55,14 +54,19 @@ export async function retrieveEvents(calendarId: string, interaction?: ChatInput
 		let response: GaxiosResponse;
 
 		// This makes sure events are only sorted if single events is true
-		if (singleEvents) {
+		if (syncToken) {
+			response = await calendar.events.list({
+				calendarId: calendarId,
+				syncToken: syncToken,
+				singleEvents: singleEvents
+			});
+		} else if (singleEvents) {
 			response = await calendar.events.list({
 				calendarId: calendarId,
 				timeMin: new Date().toISOString(),
 				timeMax: new Date(Date.now() + (10 * 24 * 60 * 60 * 1000)).toISOString(),
 				singleEvents: singleEvents,
-				orderBy: 'startTime',
-				syncToken: syncToken
+				orderBy: 'startTime'
 			});
 		} else {
 			response = await calendar.events.list({
@@ -103,25 +107,62 @@ export async function retrieveCalendarToken(): Promise<calendar_v3.Calendar> {
 		scopes: SCOPES
 	});
 
-	// Authorize access to google calendar and retrieve the calendar
+	// Authorize access to google calendar
 	return google.calendar({ version: 'v3', auth: auth });
 }
 
-export async function retrieveSyncToken(syncToken?: string): Promise<string> {
+export async function retrieveSyncToken(calendarId: string, syncToken?: string): Promise<string> {
+	// Local variables
+	let pageToken: string = null;
+
+	// Retrieve an authenticaiton token
 	const auth = new JWT({
 		keyFile: KEY_PATH,
 		scopes: SCOPES
 	});
 
-	const calendar = google.calendar({ version: 'v3', auth: auth });
-	const response = await calendar.events.list({
-		calendarId: 'c_8f94fb19936943d5980f19eac62aeb0c9379581cfbad111862852765f624bb1b@group.calendar.google.com',
-		timeMin: new Date().toISOString(),
-		timeMax: new Date(Date.now() + (10 * 24 * 60 * 60 * 1000)).toISOString(),
-		singleEvents: true,
-		orderBy: 'startTime',
-		syncToken: syncToken
-	});
+	// Authorize access to google calendar
+	let calendar: calendar_v3.Calendar = null;
+	try {
+		calendar = google.calendar({ version: 'v3', auth: auth });
+	} catch (error) {
+		console.log(error);
+	}
 
-	return response.data.nextSyncToken;
+	// Retrieve the sync token from calendar evetns
+	let response: GaxiosResponse<calendar_v3.Schema$Events>;
+	try {
+		if (syncToken) {
+			response = await calendar.events.list({
+				calendarId: calendarId,
+				syncToken: syncToken
+			});
+		} else {
+			response = await calendar.events.list({
+				calendarId: calendarId,
+				timeMin: new Date().toISOString(),
+				timeMax: new Date(Date.now() + (10 * 24 * 60 * 60 * 1000)).toISOString(),
+				singleEvents: true,
+				orderBy: 'startTime'
+			});
+		}
+
+		syncToken = response.data.nextSyncToken;
+		pageToken = response.data.nextPageToken;
+		while (pageToken && !syncToken) {
+			response = await calendar.events.list({
+				calendarId: calendarId,
+				pageToken: pageToken
+			});
+
+			pageToken = response.data.nextPageToken;
+			if (pageToken === null) {
+				syncToken = response.data.nextSyncToken;
+			}
+		}
+	} catch (error) {
+		console.log(error);
+	}
+
+	return syncToken;
 }

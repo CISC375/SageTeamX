@@ -20,10 +20,12 @@ webhook.post('/calendarWebhook', async () => {
 	if (syncTokens.length) {
 		const syncToken: string = syncTokens[0].token;
 		const changedEvents = await retrieveEvents('c_8f94fb19936943d5980f19eac62aeb0c9379581cfbad111862852765f624bb1b@group.calendar.google.com', null, true, syncToken);
+		const newSyncToken = await retrieveSyncToken('c_8f94fb19936943d5980f19eac62aeb0c9379581cfbad111862852765f624bb1b@group.calendar.google.com', syncToken);
+		await collection.updateOne({ token: syncToken }, { token: newSyncToken });
 		console.log(changedEvents);
 	} else {
-		const token = await retrieveSyncToken();
-		await collection.insert({ token: token });
+		const token = await retrieveSyncToken('c_8f94fb19936943d5980f19eac62aeb0c9379581cfbad111862852765f624bb1b@group.calendar.google.com');
+		await collection.insertOne({ token: token });
 	}
 	await client.close();
 });
