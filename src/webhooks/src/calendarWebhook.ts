@@ -11,7 +11,8 @@ const COLLECTION_NAME = 'syncTokens';
 const webhook = express();
 const PORT = 3001;
 
-webhook.post('/calendarWebhook', async () => {
+webhook.post('/calendarWebhook', async (req) => {
+	console.log(req.headers);
 	const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
 	await client.connect();
 	const db = client.db(DB_NAME);
@@ -21,7 +22,7 @@ webhook.post('/calendarWebhook', async () => {
 		const syncToken: string = syncTokens[0].token;
 		const changedEvents = await retrieveEvents('c_8f94fb19936943d5980f19eac62aeb0c9379581cfbad111862852765f624bb1b@group.calendar.google.com', null, true, syncToken);
 		const newSyncToken = await retrieveSyncToken('c_8f94fb19936943d5980f19eac62aeb0c9379581cfbad111862852765f624bb1b@group.calendar.google.com', syncToken);
-		await collection.updateOne({ token: syncToken }, { token: newSyncToken });
+		await collection.updateOne({ token: syncToken }, { $set: { token: newSyncToken } });
 		console.log(changedEvents);
 	} else {
 		const token = await retrieveSyncToken('c_8f94fb19936943d5980f19eac62aeb0c9379581cfbad111862852765f624bb1b@group.calendar.google.com');
