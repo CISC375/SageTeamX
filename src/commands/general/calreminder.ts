@@ -14,6 +14,8 @@ import parse from "parse-duration";
 import { PagifiedSelectMenu } from "@root/src/lib/utils/calendarUtils";
 import { retrieveEvents } from "@root/src/lib/auth";
 import { calendar_v3 } from "googleapis";
+import { MongoClient } from "mongodb";
+const MONGO_URI = process.env.DB_CONN_STRING || "";
 
 export default class extends Command {
 	name = "calreminder";
@@ -138,24 +140,11 @@ export default class extends Command {
 			];
 		}
 
-		// Retreive events
-		const events = await retrieveEvents(
-			"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com",
-			interaction
-		);
+		const courseCode = interaction.options
+			.getString("classname")
+			?.toUpperCase();
 
-		if (!events) {
-			await interaction.reply({
-				content:
-					"⚠️ Failed to fetch calendar events. Please try again later.",
-				ephemeral: true,
-			});
-			return;
-		}
-
-		// Command input
-		const className = interaction.options.getString("classname");
-		if (!className) {
+		if (!courseCode) {
 			await interaction.reply({
 				content: "❗ You must specify a class name.",
 				ephemeral: true,
@@ -163,18 +152,57 @@ export default class extends Command {
 			return;
 		}
 
-		// Filter events
-		const filteredEvents = events.filter((event) =>
-			event.summary.toLowerCase().includes(className.toLowerCase())
-		);
+		// Lookup calendar from MongoDB
+		let calendar: { calendarId: string; calendarName: string };
+		try {
+			const client = new MongoClient(MONGO_URI, {
+				useUnifiedTopology: true,
+			});
+			await client.connect();
 
-		if (!filteredEvents.length) {
+			const db = client.db("CalendarDatabase");
+			const collection = db.collection("calendarIds");
+
+			const calendarInDB = await collection.findOne({
+				calendarName: { $regex: `^${courseCode}$`, $options: "i" },
+			});
+
+			await client.close();
+
+			if (!calendarInDB) {
+				await interaction.reply({
+					content: `⚠️ There are no matching calendars with course code **${courseCode}**.`,
+					ephemeral: true,
+				});
+				return;
+			}
+
+			calendar = {
+				calendarId: calendarInDB.calendarId,
+				calendarName: calendarInDB.calendarName,
+			};
+		} catch (error) {
+			console.error("Calendar lookup failed:", error);
 			await interaction.reply({
-				content: "No events found for this class.",
+				content: `❌ Database error while fetching calendar for **${courseCode}**.`,
 				ephemeral: true,
 			});
 			return;
 		}
+
+		// Retrieve events
+		const events = await retrieveEvents(calendar.calendarId, interaction);
+
+		if (!events || events.length === 0) {
+			await interaction.reply({
+				content:
+					"⚠️ Failed to fetch calendar events or no events found.",
+				ephemeral: true,
+			});
+			return;
+		}
+
+		const filteredEvents = events; // no filtering needed since each calendar is specific to a course
 
 		let chosenEvent: calendar_v3.Schema$Event = null;
 		let chosenOffset: number = null;
@@ -187,6 +215,9 @@ export default class extends Command {
 			chosenOffset,
 			true
 		);
+		if (chosenOffset === null) {
+			chosenOffset = 0;
+		}
 
 		const replyMessage = await interaction.reply({
 			components: initialComponents,
