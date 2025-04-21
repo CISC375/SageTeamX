@@ -62,7 +62,7 @@ export default class extends Command {
 				newValues: [],
 				flag: true,
 				condition: (newValues: string[], event: Event) => {
-					const valuesToCheck = ['virtual', 'v', 'online', 'zoom'];
+					const valuesToCheck = ['virtual', 'online', 'zoom'];
 					const summary = event.calEvent.summary?.toLowerCase() || '';
 					const location = event.calEvent.location?.toLowerCase() || '';
 					const isVirtual = valuesToCheck.some((value) => summary.includes(value.toLowerCase()) || location.includes(value.toLowerCase()));
@@ -118,6 +118,9 @@ export default class extends Command {
 		}
 		retrivedEvents.forEach((retrivedEvent) => {
 			const newEvent: Event = { calEvent: retrivedEvent, calendarName: calendar.calendarName };
+			if (!newEvent.calEvent.location) {
+				newEvent.calEvent.location = '`Location not specified for this event`';
+			}
 			events.push(newEvent);
 		});
 
