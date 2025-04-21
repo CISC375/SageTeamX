@@ -62,8 +62,11 @@ export default class extends Command {
 				newValues: [],
 				flag: true,
 				condition: (newValues: string[], event: Event) => {
-					const locString = event.calEvent.summary?.toLowerCase() || '';
-					return newValues.some((value) => locString.includes(value.toLowerCase()));
+					const valuesToCheck = ['virtual', 'v', 'online', 'zoom'];
+					const summary = event.calEvent.summary?.toLowerCase() || '';
+					const location = event.calEvent.location?.toLowerCase() || '';
+					const isVirtual = valuesToCheck.some((value) => summary.includes(value.toLowerCase()) || location.includes(value.toLowerCase()));
+					return (isVirtual && newValues.includes('virtual')) || (!isVirtual && newValues.includes('in person'));
 				}
 			},
 			{
