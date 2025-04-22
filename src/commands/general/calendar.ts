@@ -593,7 +593,7 @@ export default class extends Command {
 					const downloadMsg = await dm.send(`⏳ Preparing ${eventsToDownload.length} events...`);
 			
 					try {
-						await downloadEvents(eventsToDownload, calendars, interaction, false);
+						await downloadEvents(eventsToDownload, calendars);
 						await downloadMsg.edit({
 							content: `📥 Here are your ${eventsToDownload.length} events:`,
 							files: ['./events.ics']
