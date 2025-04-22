@@ -24,6 +24,8 @@ const CALENDAR_ID =
 const EXPIRATION_TIME = 5 * 60 * 1000; // 5 minutes
 const NUM_ENTRIES_PER_PAGE = 5;
 
+
+// Function to chunk an array into smaller ones; used for pagination
 function chunk<T>(arr: T[], size: number): T[][] {
 	const pages: T[][] = [];
 	for (let i = 0; i < arr.length; i += size) {
@@ -96,10 +98,10 @@ export default class extends Command {
 					});
 				}
 
-				// 1) Build dual arrays: markdown for embeds, plain for file
+				// Build dual arrays: markdown for embeds, plain for downloadable text file
 				const taData = Array.from(taSet).map((line) => {
 					const [rawName, rawEmail] = line
-						.replace(/\*\*/g, "") // remove all asterisks
+						.replace(/\*\*/g, "") // remove all asterisks for plain text
 						.split("  ");
 					const name = rawName.replace(/^Name:\s*/, "").trim();
 					const email = rawEmail.replace(/^Email:\s*/, "").trim();
@@ -109,7 +111,9 @@ export default class extends Command {
 					};
 				});
 
+				// Set for embed
 				const taSetMdEntries = taData.map((x) => x.markdown);
+				// Set for downloadable text file
 				const taSetPlainEntries = taData.map((x) => x.plain);
 
 				const pages = chunk(taSetMdEntries, NUM_ENTRIES_PER_PAGE);
