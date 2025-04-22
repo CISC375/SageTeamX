@@ -18,7 +18,7 @@ import { Command } from '@lib/types/Command';
 import 'dotenv/config';
 import { MongoClient } from 'mongodb';
 import * as fs from 'fs';
-import { CALENDAR_CONFIG } from './calendarConfig';
+import { CALENDAR_CONFIG } from '@lib/CalendarConfig';
 import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
 import { calendar_v3 } from 'googleapis';
 import { retrieveEvents } from '@root/src/lib/auth';

@@ -10,7 +10,7 @@ import { MongoClient } from "mongodb";
 import "dotenv/config";
 import { google } from "googleapis";
 import { retrieveEvents } from '@root/src/lib/auth';
-import { validateCalendarId } from './calendarConfig';
+import { validateCalendarId } from '../../lib/CalendarConfig';
 
 // MongoDB Connection Settings
 const MONGO_URI = process.env.DB_CONN_STRING || "";

@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { validateCalendarId } from './calendarConfig';
+import { validateCalendarId } from './CalendarConfig';
 
 // Test valid calendar ID:
 const validId = 'c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com';
