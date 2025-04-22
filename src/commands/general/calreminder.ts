@@ -1,8 +1,6 @@
-/* eslint-disable */
 import { DB } from "@root/config";
 import { Command } from "@root/src/lib/types/Command";
 import { Reminder } from "@root/src/lib/types/Reminder";
-import { reminderTime } from "@root/src/lib/utils/generalUtils";
 import {
 	ActionRowBuilder,
 	ApplicationCommandOptionData,
@@ -16,6 +14,8 @@ import parse from "parse-duration";
 import { PagifiedSelectMenu } from '@root/src/lib/types/PagifiedSelect';
 import { retrieveEvents } from "@root/src/lib/auth";
 import { calendar_v3 } from "googleapis";
+import { MongoClient } from "mongodb";
+const MONGO_URI = process.env.DB_CONN_STRING || "";
 
 export default class extends Command {
 	name = "calreminder";
@@ -48,15 +48,17 @@ export default class extends Command {
 					placeHolder: "Select an event",
 					minimumValues: 1,
 				});
+				let defaultSet = false;
+
 				filteredEvents.forEach((event, index) => {
-					let isDefault: boolean = false;
-					if (chosenEvent) {
-						if (
-							chosenEvent.start.dateTime === event.start.dateTime
-						) {
-							isDefault = true;
-						}
-					}
+					if (!event.start?.dateTime) return;
+
+					const isDefault =
+						!defaultSet &&
+						chosenEvent?.start?.dateTime === event.start?.dateTime;
+
+					if (isDefault) defaultSet = true;
+
 					eventMenu.addOption({
 						label: event.summary,
 						value: `${event.start.dateTime}::${index}`,
@@ -66,6 +68,7 @@ export default class extends Command {
 						default: isDefault,
 					});
 				});
+
 				eventMenu.currentPage = eventCurrentPage;
 
 				// Create offset select menu
@@ -83,19 +86,22 @@ export default class extends Command {
 					placeHolder: "Select reminder offset",
 					maximumValues: 1,
 				});
+
+				let offsetDefaultSet = false;
+
 				offsetOptions.forEach((option) => {
-					let isDefault: boolean = false;
-					if (chosenOffset) {
-						if (chosenOffset === parse(option.value)) {
-							isDefault = true;
-						}
-					}
+					const isDefault =
+						!offsetDefaultSet &&
+						chosenOffset === parse(option.value);
+					if (isDefault) offsetDefaultSet = true;
+
 					offsetMenu.addOption({
 						label: option.label,
 						value: option.value,
 						default: isDefault,
 					});
 				});
+
 				offsetMenu.currentPage = offsetCurrentPage;
 			}
 
@@ -134,30 +140,69 @@ export default class extends Command {
 			];
 		}
 
-		// Retreive events
-		const events = await retrieveEvents(
-			"c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com",
-			interaction
-		);
-		if (!events) {
-			return;
-		}
+		const courseCode = interaction.options
+			.getString("classname")
+			?.toUpperCase();
 
-		// Command input
-		const className = interaction.options.getString("classname");
-
-		// Filter events
-		const filteredEvents = events.filter((event) =>
-			event.summary.toLowerCase().includes(className.toLowerCase())
-		);
-
-		if (!filteredEvents.length) {
+		if (!courseCode) {
 			await interaction.reply({
-				content: "No events found for this class.",
+				content: "❗ You must specify a class name.",
 				ephemeral: true,
 			});
 			return;
 		}
+
+		// Lookup calendar from MongoDB
+		let calendar: { calendarId: string; calendarName: string };
+		try {
+			const client = new MongoClient(MONGO_URI, {
+				useUnifiedTopology: true,
+			});
+			await client.connect();
+
+			const db = client.db("CalendarDatabase");
+			const collection = db.collection("calendarIds");
+
+			const calendarInDB = await collection.findOne({
+				calendarName: { $regex: `^${courseCode}$`, $options: "i" },
+			});
+
+			await client.close();
+
+			if (!calendarInDB) {
+				await interaction.reply({
+					content: `⚠️ There are no matching calendars with course code **${courseCode}**.`,
+					ephemeral: true,
+				});
+				return;
+			}
+
+			calendar = {
+				calendarId: calendarInDB.calendarId,
+				calendarName: calendarInDB.calendarName,
+			};
+		} catch (error) {
+			console.error("Calendar lookup failed:", error);
+			await interaction.reply({
+				content: `❌ Database error while fetching calendar for **${courseCode}**.`,
+				ephemeral: true,
+			});
+			return;
+		}
+
+		// Retrieve events
+		const events = await retrieveEvents(calendar.calendarId, interaction);
+
+		if (!events || events.length === 0) {
+			await interaction.reply({
+				content:
+					"⚠️ Failed to fetch calendar events or no events found.",
+				ephemeral: true,
+			});
+			return;
+		}
+
+		const filteredEvents = events; // no filtering needed since each calendar is specific to a course
 
 		let chosenEvent: calendar_v3.Schema$Event = null;
 		let chosenOffset: number = null;
@@ -170,6 +215,9 @@ export default class extends Command {
 			chosenOffset,
 			true
 		);
+		if (chosenOffset === null) {
+			chosenOffset = 0;
+		}
 
 		const replyMessage = await interaction.reply({
 			components: initialComponents,
@@ -262,10 +310,22 @@ export default class extends Command {
 					repeat: repeatInterval,
 				};
 
-				const result = await btnInt.client.mongo
-					.collection(DB.REMINDERS)
-					.insertOne(reminder);
-				activeReminderId = result.insertedId;
+				let result;
+				try {
+					result = await btnInt.client.mongo
+						.collection(DB.REMINDERS)
+						.insertOne(reminder);
+					activeReminderId = result.insertedId;
+				} catch (err) {
+					console.error("Failed to insert reminder:", err);
+					await btnInt.editReply({
+						content:
+							"❌ Failed to save reminder. Please try again later.",
+						components: [],
+					});
+					buttonCollector.stop();
+					return;
+				}
 
 				// Build Cancel button row
 				const cancelButton = new ButtonBuilder()
