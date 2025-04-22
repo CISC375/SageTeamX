@@ -1,7 +1,7 @@
 /* eslint-disable camelcase */
 import { DB } from '@root/config';
 import { Command } from '@root/src/lib/types/Command';
-import { Reminder } from '@root/src/lib/types/Reminder';
+import { CalReminder } from '@root/src/lib/types/Reminder';
 import {
 	ActionRowBuilder,
 	ApplicationCommandOptionData,
@@ -302,8 +302,10 @@ export default class extends Command {
 				// Create reminder in DB
 				const EXPIRE_BUFFER_MS = 180 * 24 * 60 * 60 * 1000; // 180 days in ms
 
-				const reminder: Reminder = {
+				const reminder: CalReminder = {
 					owner: btnInt.user.id,
+					calendarId: calendar.calendarId,
+					eventId: chosenEvent.id,
 					content: eventInfo,
 					mode: 'public',
 					expires: repeatInterval

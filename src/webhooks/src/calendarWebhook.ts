@@ -1,32 +1,68 @@
 import { retrieveEvents, retrieveSyncToken } from '../../lib/auth';
 import express from 'express';
-import { MongoClient } from 'mongodb';
+import { Collection, MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
+import { bot } from '@root/src/sage';
+import { DB } from '@root/config';
 dotenv.config();
 
 const MONGO_URI = process.env.DB_CONN_STRING || '';
 const DB_NAME = 'CalendarDatabase';
-const COLLECTION_NAME = 'syncTokens';
+
 
 const webhook = express();
 const PORT = 3001;
 
-webhook.post('/calendarWebhook', async (req) => {
+interface SyncToken {
+	token: string;
+	calendarId: string;
+}
+
+
+interface WatchChannel {
+	calendarId: string,
+	channelId: string,
+	resourceId: string
+}
+
+async function handleChangedReminders(collection: Collection, token: string, channel: WatchChannel) {
+	const changedEvents = await retrieveEvents(channel.calendarId, null, true, token);
+	const newSyncToken = await retrieveSyncToken(channel.calendarId, token);
+	await collection.updateOne({ token: token }, { $set: { token: newSyncToken } });
+
+	collection = bot.mongo.collection(DB.REMINDERS);
+	const reminders = await collection.find().toArray();
+	for (const reminder of reminders) {
+		if (reminder.eventId) {
+			for (const changedEvent of changedEvents) {
+				if (changedEvent.id === reminder.eventId) {
+					//
+				}
+			}
+		}
+	}
+	console.log(changedEvents);
+}
+
+webhook.post('/calendarWebhook', async (req, res) => {
+	res.sendStatus(200);
+	let collectionName = 'watchChannels';
 	console.log(req.headers);
+
 	const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
 	await client.connect();
 	const db = client.db(DB_NAME);
-	const collection = db.collection(COLLECTION_NAME);
-	const syncTokens = await collection.find().toArray();
-	if (syncTokens.length) {
-		const syncToken: string = syncTokens[0].token;
-		const changedEvents = await retrieveEvents('c_8f94fb19936943d5980f19eac62aeb0c9379581cfbad111862852765f624bb1b@group.calendar.google.com', null, true, syncToken);
-		const newSyncToken = await retrieveSyncToken('c_8f94fb19936943d5980f19eac62aeb0c9379581cfbad111862852765f624bb1b@group.calendar.google.com', syncToken);
-		await collection.updateOne({ token: syncToken }, { $set: { token: newSyncToken } });
-		console.log(changedEvents);
+	let collection = db.collection(collectionName);
+	const channel: WatchChannel = await collection.findOne({ channelId: req.headers['x-goog-channel-id'] });
+
+	collectionName = 'syncTokens';
+	collection = db.collection(collectionName);
+	const syncToken: SyncToken = await collection.findOne({ calendarId: channel.calendarId });
+	if (syncToken) {
+		await handleChangedReminders(collection, syncToken.token, channel);
 	} else {
-		const token = await retrieveSyncToken('c_8f94fb19936943d5980f19eac62aeb0c9379581cfbad111862852765f624bb1b@group.calendar.google.com');
-		await collection.insertOne({ token: token });
+		const token = await retrieveSyncToken(channel.calendarId);
+		await collection.insertOne({ token: token, calendarId: channel.calendarId });
 	}
 	await client.close();
 });

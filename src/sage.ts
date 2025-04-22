@@ -31,13 +31,13 @@ consoleStamp(console, {
 	format: ':date(dd/mm/yy hh:MM:ss.L tt)'
 });
 
-async function main() {
-	const bot = new Client({
-		partials: BOT_PARTIALS,
-		intents: BOT_INTENTS,
-		allowedMentions: { parse: ['users'] }
-	});
+export const bot = new Client({
+	partials: BOT_PARTIALS,
+	intents: BOT_INTENTS,
+	allowedMentions: { parse: ['users'] }
+});
 
+async function main() {
 	await MongoClient.connect(DB.CONNECTION, { useUnifiedTopology: true }).then((client) => {
 		bot.mongo = client.db(BOT.NAME);
 	});
