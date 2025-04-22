@@ -240,7 +240,7 @@ export async function downloadEvents(selectedEvents: Event[], calendar: {calenda
 			DTSTART: `TZID=${event.calEvent.start.timeZone}:${formatTime(event.calEvent.start.dateTime)}`,
 			DTEND: `TZID=${event.calEvent.end.timeZone}:${formatTime(event.calEvent.end.dateTime)}`,
 			SUMMARY: event.calEvent.summary,
-			DESCRIPTION: `Contact Email: ${event.calEvent.creator.email || 'NA'}`,
+			DESCRIPTION: `${event.calEvent.description || ''} Contact Email: ${event.calEvent.creator.email || 'NA'}`,
 			LOCATION: event.calEvent.location ? event.calEvent.location : 'NONE'
 		};
 
