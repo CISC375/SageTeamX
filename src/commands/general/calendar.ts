@@ -1,18 +1,18 @@
 /* eslint-disable */
 import {
-	ChatInputCommandInteraction,
-	ButtonBuilder,
-	ButtonStyle,
-	ActionRowBuilder,
-	EmbedBuilder,
-	ApplicationCommandOptionType,
-	ApplicationCommandStringOptionData,
-	ComponentType,
-	StringSelectMenuBuilder,
-	ButtonInteraction,
-	CacheType,
-	StringSelectMenuInteraction,
-	Message,
+    ChatInputCommandInteraction,
+    ButtonBuilder,
+    ButtonStyle,
+    ActionRowBuilder,
+    EmbedBuilder,
+    ApplicationCommandOptionType,
+    ApplicationCommandStringOptionData,
+    ComponentType,
+    StringSelectMenuBuilder,
+    ButtonInteraction,
+    CacheType,
+    StringSelectMenuInteraction,
+    Message,
 } from 'discord.js';
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
@@ -29,629 +29,594 @@ import path from 'path';
 const MASTER_CALENDAR_ID = CALENDAR_CONFIG.MASTER_ID;
 
 interface Event {
-	calEvent: calendar_v3.Schema$Event;
-	calendarName: string;
+    calEvent: calendar_v3.Schema$Event;
+    calendarName: string;
 }
 
 interface Filter {
-	customId: string;
-	placeholder: string,
-	values: string[];
-	newValues: string[];
-	flag: boolean;
-	condition: (newValues: string[], event: Event) => boolean;
+    customId: string;
+    placeholder: string,
+    values: string[];
+    newValues: string[];
+    flag: boolean;
+    condition: (newValues: string[], event: Event) => boolean;
 }
 
 export default class extends Command {
-	name = "calendar";
-	description = "Retrieve calendar events with pagination and filters";
+    name = "calendar";
+    description = "Retrieve calendar events with pagination and filters";
 
-	options: ApplicationCommandStringOptionData[] = [
-		{
-			type: ApplicationCommandOptionType.String,
-			name: "classname",
-			description: "Enter the event holder (e.g., class name).",
-			required: false,
-		}
-	];
+    options: ApplicationCommandStringOptionData[] = [
+        {
+            type: ApplicationCommandOptionType.String,
+            name: "classname",
+            description: "Enter the event holder (e.g., class name).",
+            required: false,
+        }
+    ];
 
-	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		/** Helper Functions **/
+    async run(interaction: ChatInputCommandInteraction): Promise<void> {
+        /** Helper Functions **/
 
-		// Filters calendar events based on slash command inputs and filter dropdown selections.
-		function filterEvents(events: Event[], eventsPerPage: number, filters: Filter[]) {
-			let temp: Event[] = [];
-			let filteredEvents: Event[][] = [];
+        // Filters calendar events based on slash command inputs and filter dropdown selections.
+        function filterEvents(events: Event[], eventsPerPage: number, filters: Filter[]) {
+            let temp: Event[] = [];
+            let filteredEvents: Event[][] = [];
 
-			let allFiltersFlags = true;
-			let eventHolderFlag: boolean = true;
-			let eventDateFlag: boolean = true;
-			events.forEach((event) => {
-				const lowerCaseSummary: string = event.calEvent.summary.toLowerCase();
+            let allFiltersFlags = true;
+            let eventHolderFlag: boolean = true;
+            let eventDateFlag: boolean = true;
+            events.forEach((event) => {
+                const lowerCaseSummary: string = event.calEvent.summary.toLowerCase();
 
-				// Extract class name (works for "CISC108-..." and "CISC374010")
-				const classNameMatch = lowerCaseSummary.match(/cisc\d+/i);
-				const extractedClassName = classNameMatch ? classNameMatch[0].toUpperCase() : "";
+                // Extract class name (works for "CISC108-..." and "CISC374010")
+                const classNameMatch = lowerCaseSummary.match(/cisc\d+/i);
+                const extractedClassName = classNameMatch ? classNameMatch[0].toUpperCase() : "";
 
-				// Dynamically update filter options.
-				const classFilter = filters.find((f) => f.customId === "class_name_menu");
-				if (extractedClassName && classFilter && !classFilter.values.includes(extractedClassName)) {
-					classFilter.values.push(extractedClassName);
-				}
+                // Dynamically update filter options.
+                const classFilter = filters.find((f) => f.customId === "class_name_menu");
+                if (extractedClassName && classFilter && !classFilter.values.includes(extractedClassName)) {
+                    classFilter.values.push(extractedClassName);
+                }
 
-				if (filters.length) {
-					filters.forEach((filter) => {
-						filter.flag = true;
-						if (filter.newValues.length) {
-							filter.flag = filter.condition(filter.newValues, event);
-						}
-					});
-					allFiltersFlags = filters.every((f) => f.flag);
-				}
+                if (filters.length) {
+                    filters.forEach((filter) => {
+                        filter.flag = true;
+                        if (filter.newValues.length) {
+                            filter.flag = filter.condition(filter.newValues, event);
+                        }
+                    });
+                    allFiltersFlags = filters.every((f) => f.flag);
+                }
 
-				if (allFiltersFlags && eventHolderFlag && eventDateFlag) {
-					temp.push(event);
-					if (temp.length % eventsPerPage === 0) {
-						filteredEvents.push(temp);
-						temp = [];
-					}
-				}
-			});
-			if (temp.length) filteredEvents.push(temp);
-			return filteredEvents;
-		}
+                if (allFiltersFlags && eventHolderFlag && eventDateFlag) {
+                    temp.push(event);
+                    if (temp.length % eventsPerPage === 0) {
+                        filteredEvents.push(temp);
+                        temp = [];
+                    }
+                }
+            });
+            if (temp.length) filteredEvents.push(temp);
+            return filteredEvents;
+        }
 
-		// Generates the embed for displaying events.
-		function generateEmbed(filteredEvents: Event[][], currentPage: number, maxPage: number): EmbedBuilder {
-			let embed: EmbedBuilder;
-			if (
-				filteredEvents.length &&
-				filteredEvents[currentPage] &&
-				filteredEvents[currentPage].length
-			) {
-				embed = new EmbedBuilder()
-					.setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
-					.setColor("Green");
-				filteredEvents[currentPage].forEach((event) => {
-					embed.addFields({
-						name: `**${event.calEvent.summary}**`,
-						value: `Date: ${new Date(event.calEvent.start.dateTime).toLocaleDateString()}
-						Time: ${new Date(event.calEvent.start.dateTime).toLocaleTimeString()} - ${new Date(event.calEvent.end.dateTime).toLocaleTimeString()}
-						Location: ${event.calEvent.location ? event.calEvent.location : "`NONE`"}
-						Email: ${event.calEvent.creator.email}\n`,
-					});
-				});
-			} else {
-				embed = new EmbedBuilder()
-					.setTitle("No Events Found")
-					.setColor("Green")
-					.addFields({
-						name: "Try adjusting your filters",
-						value: "No events match your selections, please change them!",
-					});
-			}
-			return embed;
-		}
+        // Generates the embed for displaying events.
+        function generateEmbed(filteredEvents: Event[][], currentPage: number, maxPage: number): EmbedBuilder {
+            let embed: EmbedBuilder;
+            if (
+                filteredEvents.length &&
+                filteredEvents[currentPage] &&
+                filteredEvents[currentPage].length
+            ) {
+                embed = new EmbedBuilder()
+                    .setTitle(`Events - ${currentPage + 1} of ${maxPage}`)
+                    .setColor("Green");
+                filteredEvents[currentPage].forEach((event) => {
+                    embed.addFields({
+                        name: `**${event.calEvent.summary}**`,
+                        value: `Date: ${new Date(event.calEvent.start.dateTime).toLocaleDateString()}
+                        Time: ${new Date(event.calEvent.start.dateTime).toLocaleTimeString()} - ${new Date(event.calEvent.end.dateTime).toLocaleTimeString()}
+                        Location: ${event.calEvent.location ? event.calEvent.location : "`NONE`"}
+                        Email: ${event.calEvent.creator.email}\n`,
+                    });
+                });
+            } else {
+                embed = new EmbedBuilder()
+                    .setTitle("No Events Found")
+                    .setColor("Green")
+                    .addFields({
+                        name: "Try adjusting your filters",
+                        value: "No events match your selections, please change them!",
+                    });
+            }
+            return embed;
+        }
 
-		// Generates the pagination buttons (Previous, Next, Download Calendar, Download All, Done).
-		function generateButtons(currentPage: number, maxPage: number, downloadCount: number): ActionRowBuilder<ButtonBuilder> {
-			const nextButton = new ButtonBuilder()
-				.setCustomId("next")
-				.setLabel("Next")
-				.setStyle(ButtonStyle.Primary)
-				.setDisabled(currentPage + 1 >= maxPage);
+        // Generates the pagination buttons (Previous, Next, Download, Done).
+        function generateButtons(currentPage: number, maxPage: number, selectedCount: number): ActionRowBuilder<ButtonBuilder> {
+            const nextButton = new ButtonBuilder()
+                .setCustomId("next")
+                .setLabel("Next")
+                .setStyle(ButtonStyle.Primary)
+                .setDisabled(currentPage + 1 >= maxPage);
 
-			const prevButton = new ButtonBuilder()
-				.setCustomId("prev")
-				.setLabel("Previous")
-				.setStyle(ButtonStyle.Primary)
-				.setDisabled(currentPage === 0);
+            const prevButton = new ButtonBuilder()
+                .setCustomId("prev")
+                .setLabel("Previous")
+                .setStyle(ButtonStyle.Primary)
+                .setDisabled(currentPage === 0);
 
-			const downloadCal = new ButtonBuilder()
-				.setCustomId("download_Cal")
-				.setLabel(`Download Calendar (${downloadCount})`)
-				.setStyle(ButtonStyle.Success)
-				.setDisabled(downloadCount === 0);
+            const downloadLabel = selectedCount === 0 ? "Download All" : `Download Selected (${selectedCount})`;
+            const downloadBtn = new ButtonBuilder()
+                .setCustomId("download")
+                .setLabel(downloadLabel)
+                .setStyle(ButtonStyle.Success);
 
-			const downloadAll = new ButtonBuilder()
-				.setCustomId("download_all")
-				.setLabel("Download All")
-				.setStyle(ButtonStyle.Secondary);
+            const done = new ButtonBuilder()
+                .setCustomId("done")
+                .setLabel("Done")
+                .setStyle(ButtonStyle.Danger);
 
-			const done = new ButtonBuilder()
-				.setCustomId("done")
-				.setLabel("Done")
-				.setStyle(ButtonStyle.Danger);
+            return new ActionRowBuilder<ButtonBuilder>().addComponents(
+                prevButton,
+                nextButton,
+                downloadBtn,
+                done
+            );
+        }
 
-			return new ActionRowBuilder<ButtonBuilder>().addComponents(
-				prevButton,
-				nextButton,
-				downloadCal,
-				downloadAll,
-				done
-			);
-		}
+        // Generates filter dropdown menus.
+        function generateFilterMessage(filters: Filter[]) {
+            const filterMenus: PagifiedSelectMenu[] = filters.map((filter) => {
+                if (filter.values.length === 0) {
+                    filter.values.push("No Data Available");
+                }
+                const filterMenu = new PagifiedSelectMenu();
+                filterMenu.createSelectMenu(
+                    {
+                        customId: filter.customId,
+                        placeHolder: filter.placeholder,
+                        minimumValues: 0,
+                        maximumValues: 25
+                    }
+                );
 
-		// Generates filter dropdown menus.
-		function generateFilterMessage(filters: Filter[]) {
-			const filterMenus: PagifiedSelectMenu[] = filters.map((filter) => {
-				if (filter.values.length === 0) {
-					filter.values.push("No Data Available");
-				}
-				const filterMenu = new PagifiedSelectMenu();
-				filterMenu.createSelectMenu(
-					{
-						customId: filter.customId,
-						placeHolder: filter.placeholder,
-						minimumValues: 0,
-						maximumValues: 25
-					}
-				);
+                filter.values.forEach((value) => {
+                    let isDefault: boolean = false;
+                    if (filter.newValues[0]) {
+                        if (filter.newValues[0].toLowerCase() === value.toLowerCase()) {
+                            isDefault = true;
+                        }
+                    }
+                    filterMenu.addOption({ label: value, value: value.toLowerCase(), default: isDefault })
+                });
+                return filterMenu;
+            });
 
-				filter.values.forEach((value) => {
-					let isDefault: boolean = false;
-					if (filter.newValues[0]) {
-						if (filter.newValues[0].toLowerCase() === value.toLowerCase()) {
-							isDefault = true;
-						}
-					}
-					filterMenu.addOption({label: value, value: value.toLowerCase(), default: isDefault})
-				});
-				return filterMenu;
-			});
+            return filterMenus;
+        }
 
-			return filterMenus;
-		}
+        // Generates a row of toggle buttons – one for each event on the current page.
+        function generateEventSelectButtons(eventsPerPage: number): ActionRowBuilder<ButtonBuilder> {
+            const selectEventButtons: ButtonBuilder[] = []
+            // This is to ensure that the number of buttons does not exceed to the limit per row
+            // We should probably change to a pagified select menu later on
+            if (eventsPerPage > 5) {
+                eventsPerPage = 5;
+            }
+            // Create buttons for each event on the page (up to 5)
+            for (let i = 1; i <= eventsPerPage; i++) {
+                const selectEvent = new ButtonBuilder()
+                    .setCustomId(`toggle-${i}`)
+                    .setLabel(`Select #${i}`)
+                    .setStyle(ButtonStyle.Secondary);
+                selectEventButtons.push(selectEvent);
+            }
+            // Create row containing all of the select buttons
+            const selectRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+                ...selectEventButtons
+            );
 
-		// Generates a row of toggle buttons – one for each event on the current page.
-		function generateEventSelectButtons(eventsPerPage: number): ActionRowBuilder<ButtonBuilder> {
-			const selectEventButtons: ButtonBuilder[] = []
+            return selectRow;
+        }
 
-			// This is to ensure that the number of buttons does not exceed to the limit per row
-			// We should probably change to a pagified select menu later on
-			if (eventsPerPage > 5) {
-				eventsPerPage = 5;
-			}
-
-			// Create buttons for each event on the page (up to 5)
-			for (let i = 1; i <= eventsPerPage; i++) {
-				const selectEvent = new ButtonBuilder()
-					.setCustomId(`toggle-${i}`)
-					.setLabel(`Select #${i}`)
-					.setStyle(ButtonStyle.Secondary);
-				selectEventButtons.push(selectEvent);
-			}
-
-			// Create row containing all of the select buttons
-			const selectRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-				...selectEventButtons
-			);
-
-			return selectRow;
-		}
-
-		// Downloads events by generating an ICS file.
-		// This version includes recurrence rules (if the event has them).
-		async function downloadEvents(selectedEvents: Event[], calendars: {calendarId: string, calendarName: string}[]) {
+        // Downloads events by generating an ICS file.
+        // This version includes recurrence rules (if the event has them).
+        async function downloadEvents(selectedEvents: Event[], calendars: { calendarId: string, calendarName: string }[]) {
 			const formattedEvents: string[] = [];
-			const parentEvents: calendar_v3.Schema$Event[] = [];
-
-			for (const calendar of calendars) {
-				const newParentEvents = await retrieveEvents(calendar.calendarId, interaction, false);
-				parentEvents.push(...newParentEvents)
+			const processedEvents = new Set<string>();
+			const now = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z'; // Current time in ICS format
+		
+			// Process each event
+			for (const event of selectedEvents) {
+				try {
+					// Skip if no start time
+					if (!event.calEvent.start?.dateTime && !event.calEvent.start?.date) continue;
+		
+					// Format start and end times
+					const start = event.calEvent.start.dateTime || event.calEvent.start.date + 'T00:00:00';
+					const end = event.calEvent.end?.dateTime || event.calEvent.end?.date + 'T23:59:59';
+					
+					const startFormatted = start.replace(/[-:]/g, '').replace('.000Z', 'Z');
+					const endFormatted = end.replace(/[-:]/g, '').replace('.000Z', 'Z');
+		
+					// Create ICS event
+					const icsEvent = [
+						'BEGIN:VEVENT',
+						`UID:${event.calEvent.id || `${Date.now()}${Math.floor(Math.random() * 1000)}`}`,
+						`DTSTAMP:${now}`,
+						`DTSTART:${startFormatted}`,
+						`DTEND:${endFormatted}`,
+						`SUMMARY:${event.calEvent.summary || 'Calendar Event'}`,
+						event.calEvent.description && `DESCRIPTION:${event.calEvent.description.replace(/\n/g, '\\n')}`,
+						event.calEvent.location && `LOCATION:${event.calEvent.location}`,
+						event.calEvent.creator?.email && `ORGANIZER:MAILTO:${event.calEvent.creator.email}`,
+						'END:VEVENT'
+					].filter(Boolean).join('\n');
+		
+					formattedEvents.push(icsEvent);
+				} catch (error) {
+					console.error('Error processing event:', event.calEvent.summary, error);
+				}
 			}
-
-			const recurrenceRules: Record<string, string> = Object.fromEntries(parentEvents.map((event) => {
-				return [event.id, event.recurrence[0]];
-			}));
-
-			const recurringIds: Set<string> = new Set();
-
-			selectedEvents.forEach((event) => {
-				let append: boolean = false;
-				const iCalEvent = {
-					UID: `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
-					CREATED: new Date(event.calEvent.created).toISOString().replace(/[-:.]/g, ''),
-					DTSTAMP: event.calEvent.updated.replace(/[-:.]/g, ''),
-					DTSTART: `TZID=${event.calEvent.start.timeZone}:${event.calEvent.start.dateTime.replace(/[-:.]/g, '')}`,
-					DTEND: `TZID=${event.calEvent.end.timeZone}:${event.calEvent.end.dateTime.replace(/[-:.]/g, '')}`,
-					SUMMARY: event.calEvent.summary,
-					DESCRIPTION: `Contact Email: ${event.calEvent.creator.email || 'NA'}`,
-					LOCATION: event.calEvent.location ? event.calEvent.location : 'NONE',
-				};
-
-				if (!event.calEvent.recurringEventId) {
-					append = true
-				}
-				else {
-					if (!recurringIds.has(event.calEvent.recurringEventId)) {
-						recurringIds.add(event.calEvent.recurringEventId);
-						append = true;
-					}
-				}
-
-				if (append) {
-					const icsFormatted = 
-					`BEGIN:VEVENT
-					UID:${iCalEvent.UID}
-					CREATED:${iCalEvent.CREATED}
-					DTSTAMP:${iCalEvent.DTSTAMP}
-					DTSTART;${iCalEvent.DTSTART}
-					DTEND;${iCalEvent.DTEND}
-					SUMMARY:${iCalEvent.SUMMARY}
-					DESCRIPTION:${iCalEvent.DESCRIPTION}
-					LOCATION:${iCalEvent.LOCATION}
-					STATUS:CONFIRMED
-					${event.calEvent.recurringEventId ? recurrenceRules[event.calEvent.recurringEventId] : ''}
-					END:VEVENT
-					`.replace(/\t/g, '');
-					formattedEvents.push(icsFormatted);
-				}
-			});
-
-			const icsCalendar = `BEGIN:VCALENDAR
-			VERSION:2.0
-			PRODID:-//YourBot//Discord Calendar//EN
-			${formattedEvents.join('')}
-			END:VCALENDAR
-			`.replace(/\t/g, '');
+		
+			// Create the calendar file
+			const icsCalendar = [
+				'BEGIN:VCALENDAR',
+				'VERSION:2.0',
+				'PRODID:-//Discord Calendar Bot//EN',
+				'CALSCALE:GREGORIAN',
+				...formattedEvents,
+				'END:VCALENDAR'
+			].join('\n');
+		
 			fs.writeFileSync('./events.ics', icsCalendar);
 		}
 
-		/******************************************************************************************************************/
-		// Initial reply to acknowledge the interaction.
-		await interaction.reply({
-			content: "Authenticating and fetching events...",
-			ephemeral: true,
-		});
+        /******************************************************************************************************************/
+        // Initial reply to acknowledge the interaction.
+        await interaction.reply({
+            content: "Authenticating and fetching events...",
+            ephemeral: true,
+        });
 
-		// Define filters for dropdowns.
-		const filters: Filter[] = [
-			{
-				customId: "calendar_menu",
-				placeholder: "Select Calendar",
-				values: [],
-				newValues: [],
-				flag: true,
-				condition: (newValues: string[], event: Event) => {
-					const calendarName = event.calendarName.toLowerCase() || "";
-					return newValues.some((value) => calendarName === value.toLowerCase());
-				},
-			},
-			{
-				customId: "class_name_menu",
-				placeholder: "Select Classes",
-				values: [],
-				newValues: [interaction.options.getString('classname') ? interaction.options.getString('classname') : ''],
-				flag: true,
-				condition: (newValues: string[], event: Event) => {
-					const summary = event.calEvent.summary?.toLowerCase() || "";
-					return newValues.some((value) => summary.includes(value.toLowerCase()));
-				},
-			},
-			{
-				customId: "location_type_menu",
-				placeholder: "Select Location Type",
-				values: ["In Person", "Virtual"],
-				newValues: [],
-				flag: true,
-				condition: (newValues: string[], event: Event) => {
-					const locString = event.calEvent.summary?.toLowerCase() || '';
-					return newValues.some((value) => locString.includes(value.toLowerCase()));
-				},
-			},
-			{
-				customId: "week_menu",
-				placeholder: "Select Days of Week",
-				values: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-				newValues: [],
-				flag: true,
-				condition: (newValues: string[], event: Event) => {
-					if (!event.calEvent.start?.dateTime) return false;
-					const dt = new Date(event.calEvent.start.dateTime);
-					const weekdayIndex = dt.getDay(); // 0 = Sunday, 1 = Monday, etc.
-					const dayName = [
-						"Sunday",
-						"Monday",
-						"Tuesday",
-						"Wednesday",
-						"Thursday",
-						"Friday",
-						"Saturday",
-					][weekdayIndex];
-					return newValues.some((value) => value.toLowerCase() === dayName.toLowerCase());
-				},
-			},
-		];
+        // Define filters for dropdowns.
+        const filters: Filter[] = [
+            {
+                customId: "calendar_menu",
+                placeholder: "Select Calendar",
+                values: [],
+                newValues: [],
+                flag: true,
+                condition: (newValues: string[], event: Event) => {
+                    const calendarName = event.calendarName.toLowerCase() || "";
+                    return newValues.some((value) => calendarName === value.toLowerCase());
+                },
+            },
+            {
+                customId: "class_name_menu",
+                placeholder: "Select Classes",
+                values: [],
+                newValues: [interaction.options.getString('classname') ? interaction.options.getString('classname') : ''],
+                flag: true,
+                condition: (newValues: string[], event: Event) => {
+                    const summary = event.calEvent.summary?.toLowerCase() || "";
+                    return newValues.some((value) => summary.includes(value.toLowerCase()));
+                },
+            },
+            {
+                customId: "location_type_menu",
+                placeholder: "Select Location Type",
+                values: ["In Person", "Virtual"],
+                newValues: [],
+                flag: true,
+                condition: (newValues: string[], event: Event) => {
+                    const locString = event.calEvent.summary?.toLowerCase() || '';
+                    return newValues.some((value) => locString.includes(value.toLowerCase()));
+                },
+            },
+            {
+                customId: "week_menu",
+                placeholder: "Select Days of Week",
+                values: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+                newValues: [],
+                flag: true,
+                condition: (newValues: string[], event: Event) => {
+                    if (!event.calEvent.start?.dateTime) return false;
+                    const dt = new Date(event.calEvent.start.dateTime);
+                    const weekdayIndex = dt.getDay(); // 0 = Sunday, 1 = Monday, etc.
+                    const dayName = [
+                        "Sunday",
+                        "Monday",
+                        "Tuesday",
+                        "Wednesday",
+                        "Thursday",
+                        "Friday",
+                        "Saturday",
+                    ][weekdayIndex];
+                    return newValues.some((value) => value.toLowerCase() === dayName.toLowerCase());
+                },
+            },
+        ];
 
-		const MONGO_URI = process.env.DB_CONN_STRING || "";
-		const DB_NAME = "CalendarDatabase";
-		const COLLECTION_NAME = "calendarIds";
+        const MONGO_URI = process.env.DB_CONN_STRING || "";
+        const DB_NAME = "CalendarDatabase";
+        const COLLECTION_NAME = "calendarIds";
 
-		// Fetch calendar IDs from MongoDB.
-		async function fetchCalendars() {
-			const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
-			await client.connect();
-			const db = client.db(DB_NAME);
-			const collection = db.collection(COLLECTION_NAME);
+        // Fetch calendar IDs from MongoDB.
+        async function fetchCalendars() {
+            const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
+            await client.connect();
+            const db = client.db(DB_NAME);
+            const collection = db.collection(COLLECTION_NAME);
 
-			const calendarDocs = await collection.find().toArray();
-			await client.close();
+            const calendarDocs = await collection.find().toArray();
+            await client.close();
 
-			const calendars: {calendarId: string, calendarName: string}[] = calendarDocs.map((doc) => ({
-				calendarId: doc.calendarId,
-				calendarName: doc.calendarName || "Unnamed Calendar",
-			}));
+            const calendars: { calendarId: string, calendarName: string }[] = calendarDocs.map((doc) => ({
+                calendarId: doc.calendarId,
+                calendarName: doc.calendarName || "Unnamed Calendar",
+            }));
 
-			if (!calendars.some((c) => c.calendarId === MASTER_CALENDAR_ID)) {
-				calendars.push({
-					calendarId: MASTER_CALENDAR_ID,
-					calendarName: "Master Calendar",
-				});
-			}
+            if (!calendars.some((c) => c.calendarId === MASTER_CALENDAR_ID)) {
+                calendars.push({
+                    calendarId: MASTER_CALENDAR_ID,
+                    calendarName: "Master Calendar",
+                });
+            }
 
-			return calendars;
-		}
+            return calendars;
+        }
 
-		// Retrieve events from all calendars in the database
-		let events: Event[] = [];
-		const calendars = await fetchCalendars();
-		const calendarMenu = filters.find((f) => f.customId === "calendar_menu");
-		if (calendarMenu) {
-			calendarMenu.values = calendars.map((c) => c.calendarName);
-		}
+        // Retrieve events from all calendars in the database
+        let events: Event[] = [];
+        const calendars = await fetchCalendars();
+        const calendarMenu = filters.find((f) => f.customId === "calendar_menu");
+        if (calendarMenu) {
+            calendarMenu.values = calendars.map((c) => c.calendarName);
+        }
 
-		for (const cal of calendars) {
-			const retrivedEvents = await retrieveEvents(cal.calendarId, interaction)
-			if (retrivedEvents === null) {
-				return;
-			}
-			retrivedEvents.forEach((retrivedEvent) => {
-				const newEvent: Event = {calEvent: retrivedEvent, calendarName: cal.calendarName}
-				events.push(newEvent);
-			});
-		}
+        for (const cal of calendars) {
+            const retrivedEvents = await retrieveEvents(cal.calendarId, interaction)
+            if (retrivedEvents === null) {
+                return;
+            }
+            retrivedEvents.forEach((retrivedEvent) => {
+                const newEvent: Event = { calEvent: retrivedEvent, calendarName: cal.calendarName }
+                events.push(newEvent);
+            });
+        }
 
-		// Sort events by their start time.
-		events.sort(
-			(a, b) =>
-				new Date(a.calEvent.start?.dateTime || a.calEvent.start?.date).getTime() -
-				new Date(b.calEvent.start?.dateTime || b.calEvent.start?.date).getTime()
-		);
+        // Sort events by their start time.
+        events.sort(
+            (a, b) =>
+                new Date(a.calEvent.start?.dateTime || a.calEvent.start?.date).getTime() -
+                new Date(b.calEvent.start?.dateTime || b.calEvent.start?.date).getTime()
+        );
 
-		const eventsPerPage: number = 3;
-		let filteredEvents: Event[][] = filterEvents(events, eventsPerPage, filters);
-		if (!filteredEvents.length) {
-			await interaction.followUp({
-				content: "No matching events found based on your filters. Please adjust your search criteria.",
-				ephemeral: true,
-			});
-			return;
-		}
+        const eventsPerPage: number = 3;
+        let filteredEvents: Event[][] = filterEvents(events, eventsPerPage, filters);
+        if (!filteredEvents.length) {
+            await interaction.followUp({
+                content: "No matching events found based on your filters. Please adjust your search criteria.",
+                ephemeral: true,
+            });
+            return;
+        }
 
-		let maxPage: number = filteredEvents.length;
-		let currentPage: number = 0;
-		let selectedEvents: Event[] = [];
+        let maxPage: number = filteredEvents.length;
+        let currentPage: number = 0;
+        let selectedEvents: Event[] = [];
 
-		const embed = generateEmbed(filteredEvents, currentPage, maxPage);
-		const initialComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-		initialComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
-		if (filteredEvents[currentPage]) {
-			if (filteredEvents[currentPage].length) {
-				initialComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
-			}
-		}
+        const embed = generateEmbed(filteredEvents, currentPage, maxPage);
+        const initialComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+        initialComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+        if (filteredEvents[currentPage]) {
+            if (filteredEvents[currentPage].length) {
+                initialComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+            }
+        }
 
-		const dm = await interaction.user.createDM();
-		let message: Message<false>;
-		try {
-			message = await dm.send({
-				embeds: [embed],
-				components: initialComponents,
-			});
-		} catch (error) {
-			console.error("Failed to send DM:", error);
-			await interaction.followUp({
-				content: "⚠️ I couldn't send you a DM. Please check your privacy settings.",
-				ephemeral: true,
-			});
-			return;
-		}
+        const dm = await interaction.user.createDM();
+        let message: Message<false>;
+        try {
+            message = await dm.send({
+                embeds: [embed],
+                components: initialComponents,
+            });
+        } catch (error) {
+            console.error("Failed to send DM:", error);
+            await interaction.followUp({
+                content: "⚠️ I couldn't send you a DM. Please check your privacy settings.",
+                ephemeral: true,
+            });
+            return;
+        }
 
-		const filterComponents = generateFilterMessage(filters);
-		let content: string =  '**Select Filters**';
+        const filterComponents = generateFilterMessage(filters);
+        let content: string = '**Select Filters**';
 
-		const singlePageMenus: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
-		filterComponents.forEach((component) => {
-			if (component.menus.length > 1) {
-				component.generateRowsAndSendMenu(async (i) => {
-					await i.deferUpdate();
-					const filter = filters.find((f) => f.customId === i.customId);
-					if (filter) {
-						filter.newValues = i.values;
-					}
-					filteredEvents = filterEvents(events, eventsPerPage, filters);
-					currentPage = 0;
-					maxPage = filteredEvents.length;
-					selectedEvents = []
-					const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-					newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
-					if (filteredEvents[currentPage]) {
-						if (filteredEvents[currentPage].length) {
-							newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
-						}
-					}
-					message.edit({
-						embeds: [newEmbed],
-						components: newComponents,
-					});
-				}, interaction, dm, content);
-				content = '';
-			}
-			else {
-				singlePageMenus.push(component.generateActionRows()[0]);
-			}
-		});
+        const singlePageMenus: (ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>)[] = [];
+        filterComponents.forEach((component) => {
+            if (component.menus.length > 1) {
+                component.generateRowsAndSendMenu(async (i) => {
+                    await i.deferUpdate();
+                    const filter = filters.find((f) => f.customId === i.customId);
+                    if (filter) {
+                        filter.newValues = i.values;
+                    }
+                    filteredEvents = filterEvents(events, eventsPerPage, filters);
+                    currentPage = 0;
+                    maxPage = filteredEvents.length;
+                    selectedEvents = []
+                    const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
+                    const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+                    newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+                    if (filteredEvents[currentPage]) {
+                        if (filteredEvents[currentPage].length) {
+                            newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+                        }
+                    }
+                    message.edit({
+                        embeds: [newEmbed],
+                        components: newComponents,
+                    });
+                }, interaction, dm, content);
+                content = '';
+            }
+            else {
+                singlePageMenus.push(component.generateActionRows()[0]);
+            }
+        });
 
-		// Send filter message
-		let filterMessage: Message<false>;
-		try {
-			filterMessage = await dm.send({
-				content: content,
-				components: singlePageMenus
-			});
-		} catch (error) {
-			console.error("Failed to send DM:", error);
-			await interaction.followUp({
-				content: "⚠️ I couldn't send you a DM. Please check your privacy settings.",
-				ephemeral: true,
-			});
-			return;
-		}
-		await filterMessage.edit({
-			content: content,
-			components: singlePageMenus
-		});
+        // Send filter message
+        let filterMessage: Message<false>;
+        try {
+            filterMessage = await dm.send({
+                content: content,
+                components: singlePageMenus
+            });
+        } catch (error) {
+            console.error("Failed to send DM:", error);
+            await interaction.followUp({
+                content: "⚠️ I couldn't send you a DM. Please check your privacy settings.",
+                ephemeral: true,
+            });
+            return;
+        }
+        await filterMessage.edit({
+            content: content,
+            components: singlePageMenus
+        });
 
-		// Create collectors for button and menu interactions.
-		const buttonCollector = message.createMessageComponentCollector({ time: 300000 });
-		const menuCollector = filterMessage.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 300000 });
+        // Create collectors for button and menu interactions.
+        const buttonCollector = message.createMessageComponentCollector({ time: 300000 });
+        const menuCollector = filterMessage.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 300000 });
 
-		buttonCollector.on("collect", async (btnInt: ButtonInteraction<CacheType>) => {
-			try {
-				await btnInt.deferUpdate();
-				if (btnInt.customId.startsWith("toggle-")) {
-					const eventIndex = Number(btnInt.customId.split('-')[1]) - 1;
-					const event = filteredEvents[currentPage][eventIndex];
-					if (selectedEvents.some((e) => e === event)) {
-						selectedEvents.splice(selectedEvents.indexOf(event), 1);
-						try {
-							const removeMsg = await dm.send(`Removed ${event.calEvent.summary}`);
-							setTimeout(async () => {
-								try {
-									await removeMsg.delete();
-								} catch (err) {
-									console.error("Failed to delete removal message:", err);
-								}
-							}, 3000);
-						} catch (err) {
-							console.error("Error sending removal message:", err);
-						}
-					} else {
-						selectedEvents.push(event);
-						try {
-							const addMsg = await dm.send(`Added ${event.calEvent.summary}`);
-							setTimeout(async () => {
-								try {
-									await addMsg.delete();
-								} catch (err) {
-									console.error("Failed to delete addition message:", err);
-								}
-							}, 3000);
-						} catch (err) {
-							console.error("Error sending addition message:", err);
-						}
-					}
-				} else if (btnInt.customId === "next") {
-					if (currentPage + 1 >= maxPage) return;
-					currentPage++;
-				} else if (btnInt.customId === "prev") {
-					if (currentPage === 0) return;
-					currentPage--;
-				} else if (btnInt.customId === 'download_Cal') {
-					if (selectedEvents.length === 0) {
-						await dm.send("No events selected to download!");
+        buttonCollector.on("collect", async (btnInt: ButtonInteraction<CacheType>) => {
+            try {
+                await btnInt.deferUpdate();
+                if (btnInt.customId.startsWith("toggle-")) {
+                    const eventIndex = Number(btnInt.customId.split('-')[1]) - 1;
+                    const event = filteredEvents[currentPage][eventIndex];
+                    if (selectedEvents.some((e) => e === event)) {
+                        selectedEvents.splice(selectedEvents.indexOf(event), 1);
+                        try {
+                            const removeMsg = await dm.send(`Removed ${event.calEvent.summary}`);
+                            setTimeout(async () => {
+                                try {
+                                    await removeMsg.delete();
+                                } catch (err) {
+                                    console.error("Failed to delete removal message:", err);
+                                }
+                            }, 3000);
+                        } catch (err) {
+                            console.error("Error sending removal message:", err);
+                        }
+                    } else {
+                        selectedEvents.push(event);
+                        try {
+                            const addMsg = await dm.send(`Added ${event.calEvent.summary}`);
+                            setTimeout(async () => {
+                                try {
+                                    await addMsg.delete();
+                                } catch (err) {
+                                    console.error("Failed to delete addition message:", err);
+                                }
+                            }, 3000);
+                        } catch (err) {
+                            console.error("Error sending addition message:", err);
+                        }
+                    }
+                } else if (btnInt.customId === "next") {
+                    if (currentPage + 1 >= maxPage) return;
+                    currentPage++;
+                } else if (btnInt.customId === "prev") {
+                    if (currentPage === 0) return;
+                    currentPage--;
+                }   else if (btnInt.customId === "download") {
+					// Determine which events to download
+					let eventsToDownload = selectedEvents.length > 0 ? selectedEvents : events;
+					
+					if (eventsToDownload.length === 0) {
+						await dm.send("⚠️ No events available to download.");
 						return;
 					}
-					const downloadMessage = await dm.send({ content: 'Downloading selected events...' });
+			
+					const downloadMsg = await dm.send(`⏳ Preparing ${eventsToDownload.length} events...`);
+			
 					try {
-						await downloadEvents(selectedEvents, calendars);
-						const filePath = path.join('./events.ics');
-						await downloadMessage.edit({
-							content: '',
-							files: [filePath]
+						await downloadEvents(eventsToDownload, calendars);
+						await downloadMsg.edit({
+							content: `📥 Here are your ${eventsToDownload.length} events:`,
+							files: ['./events.ics']
 						});
 						fs.unlinkSync('./events.ics');
-					} catch {
-						await downloadMessage.edit({ content: '⚠️ Failed to download events' });
+					} catch (error) {
+						console.error("Download failed:", error);
+						await downloadMsg.edit("⚠️ Failed to generate calendar file.");
 					}
-				} else if (btnInt.customId === "download_all") {
-					if (!filteredEvents.length) {
-						await dm.send("No events to download!");
-						return;
-					}
-					const downloadMessage = await dm.send({ content: "Downloading all events..." });
-					try {
-						await downloadEvents(filteredEvents.flat(), calendars);
-						const filePath = path.join('./events.ics');
-						await downloadMessage.edit({
-							content: '',
-							files: [filePath]
-						});
-						fs.unlinkSync('./events.ics');
-					} catch {
-						await downloadMessage.edit({ content: "⚠️ Failed to download all events." });
-					}
-				} else if (btnInt.customId === "done") {
-					await message.edit({
-						embeds: [],
-						components: [],
-						content: "📅 Calendar session closed.",
-					});
-					await filterMessage.edit({
-						embeds: [],
-						components: [],
-						content: "Filters closed.",
-					});
-					buttonCollector.stop();
-					menuCollector.stop();
 					return;
-				}
+				} else if (btnInt.customId === "done") {
+                    await message.edit({
+                        embeds: [],
+                        components: [],
+                        content: "📅 Calendar session closed.",
+                    });
+                    await filterMessage.edit({
+                        embeds: [],
+                        components: [],
+                        content: "Filters closed.",
+                    });
+                    buttonCollector.stop();
+                    menuCollector.stop();
+                    return;
+                }
 
-				const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-				const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-				newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
-				if (filteredEvents[currentPage]) {
-					if (filteredEvents[currentPage].length) {
-						newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
-					}
-				}
-				await message.edit({
-					embeds: [newEmbed],
-					components: newComponents,
-				});
-			} catch (error) {
-				console.error("Button Collector Error:", error);
-				await btnInt.followUp({
-					content: "⚠️ An error occurred while navigating through events. Please try again.",
-					ephemeral: true,
-				});
-			}
-		});
+                const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
+                const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+                newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+                if (filteredEvents[currentPage]) {
+                    if (filteredEvents[currentPage].length) {
+                        newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+                    }
+                }
+                await message.edit({
+                    embeds: [newEmbed],
+                    components: newComponents,
+                });
+            } catch (error) {
+                console.error("Button Collector Error:", error);
+                await btnInt.followUp({
+                    content: "⚠️ An error occurred while navigating through events. Please try again.",
+                    ephemeral: true,
+                });
+            }
+        });
 
-		menuCollector.on("collect", async (i: StringSelectMenuInteraction<CacheType>) => {
-			await i.deferUpdate();
-			const filter = filters.find((f) => f.customId === i.customId);
-			if (filter) {
-				filter.newValues = i.values;
-			}
-			filteredEvents = filterEvents(events, eventsPerPage, filters);
-			currentPage = 0;
-			maxPage = filteredEvents.length;
-			selectedEvents = []
-			const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-			const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-			newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
-			if (filteredEvents[currentPage]) {
-				if (filteredEvents[currentPage].length) {
-					newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
-				}
-			}
-			message.edit({
-				embeds: [newEmbed],
-				components: newComponents,
-			});
-		});
-	}
+        menuCollector.on("collect", async (i: StringSelectMenuInteraction<CacheType>) => {
+            await i.deferUpdate();
+            const filter = filters.find((f) => f.customId === i.customId);
+            if (filter) {
+                filter.newValues = i.values;
+            }
+            filteredEvents = filterEvents(events, eventsPerPage, filters);
+            currentPage = 0;
+            maxPage = filteredEvents.length;
+            selectedEvents = []
+            const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
+            const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
+            newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
+            if (filteredEvents[currentPage]) {
+                if (filteredEvents[currentPage].length) {
+                    newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+                }
+            }
+            message.edit({
+                embeds: [newEmbed],
+                components: newComponents,
+            });
+        });
+    }
 }
