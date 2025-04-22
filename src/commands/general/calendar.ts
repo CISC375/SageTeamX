@@ -220,61 +220,107 @@ export default class extends Command {
 
             return selectRow;
         }
-
-        // Downloads events by generating an ICS file.
-        // This version includes recurrence rules (if the event has them).
-        async function downloadEvents(selectedEvents: Event[], calendars: { calendarId: string, calendarName: string }[]) {
-			const formattedEvents: string[] = [];
-			const processedEvents = new Set<string>();
-			const now = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z'; // Current time in ICS format
-		
-			// Process each event
-			for (const event of selectedEvents) {
-				try {
-					// Skip if no start time
-					if (!event.calEvent.start?.dateTime && !event.calEvent.start?.date) continue;
-		
-					// Format start and end times
-					const start = event.calEvent.start.dateTime || event.calEvent.start.date + 'T00:00:00';
-					const end = event.calEvent.end?.dateTime || event.calEvent.end?.date + 'T23:59:59';
-					
-					const startFormatted = start.replace(/[-:]/g, '').replace('.000Z', 'Z');
-					const endFormatted = end.replace(/[-:]/g, '').replace('.000Z', 'Z');
-		
-					// Create ICS event
-					const icsEvent = [
-						'BEGIN:VEVENT',
-						`UID:${event.calEvent.id || `${Date.now()}${Math.floor(Math.random() * 1000)}`}`,
-						`DTSTAMP:${now}`,
-						`DTSTART:${startFormatted}`,
-						`DTEND:${endFormatted}`,
-						`SUMMARY:${event.calEvent.summary || 'Calendar Event'}`,
-						event.calEvent.description && `DESCRIPTION:${event.calEvent.description.replace(/\n/g, '\\n')}`,
-						event.calEvent.location && `LOCATION:${event.calEvent.location}`,
-						event.calEvent.creator?.email && `ORGANIZER:MAILTO:${event.calEvent.creator.email}`,
-						'END:VEVENT'
-					].filter(Boolean).join('\n');
-		
-					formattedEvents.push(icsEvent);
-				} catch (error) {
-					console.error('Error processing event:', event.calEvent.summary, error);
-				}
+		async function downloadEvents(
+			selected: Event[],
+			cals: {calendarId:string;calendarName:string;}[],
+			inter: ChatInputCommandInteraction | null = null,
+			includeRecurrence = true,    // ← toggle this to isolate recurrence bugs
+		  ): Promise<string> {
+			const EOL = '\r\n';
+			const now = new Date().toISOString().replace(/[-:.]/g,'').slice(0,15) + 'Z';
+		  
+			// 1. fetch master events for RRULE lookup
+			const parentEvents: calendar_v3.Schema$Event[] = [];
+			for (const cal of cals) {
+			  const evs = await retrieveEvents(cal.calendarId, inter, false);
+			  if (evs) parentEvents.push(...evs);
 			}
-		
-			// Create the calendar file
-			const icsCalendar = [
-				'BEGIN:VCALENDAR',
-				'VERSION:2.0',
-				'PRODID:-//Discord Calendar Bot//EN',
-				'CALSCALE:GREGORIAN',
-				...formattedEvents,
-				'END:VCALENDAR'
-			].join('\n');
-		
-			fs.writeFileSync('./events.ics', icsCalendar);
-		}
+		  
+			// 2. build a map of recurrence rules
+			const recurrenceRules: Record<string,string> = {};
+			if (includeRecurrence) {
+			  for (const e of parentEvents) {
+				if (e.id && e.recurrence?.length) {
+				  recurrenceRules[e.id] = e.recurrence.join(EOL);
+				}
+			  }
+			}
+		  
+			// 3. build each VEVENT
+			const vevents: string[] = [];
+			const seenRecurs = new Set<string>();
+		  
+			for (const { calEvent } of selected) {
+			  if (!calEvent.start?.dateTime && !calEvent.start?.date) continue;
+		  
+			  // skip duplicate instances
+			  if (calEvent.recurringEventId) {
+				if (seenRecurs.has(calEvent.recurringEventId)) continue;
+				seenRecurs.add(calEvent.recurringEventId);
+			  }
+		  
+			  const isAllDay = !!calEvent.start.date;
+			  const startRaw = calEvent.start.dateTime || (calEvent.start.date + 'T00:00:00');
+			  const endRaw   = calEvent.end?.dateTime  || (calEvent.end?.date   + 'T23:59:59');
+		  
+			  const dtStart = isAllDay
+				? calEvent.start.date!.replace(/-/g,'')
+				: new Date(startRaw).toISOString().replace(/[-:.]/g,'').slice(0,15) + 'Z';
+		  
+			  const dtEnd = isAllDay
+				? (calEvent.end?.date || calEvent.start.date!).replace(/-/g,'')
+				: new Date(endRaw).toISOString().replace(/[-:.]/g,'').slice(0,15) + 'Z';
+		  
+			  // pick up the RRULE block only if we want it
+			  let rruleBlock = '';
+			  if (includeRecurrence) {
+				if (calEvent.recurringEventId) {
+				  rruleBlock = recurrenceRules[calEvent.recurringEventId] || '';
+				} else if (calEvent.recurrence?.length) {
+				  rruleBlock = calEvent.recurrence.join(EOL);
+				}
+			  }
+		  
+			  // escape helper
+			  const esc = (t: string) =>
+				t.replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+		  
+			  const lines = [
+				'BEGIN:VEVENT',
+				`UID:${calEvent.id ?? `${Date.now()}${Math.random().toString(36).slice(2)}@discordbot`}`,
+				`DTSTAMP:${now}`,
+				isAllDay ? `DTSTART;VALUE=DATE:${dtStart}` : `DTSTART:${dtStart}`,
+				isAllDay ? `DTEND;VALUE=DATE:${dtEnd}`   : `DTEND:${dtEnd}`,
+				`SUMMARY:${esc(calEvent.summary ?? 'Calendar Event')}`,
+				calEvent.description && `DESCRIPTION:${esc(calEvent.description)}`,
+				calEvent.location    && `LOCATION:${esc(calEvent.location)}`,
+				calEvent.creator?.email && `ORGANIZER:MAILTO:${calEvent.creator.email}`,
+				rruleBlock,              // ← empty if includeRecurrence=false
+				'END:VEVENT',
+			  ].filter(Boolean).join(EOL);
+		  
+			  vevents.push(lines);
+			}
+		  
+			// 4. wrap the calendar
+			const ics = [
+			  'BEGIN:VCALENDAR',
+			  'VERSION:2.0',
+			  'PRODID:-//Discord Calendar Bot//EN',
+			  'CALSCALE:GREGORIAN',
+			  'METHOD:PUBLISH',
+			  ...vevents,
+			  'END:VCALENDAR',
+			].join(EOL) + EOL;
+		  
+			// 5. write & return file
+			const fp = './events.ics';
+			fs.writeFileSync(fp, ics, 'utf8');
+			return fp;
+		  }
 
-        /******************************************************************************************************************/
+
+		  
         // Initial reply to acknowledge the interaction.
         await interaction.reply({
             content: "Authenticating and fetching events...",
@@ -547,7 +593,7 @@ export default class extends Command {
 					const downloadMsg = await dm.send(`⏳ Preparing ${eventsToDownload.length} events...`);
 			
 					try {
-						await downloadEvents(eventsToDownload, calendars);
+						await downloadEvents(eventsToDownload, calendars, interaction, false);
 						await downloadMsg.edit({
 							content: `📥 Here are your ${eventsToDownload.length} events:`,
 							files: ['./events.ics']
@@ -620,3 +666,4 @@ export default class extends Command {
         });
     }
 }
+
