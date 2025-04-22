@@ -120,6 +120,20 @@ export default class extends Command {
 			const newEvent: Event = { calEvent: retrivedEvent, calendarName: calendar.calendarName };
 			if (!newEvent.calEvent.location) {
 				newEvent.calEvent.location = '`Location not specified for this event`';
+
+				// Checks if the event summary specfies in person or a specific room in smith (either 203 or 102A)
+				const validRoomLocations = ['smith hall room 203', 'smith 203', 'room 203', 'smith hall room 102a', 'smith 102a', 'room 102a'];
+				const summary = newEvent.calEvent.summary.toLowerCase() || '';
+				if (validRoomLocations.some((location) => summary.includes(location) || summary.includes('in person'))) {
+					const inRoom203 = ['CISC101', 'CISC103', 'CISC106', 'CISC108', 'CISC181', 'CISC210', 'CISC220', 'CISC260', 'CISC275', 'TEST'];
+
+					// Replaces empty location field with the right location
+					if (inRoom203.some((course) => course === courseCode.toUpperCase())) {
+						newEvent.calEvent.location = 'Smith Hall Room 203';
+					} else {
+						newEvent.calEvent.location = 'Smith Hall Room 102A';
+					}
+				}
 			}
 			events.push(newEvent);
 		});
