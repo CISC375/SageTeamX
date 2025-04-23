@@ -134,43 +134,41 @@ export default class extends Command {
 		}
 
 		// Generates the pagination buttons (Previous, Next, Download Calendar, Download All, Done).
-		function generateButtons(currentPage: number, maxPage: number, downloadCount: number): ActionRowBuilder<ButtonBuilder> {
+		function generateButtons(currentPage: number, maxPage: number, selectedCount: number) {
 			const nextButton = new ButtonBuilder()
-				.setCustomId("next")
-				.setLabel("Next")
-				.setStyle(ButtonStyle.Primary)
-				.setDisabled(currentPage + 1 >= maxPage);
-
+			  .setCustomId("next")
+			  .setLabel("Next")
+			  .setStyle(ButtonStyle.Primary)
+			  .setDisabled(currentPage + 1 >= maxPage);
+		  
 			const prevButton = new ButtonBuilder()
-				.setCustomId("prev")
-				.setLabel("Previous")
-				.setStyle(ButtonStyle.Primary)
-				.setDisabled(currentPage === 0);
-
-			const downloadCal = new ButtonBuilder()
-				.setCustomId("download_Cal")
-				.setLabel(`Download Calendar (${downloadCount})`)
-				.setStyle(ButtonStyle.Success)
-				.setDisabled(downloadCount === 0);
-
-			const downloadAll = new ButtonBuilder()
-				.setCustomId("download_all")
-				.setLabel("Download All")
-				.setStyle(ButtonStyle.Secondary);
-
-			const done = new ButtonBuilder()
-				.setCustomId("done")
-				.setLabel("Done")
-				.setStyle(ButtonStyle.Danger);
-
+			  .setCustomId("prev")
+			  .setLabel("Previous")
+			  .setStyle(ButtonStyle.Primary)
+			  .setDisabled(currentPage === 0);
+		  
+			// ONE download button—label changes if you’ve selected events
+			const downloadLabel = selectedCount > 0
+			  ? `Download Selected (${selectedCount})`
+			  : "Download All";
+			const downloadBtn = new ButtonBuilder()
+			  .setCustomId("download")
+			  .setLabel(downloadLabel)
+			  .setStyle(ButtonStyle.Success);
+		  
+			const doneButton = new ButtonBuilder()
+			  .setCustomId("done")
+			  .setLabel("Done")
+			  .setStyle(ButtonStyle.Danger);
+		  
 			return new ActionRowBuilder<ButtonBuilder>().addComponents(
-				prevButton,
-				nextButton,
-				downloadCal,
-				downloadAll,
-				done
+			  prevButton,
+			  nextButton,
+			  downloadBtn,
+			  doneButton
 			);
-		}
+		  }
+		  
 
 		// Generates filter dropdown menus.
 		function generateFilterMessage(filters: Filter[]) {
@@ -232,7 +230,7 @@ export default class extends Command {
 
 		// Downloads events by generating an ICS file.
 		// This version includes recurrence rules (if the event has them).
-		async function downloadEvents(selectedEvents: Event[], calendars: {calendarId: string, calendarName: string}[]) {
+		async function downloadEvents(selectedEvents: Event[], calendars: { calendarId: string; calendarName: string; }[], interaction?: ChatInputCommandInteraction<CacheType>) {
 			const formattedEvents: string[] = [];
 			const parentEvents: calendar_v3.Schema$Event[] = [];
 
@@ -242,7 +240,10 @@ export default class extends Command {
 			}
 
 			const recurrenceRules: Record<string, string> = Object.fromEntries(parentEvents.map((event) => {
-				return [event.id, event.recurrence[0]];
+				if (event.recurrence) {
+                    return [event.id, event.recurrence[0]]
+                };
+                return [];;
 			}));
 
 			const recurringIds: Set<string> = new Set();
@@ -518,117 +519,86 @@ export default class extends Command {
 		const buttonCollector = message.createMessageComponentCollector({ time: 300000 });
 		const menuCollector = filterMessage.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 300000 });
 
-		buttonCollector.on("collect", async (btnInt: ButtonInteraction<CacheType>) => {
-			try {
-				await btnInt.deferUpdate();
-				if (btnInt.customId.startsWith("toggle-")) {
-					const eventIndex = Number(btnInt.customId.split('-')[1]) - 1;
-					const event = filteredEvents[currentPage][eventIndex];
-					if (selectedEvents.some((e) => e === event)) {
-						selectedEvents.splice(selectedEvents.indexOf(event), 1);
-						try {
-							const removeMsg = await dm.send(`Removed ${event.calEvent.summary}`);
-							setTimeout(async () => {
-								try {
-									await removeMsg.delete();
-								} catch (err) {
-									console.error("Failed to delete removal message:", err);
-								}
-							}, 3000);
-						} catch (err) {
-							console.error("Error sending removal message:", err);
-						}
-					} else {
-						selectedEvents.push(event);
-						try {
-							const addMsg = await dm.send(`Added ${event.calEvent.summary}`);
-							setTimeout(async () => {
-								try {
-									await addMsg.delete();
-								} catch (err) {
-									console.error("Failed to delete addition message:", err);
-								}
-							}, 3000);
-						} catch (err) {
-							console.error("Error sending addition message:", err);
-						}
-					}
-				} else if (btnInt.customId === "next") {
-					if (currentPage + 1 >= maxPage) return;
-					currentPage++;
-				} else if (btnInt.customId === "prev") {
-					if (currentPage === 0) return;
-					currentPage--;
-				} else if (btnInt.customId === 'download_Cal') {
-					if (selectedEvents.length === 0) {
-						await dm.send("No events selected to download!");
-						return;
-					}
-					const downloadMessage = await dm.send({ content: 'Downloading selected events...' });
-					try {
-						await downloadEvents(selectedEvents, calendars);
-						const filePath = path.join('./events.ics');
-						await downloadMessage.edit({
-							content: '',
-							files: [filePath]
-						});
-						fs.unlinkSync('./events.ics');
-					} catch {
-						await downloadMessage.edit({ content: '⚠️ Failed to download events' });
-					}
-				} else if (btnInt.customId === "download_all") {
-					if (!filteredEvents.length) {
-						await dm.send("No events to download!");
-						return;
-					}
-					const downloadMessage = await dm.send({ content: "Downloading all events..." });
-					try {
-						await downloadEvents(filteredEvents.flat(), calendars);
-						const filePath = path.join('./events.ics');
-						await downloadMessage.edit({
-							content: '',
-							files: [filePath]
-						});
-						fs.unlinkSync('./events.ics');
-					} catch {
-						await downloadMessage.edit({ content: "⚠️ Failed to download all events." });
-					}
-				} else if (btnInt.customId === "done") {
-					await message.edit({
-						embeds: [],
-						components: [],
-						content: "📅 Calendar session closed.",
-					});
-					await filterMessage.edit({
-						embeds: [],
-						components: [],
-						content: "Filters closed.",
-					});
-					buttonCollector.stop();
-					menuCollector.stop();
-					return;
-				}
+		// Assuming inside your `run` method, after you've sent `message` and `filterMessage` and created collectors:
 
-				const newEmbed = generateEmbed(filteredEvents, currentPage, maxPage);
-				const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-				newComponents.push(generateButtons(currentPage, maxPage, selectedEvents.length));
-				if (filteredEvents[currentPage]) {
-					if (filteredEvents[currentPage].length) {
-						newComponents.push(generateEventSelectButtons(filteredEvents[currentPage].length));
-					}
-				}
-				await message.edit({
-					embeds: [newEmbed],
-					components: newComponents,
-				});
-			} catch (error) {
-				console.error("Button Collector Error:", error);
-				await btnInt.followUp({
-					content: "⚠️ An error occurred while navigating through events. Please try again.",
-					ephemeral: true,
-				});
-			}
-		});
+buttonCollector.on("collect", async (btnInt: ButtonInteraction<CacheType>) => {
+	try {
+	  await btnInt.deferUpdate();
+  
+	  // 1️⃣ Toggle selection buttons (#1–#5)
+	  if (btnInt.customId.startsWith("toggle-")) {
+		const idx = Number(btnInt.customId.split("-")[1]) - 1;
+		const evt = filteredEvents[currentPage][idx];
+		if (selectedEvents.includes(evt)) {
+		  selectedEvents = selectedEvents.filter(e => e !== evt);
+		  const m = await dm.send(`➖ Removed **${evt.calEvent.summary}**`);
+		  setTimeout(() => m.delete().catch(console.error), 3000);
+		} else {
+		  selectedEvents.push(evt);
+		  const m = await dm.send(`➕ Added **${evt.calEvent.summary}**`);
+		  setTimeout(() => m.delete().catch(console.error), 3000);
+		}
+  
+	  // 2️⃣ Pagination
+	  } else if (btnInt.customId === "next") {
+		if (currentPage + 1 < maxPage) currentPage++;
+	  } else if (btnInt.customId === "prev") {
+		if (currentPage > 0) currentPage--;
+	  
+	  // 3️⃣ Single Download button, context‑aware
+	  } else if (btnInt.customId === "download") {
+		// Decide whether to download Selected or All
+		const toDownload = selectedEvents.length > 0
+		  ? selectedEvents
+		  : filteredEvents.flat();
+		if (toDownload.length === 0) {
+		  await dm.send("⚠️ No events to download!");
+		  return;
+		}
+  
+		const prep = await dm.send(`⏳ Preparing ${toDownload.length} event(s)…`);
+		try {
+		  // downloadEvents writes to './events.ics'
+		  await downloadEvents(toDownload, calendars, interaction);
+		  await prep.edit({
+			content: `📥 Here are your ${toDownload.length} event(s):`,
+			files: ["./events.ics"],
+		  });
+		  fs.unlinkSync("./events.ics");
+		} catch (e) {
+		  console.error("Download failed:", e);
+		  await prep.edit("⚠️ Failed to generate calendar file.");
+		}
+		return;  // skip the re‑render below
+  
+	  // 4️⃣ Done / Close
+	  } else if (btnInt.customId === "done") {
+		await message.edit({ content: "📅 Calendar session closed.", embeds: [], components: [] });
+		await filterMessage.edit({ content: "Filters closed.", embeds: [], components: [] });
+		buttonCollector.stop();
+		menuCollector.stop();
+		return;
+	  }
+  
+	  // 🔄 Re‑render embed & buttons for toggles / pagination
+	  const embed = generateEmbed(filteredEvents, currentPage, maxPage);
+	  const navRow = generateButtons(currentPage, maxPage, selectedEvents.length);
+	  const rows: ActionRowBuilder<ButtonBuilder>[] = [navRow];
+	  if (filteredEvents[currentPage]?.length) {
+		rows.push(generateEventSelectButtons(filteredEvents[currentPage].length));
+	  }
+	  await message.edit({ embeds: [embed], components: rows });
+  
+	} catch (error) {
+	  console.error("Button Collector Error:", error);
+	  await btnInt.followUp({
+		content: "⚠️ An error occurred navigating events. Please try again.",
+		ephemeral: true,
+	  });
+	}
+  });
+  
+		  
 
 		menuCollector.on("collect", async (i: StringSelectMenuInteraction<CacheType>) => {
 			await i.deferUpdate();
