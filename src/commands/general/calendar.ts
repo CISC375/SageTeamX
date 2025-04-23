@@ -264,7 +264,7 @@ export default class extends Command {
 
 				// Single Download button, context‑aware
 				} else if (btnInt.customId === 'download') {
-					// Decide whether to download Selected or All
+					// Decide whether to download selected events or all of them
 					const toDownload = selectedEvents.length > 0
 						? selectedEvents
 						: filteredEvents;
@@ -289,7 +289,7 @@ export default class extends Command {
 					return; // Skip the re‑render below
 				}
 
-				// 🔄 Re‑render embed & buttons for toggles / pagination
+				// Re‑render embed & buttons for toggles / pagination
 				const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
 				const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
 				newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));

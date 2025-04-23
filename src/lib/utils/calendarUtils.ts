@@ -122,22 +122,15 @@ export function generateCalendarButtons(currentPage: number, maxPage: number, do
 		.setStyle(ButtonStyle.Primary)
 		.setDisabled(currentPage === 0);
 
-	const downloadCal = new ButtonBuilder()
-		.setCustomId('download_Cal')
-		.setLabel(`Download Calendar (${downloadCount})`)
-		.setStyle(ButtonStyle.Success)
-		.setDisabled(downloadCount === 0);
-
-	const downloadAll = new ButtonBuilder()
-		.setCustomId('download_all')
-		.setLabel('Download All')
-		.setStyle(ButtonStyle.Secondary);
+	const downloadButton = new ButtonBuilder()
+		.setCustomId('download')
+		.setLabel(`Download ${downloadCount || 'all'}`)
+		.setStyle(ButtonStyle.Success);
 
 	return new ActionRowBuilder<ButtonBuilder>().addComponents(
 		prevButton,
 		nextButton,
-		downloadCal,
-		downloadAll
+		downloadButton
 	);
 }
 
