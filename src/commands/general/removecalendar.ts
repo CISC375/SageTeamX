@@ -7,7 +7,8 @@ import {
 } from 'discord.js';
 import { Command } from '@root/src/lib/types/Command';
 import { MongoClient } from 'mongodb';
-import { PagifiedSelectMenu } from '@root/src/lib/utils/calendarUtils';
+import { PagifiedSelectMenu } from '@root/src/lib/types/PagifiedSelect';
+
 
 export default class RemoveCalendarCommand extends Command {
 
@@ -31,7 +32,8 @@ export default class RemoveCalendarCommand extends Command {
 			await client.close();
 			return;
 		}
-		// 1) Build paginated select menu (auto-splits >25 & adds nav) :contentReference[oaicite:0]{index=0}&#8203;:contentReference[oaicite:1]{index=1}
+
+		// 1) Build paginated select menu
 		const menu = new PagifiedSelectMenu();
 		menu.createSelectMenu({
 			customId: 'select_calendar_to_remove',
@@ -42,6 +44,7 @@ export default class RemoveCalendarCommand extends Command {
 		calendarDocs.forEach((doc) =>
 			menu.addOption({ label: doc.calendarName, value: doc.calendarId })
 		);
+
 		// 2) Always show Next/Prev row (disabled if only one page)
 		const rows = menu.generateActionRows();
 		if (menu.numPages <= 1) {
@@ -57,7 +60,8 @@ export default class RemoveCalendarCommand extends Command {
 				.setDisabled(true);
 			rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(prevBtn, nextBtn));
 		}
-		// 3) Send menu + navigation buttons :contentReference[oaicite:2]{index=2}&#8203;:contentReference[oaicite:3]{index=3}
+
+		// 3) Send menu + navigation buttons
 		await menu.generateMessage(
 			async (i: StringSelectMenuInteraction) => {
 				if (i.user.id !== interaction.user.id) return;
@@ -72,7 +76,7 @@ export default class RemoveCalendarCommand extends Command {
 			},
 			interaction,
 			rows,
-			undefined,
+			null,
 			'**Select a calendar to remove:**'
 		);
 	}
