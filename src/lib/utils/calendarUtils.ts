@@ -59,34 +59,36 @@ export function generateCalendarEmbeds(events: Event[], itemsPerPage: number): E
 	const embeds: EmbedBuilder[] = [];
 	let embed: EmbedBuilder;
 
+	// There can only be up to 25 fields in an embed, so this is just a check to make sure nothing breaks
+	if (itemsPerPage > 25) {
+		itemsPerPage = 25;
+	}
+
 	if (events.length) {
-		let numEmbeds = 1;
-		const maxPage: number = Math.ceil(events.length / itemsPerPage);
+		// Pagify events array
+		const pagifiedEvents: Event[][] = [];
+		for (let i = 0; i < events.length; i += itemsPerPage) {
+			pagifiedEvents.push(events.slice(i, i + itemsPerPage));
+		}
+		const maxPages = pagifiedEvents.length;
 
-		embed = new EmbedBuilder()
-			.setTitle(`Events - ${numEmbeds} of ${maxPage}`)
-			.setColor('Green');
+		// Create an embed for each page
+		pagifiedEvents.forEach((page, pageIndex) => {
+			const newEmbed = new EmbedBuilder()
+				.setTitle(`Events - ${pageIndex + 1} of ${maxPages}`)
+				.setColor('Green');
 
-		let i = 1;
-		events.forEach((event, index) => {
-			embed.addFields({
-				name: `**${event.calEvent.summary}**`,
-				value: `Date: ${new Date(event.calEvent.start.dateTime).toLocaleDateString()}
-				Time: ${new Date(event.calEvent.start.dateTime).toLocaleTimeString()} - ${new Date(event.calEvent.end.dateTime).toLocaleTimeString()}
-				Location: ${event.calEvent.location ? event.calEvent.location : '`NONE`'}
-				Email: ${event.calEvent.creator.email}\n`
+			page.forEach((event, eventIndex) => {
+				newEmbed.addFields({
+					name: `**${eventIndex + 1}. ${event.calEvent.summary}**`,
+					value: `Date: ${new Date(event.calEvent.start.dateTime).toLocaleDateString()}
+					Time: ${new Date(event.calEvent.start.dateTime).toLocaleTimeString()} - ${new Date(event.calEvent.end.dateTime).toLocaleTimeString()}
+					Location: ${event.calEvent.location}
+					Email: ${event.calEvent.creator.email}\n`
+				});
 			});
 
-			if (i % itemsPerPage === 0) {
-				numEmbeds++;
-				embeds.push(embed);
-				embed = new EmbedBuilder()
-					.setTitle(`Events - ${numEmbeds} of ${maxPage}`)
-					.setColor('Green');
-			} else if (events.length - 1 === index) {
-				embeds.push(embed);
-			}
-			i++;
+			embeds.push(newEmbed);
 		});
 	} else {
 		embed = new EmbedBuilder()
