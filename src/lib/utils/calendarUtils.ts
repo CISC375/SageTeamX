@@ -126,7 +126,7 @@ export function generateCalendarButtons(currentPage: number, maxPage: number, do
 
 	const downloadButton = new ButtonBuilder()
 		.setCustomId('download')
-		.setLabel(`Download ${downloadCount || 'All'}`)
+		.setLabel(`Download ${downloadCount ? `${downloadCount} event(s)` : 'All'}`)
 		.setStyle(ButtonStyle.Success);
 
 	return new ActionRowBuilder<ButtonBuilder>().addComponents(
