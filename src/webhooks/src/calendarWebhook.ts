@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 import { retrieveEvents, retrieveSyncToken } from '../../lib/auth';
 import express from 'express';
 import { Collection, MongoClient } from 'mongodb';
@@ -35,12 +36,13 @@ async function handleChangedReminders(collection: Collection, token: string, cha
 	const reminders = await collection.find().toArray();
 	for (const reminder of reminders) {
 		if (reminder.eventId) {
-			for (const changedEvent of changedEvents) {
-				if (changedEvent.id === reminder.eventId) {
-					const dateObj = new Date(changedEvent.start.dateTime);
+			let found = false;
+			for (let i = 0; i < changedEvents.length && !found; i++) {
+				if (changedEvents[i].id === reminder.eventId) {
+					const dateObj = new Date(changedEvents[i].start.dateTime);
 					const newExpirationDate = new Date(dateObj.getTime());
 					await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate } });
-					break;
+					found = true;
 				}
 			}
 		}
