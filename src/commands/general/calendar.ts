@@ -17,7 +17,6 @@ import 'dotenv/config';
 import { MongoClient } from 'mongodb';
 import * as fs from 'fs';
 import { retrieveEvents } from '@root/src/lib/auth';
-import path from 'path';
 import
 { downloadEvents,
 	Filter,
@@ -62,8 +61,11 @@ export default class extends Command {
 				newValues: [],
 				flag: true,
 				condition: (newValues: string[], event: Event) => {
-					const locString = event.calEvent.summary?.toLowerCase() || '';
-					return newValues.some((value) => locString.includes(value.toLowerCase()));
+					const valuesToCheck = ['virtual', 'online', 'zoom'];
+					const summary = event.calEvent.summary?.toLowerCase() || '';
+					const location = event.calEvent.location?.toLowerCase() || '';
+					const isVirtual = valuesToCheck.some((value) => summary.includes(value.toLowerCase()) || location.includes(value.toLowerCase()));
+					return (isVirtual && newValues.includes('virtual')) || (!isVirtual && newValues.includes('in person'));
 				}
 			},
 			{
@@ -115,6 +117,23 @@ export default class extends Command {
 		}
 		retrivedEvents.forEach((retrivedEvent) => {
 			const newEvent: Event = { calEvent: retrivedEvent, calendarName: calendar.calendarName };
+			if (!newEvent.calEvent.location) {
+				newEvent.calEvent.location = '`Location not specified for this event`';
+
+				// Checks if the event summary specfies in person or a specific room in smith (either 203 or 102A)
+				const validRoomLocations = ['smith hall room 203', 'smith 203', 'room 203', 'smith hall room 102a', 'smith 102a', 'room 102a'];
+				const summary = newEvent.calEvent.summary.toLowerCase() || '';
+				if (validRoomLocations.some((location) => summary.includes(location) || summary.includes('in person'))) {
+					const inRoom203 = ['CISC101', 'CISC103', 'CISC106', 'CISC108', 'CISC181', 'CISC210', 'CISC220', 'CISC260', 'CISC275', 'TEST'];
+
+					// Replaces empty location field with the right location
+					if (inRoom203.some((course) => course === courseCode.toUpperCase())) {
+						newEvent.calEvent.location = 'Smith Hall Room 203';
+					} else {
+						newEvent.calEvent.location = 'Smith Hall Room 102A';
+					}
+				}
+			}
 			events.push(newEvent);
 		});
 
@@ -217,84 +236,60 @@ export default class extends Command {
 		const buttonCollector = message.createMessageComponentCollector({ time: 300000 });
 		const menuCollector = filterMessage.createMessageComponentCollector({ componentType: ComponentType.StringSelect, time: 300000 });
 
+		// Assuming inside your `run` method, after you've sent `message` and `filterMessage` and created collectors:
+
 		buttonCollector.on('collect', async (btnInt: ButtonInteraction<CacheType>) => {
 			try {
 				await btnInt.deferUpdate();
+
+				// Selection Buttons
 				if (btnInt.customId.startsWith('toggle-')) {
 					const eventIndex = Number(btnInt.customId.split('-')[1]) - 1;
 					const event = filteredEvents[(currentPage * EVENTS_PER_PAGE) + eventIndex];
-					if (selectedEvents.some((e) => e === event)) {
-						selectedEvents.splice(selectedEvents.indexOf(event), 1);
-						try {
-							const removeMsg = await dm.send(`Removed ${event.calEvent.summary}`);
-							setTimeout(async () => {
-								try {
-									await removeMsg.delete();
-								} catch (err) {
-									console.error('Failed to delete removal message:', err);
-								}
-							}, 3000);
-						} catch (err) {
-							console.error('Error sending removal message:', err);
-						}
+					if (selectedEvents.includes(event)) {
+						selectedEvents = selectedEvents.filter(e => e !== event);
+						const m = await dm.send(`➖ Removed **${event.calEvent.summary}**`);
+						setTimeout(() => m.delete().catch(console.error), 3000);
 					} else {
 						selectedEvents.push(event);
-						try {
-							const addMsg = await dm.send(`Added ${event.calEvent.summary}`);
-							setTimeout(async () => {
-								try {
-									await addMsg.delete();
-								} catch (err) {
-									console.error('Failed to delete addition message:', err);
-								}
-							}, 3000);
-						} catch (err) {
-							console.error('Error sending addition message:', err);
-						}
+						const m = await dm.send(`➕ Added **${event.calEvent.summary}**`);
+						setTimeout(() => m.delete().catch(console.error), 3000);
 					}
+
+				// Next and previous buttons
 				} else if (btnInt.customId === 'next') {
-					if (currentPage + 1 >= maxPage) return;
-					currentPage++;
+					if (currentPage + 1 < maxPage) currentPage++;
 				} else if (btnInt.customId === 'prev') {
-					if (currentPage === 0) return;
-					currentPage--;
-				} else if (btnInt.customId === 'download_Cal') {
-					if (selectedEvents.length === 0) {
-						await dm.send('No events selected to download!');
+					if (currentPage > 0) currentPage--;
+
+				// Single Download button, context‑aware
+				} else if (btnInt.customId === 'download') {
+					// Decide whether to download selected events or all of them
+					const toDownload = selectedEvents.length > 0
+						? selectedEvents
+						: filteredEvents;
+					if (toDownload.length === 0) {
+						await dm.send('⚠️ No events to download!');
 						return;
 					}
-					const downloadMessage = await dm.send({ content: 'Downloading selected events...' });
+
+					const prep = await dm.send(`⏳ Preparing ${toDownload.length} event(s)…`);
 					try {
-						await downloadEvents(selectedEvents, calendar, interaction);
-						const filePath = path.join('./events.ics');
-						await downloadMessage.edit({
-							content: '',
-							files: [filePath]
+					// downloadEvents writes to './events.ics'
+						await downloadEvents(toDownload, calendar, interaction);
+						await prep.edit({
+							content: `📥 Here are your ${toDownload.length} event(s):`,
+							files: ['./events.ics']
 						});
 						fs.unlinkSync('./events.ics');
-					} catch {
-						await downloadMessage.edit({ content: '⚠️ Failed to download events' });
+					} catch (e) {
+						console.error('Download failed:', e);
+						await prep.edit('⚠️ Failed to generate calendar file.');
 					}
-				} else if (btnInt.customId === 'download_all') {
-					if (!filteredEvents.length) {
-						await dm.send('No events to download!');
-						return;
-					}
-					const downloadMessage = await dm.send({ content: 'Downloading all events...' });
-					try {
-						await downloadEvents(filteredEvents.flat(), calendar, interaction);
-						const filePath = path.join('./events.ics');
-						await downloadMessage.edit({
-							content: '',
-							files: [filePath]
-						});
-						fs.unlinkSync('./events.ics');
-					} catch {
-						await downloadMessage.edit({ content: '⚠️ Failed to download all events.' });
-					}
+					return; // Skip the re‑render below
 				}
 
-
+				// Re‑render embed & buttons for toggles / pagination
 				const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
 				const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
 				newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
@@ -309,11 +304,12 @@ export default class extends Command {
 			} catch (error) {
 				console.error('Button Collector Error:', error);
 				await btnInt.followUp({
-					content: '⚠️ An error occurred while navigating through events. Please try again.',
+					content: '⚠️ An error occurred navigating events. Please try again.',
 					ephemeral: true
 				});
 			}
 		});
+
 
 		menuCollector.on('collect', async (i: StringSelectMenuInteraction<CacheType>) => {
 			await i.deferUpdate();
