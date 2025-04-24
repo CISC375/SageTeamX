@@ -35,19 +35,25 @@ async function handleChangedReminders(collection: Collection, token: string, cha
 	collection = botDB.collection(DB.REMINDERS);
 	const reminders = await collection.find().toArray();
 	for (const reminder of reminders) {
-		if (reminder.eventId) {
+		if (reminder) {
 			let found = false;
 			for (let i = 0; i < changedEvents.length && !found; i++) {
 				if (changedEvents[i].id === reminder.eventId) {
+					console.log(changedEvents[i]);
 					const dateObj = new Date(changedEvents[i].start.dateTime);
 					const newExpirationDate = new Date(dateObj.getTime());
-					await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate } });
+					const newContent = `${changedEvents[i].summary} Starts at: ${dateObj.toLocaleString()}`;
+					await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate, content: newContent } });
 					found = true;
 				}
 			}
 		}
 	}
-	console.log(changedEvents);
+	console.log(changedEvents.length);
+	console.log(changedEvents[0]);
+	console.log(changedEvents[1]);
+	console.log(changedEvents[2]);
+	console.log(changedEvents[3]);
 }
 
 webhook.post('/calendarWebhook', async (req, res) => {
