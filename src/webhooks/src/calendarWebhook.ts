@@ -49,11 +49,7 @@ async function handleChangedReminders(collection: Collection, token: string, cha
 			}
 		}
 	}
-	console.log(changedEvents.length);
-	console.log(changedEvents[0]);
-	console.log(changedEvents[1]);
-	console.log(changedEvents[2]);
-	console.log(changedEvents[3]);
+	console.log(changedEvents[changedEvents.length - 1]);
 }
 
 webhook.post('/calendarWebhook', async (req, res) => {

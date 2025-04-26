@@ -57,8 +57,9 @@ export async function retrieveEvents(calendarId: string, interaction?: ChatInput
 		if (syncToken) {
 			response = await calendar.events.list({
 				calendarId: calendarId,
+				syncToken: syncToken,
 				singleEvents: true,
-				syncToken: syncToken
+				maxResults: 2500
 			});
 		} else if (singleEvents) {
 			response = await calendar.events.list({
@@ -140,13 +141,14 @@ export async function retrieveSyncToken(calendarId: string, syncToken?: string):
 		} else {
 			response = await calendar.events.list({
 				calendarId: calendarId,
-				timeMin: new Date().toISOString(),
-				timeMax: new Date(Date.now() + (10 * 24 * 60 * 60 * 1000)).toISOString()
+				showDeleted: true
 			});
 		}
 
 		syncToken = response.data.nextSyncToken;
 		pageToken = response.data.nextPageToken;
+		console.log('Page token:', pageToken);
+		console.log('Sync token:', syncToken);
 		while (pageToken && !syncToken) {
 			response = await calendar.events.list({
 				calendarId: calendarId,
