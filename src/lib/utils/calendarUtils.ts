@@ -8,6 +8,7 @@ import * as fs from 'fs';
 export interface Event {
 	calEvent: calendar_v3.Schema$Event;
 	calendarName: string;
+	selected: boolean;
 }
 
 export interface Filter {

@@ -116,7 +116,7 @@ export default class extends Command {
 			return;
 		}
 		retrivedEvents.forEach((retrivedEvent) => {
-			const newEvent: Event = { calEvent: retrivedEvent, calendarName: calendar.calendarName };
+			const newEvent: Event = { calEvent: retrivedEvent, calendarName: calendar.calendarName, selected: false };
 			if (!newEvent.calEvent.location) {
 				newEvent.calEvent.location = '`Location not specified for this event`';
 
