@@ -11,10 +11,10 @@ import {
 	ComponentType,
 } from "discord.js";
 import parse from "parse-duration";
-import { PagifiedSelectMenu } from "@root/src/lib/utils/calendarUtils";
 import { retrieveEvents } from "@root/src/lib/auth";
-import { calendar_v3 } from "googleapis";
+import { calendar_v3 as calendarV3 } from "googleapis";
 import { MongoClient } from "mongodb";
+import { PagifiedSelectMenu } from "@root/src/lib/types/PagifiedSelect";
 const MONGO_URI = process.env.DB_CONN_STRING || "";
 
 export default class extends Command {
@@ -35,7 +35,7 @@ export default class extends Command {
 
 		function generateMessage(
 			repeatInterval: "every_event" | null,
-			chosenEvent?: calendar_v3.Schema$Event,
+			chosenEvent?: calendarV3.Schema$Event,
 			chosenOffset?: number,
 			renderMenus = false,
 			eventCurrentPage = 0,
@@ -206,7 +206,7 @@ export default class extends Command {
 
 		const filteredEvents = events; // no filtering needed since each calendar is specific to a course
 
-		let chosenEvent: calendar_v3.Schema$Event = null;
+		let chosenEvent: calendarV3.Schema$Event = null;
 		let chosenOffset: number = null;
 		let repeatInterval: "every_event" = null;
 		let activeReminderId: string = null;
@@ -234,7 +234,7 @@ export default class extends Command {
 
 		collector.on("collect", async (i) => {
 			if (i.customId === "select_event") {
-				const [eventDateStr, indexStr] = i.values[0].split("::");
+				const [, indexStr] = i.values[0].split("::");
 				const selectedIndex = parseInt(indexStr);
 				chosenEvent = filteredEvents[selectedIndex];
 				await i.deferUpdate();
