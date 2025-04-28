@@ -58,7 +58,6 @@ export async function retrieveEvents(calendarId: string, interaction?: ChatInput
 			response = await calendar.events.list({
 				calendarId: calendarId,
 				syncToken: syncToken,
-				singleEvents: true,
 				maxResults: 2500
 			});
 		} else if (singleEvents) {
