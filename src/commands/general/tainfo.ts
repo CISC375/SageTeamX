@@ -7,8 +7,7 @@ import {
 	ButtonStyle,
 	ComponentType,
 	EmbedBuilder,
-	DMChannel,
-	AttachmentBuilder
+	DMChannel
 } from 'discord.js';
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
@@ -103,15 +102,15 @@ export default class extends Command {
 					const name = rawName.replace(/^Name:\s*/, '').trim();
 					const email = rawEmail.replace(/^Email:\s*/, '').trim();
 					return {
-						markdown: `**Name:** ${name}  **Email:** ${email}`,
-						plain: `Name: ${name}  Email: ${email}`
+						markdown: `**Name:** ${name}  **Email:** ${email}`
+						// plain: `Name: ${name}  Email: ${email}`
 					};
 				});
 
 				// Set for embed
 				const taSetMdEntries = taData.map((x) => x.markdown);
 				// Set for downloadable text file
-				const taSetPlainEntries = taData.map((x) => x.plain);
+				// const taSetPlainEntries = taData.map((x) => x.plain);
 
 				const pages = chunk(taSetMdEntries, NUM_ENTRIES_PER_PAGE);
 				let pageIndex = 0;
@@ -138,10 +137,6 @@ export default class extends Command {
 							.setLabel('Next ➡')
 							.setStyle(ButtonStyle.Secondary)
 							.setDisabled(pageIndex === pages.length - 1),
-						new ButtonBuilder()
-							.setCustomId('download')
-							.setLabel('Download .txt')
-							.setStyle(ButtonStyle.Primary),
 						new ButtonBuilder()
 							.setCustomId('close')
 							.setLabel('Close ✖️')
@@ -184,18 +179,8 @@ export default class extends Command {
 							embeds: [makeEmbed(pageIndex)],
 							components: [makeRow()]
 						});
-					} else if (btn.customId === 'download') {
-						const content = taSetPlainEntries.join('\n');
-						const file = new AttachmentBuilder(
-							Buffer.from(content, 'utf-8'),
-							{
-								name: `${className}_TAs.txt`
-							}
-						);
-						return btn.reply({ files: [file], ephemeral: true });
 					} else if (btn.customId === 'close') {
 						await btn.update({
-							content: 'Paginator closed.',
 							components: []
 						});
 						return dmCollector.stop();
@@ -216,11 +201,6 @@ export default class extends Command {
 									.setCustomId('next')
 									.setLabel('Next ➡')
 									.setStyle(ButtonStyle.Primary)
-									.setDisabled(true),
-								new ButtonBuilder()
-									.setCustomId('download')
-									.setLabel('Download .txt')
-									.setStyle(ButtonStyle.Secondary)
 									.setDisabled(true),
 								new ButtonBuilder()
 									.setCustomId('close')
