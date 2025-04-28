@@ -20,6 +20,11 @@ export interface Filter {
 	condition: (newValues: string[], event: Event) => boolean;
 }
 
+export interface CalendarEmbed {
+	embed: EmbedBuilder;
+	events: Event[];
+}
+
 /**
  * This function will filter out events based on the given filter array
  *
@@ -56,9 +61,8 @@ export async function filterCalendarEvents(events: Event[], filters: Filter[]): 
  * @param {number} itemsPerPage The number of events you want to display on one embed
  * @returns {EmbedBuilder[]} Embeds containing all of the calendar events
  */
-export function generateCalendarEmbeds(events: Event[], itemsPerPage: number): EmbedBuilder[] {
-	const embeds: EmbedBuilder[] = [];
-	let embed: EmbedBuilder;
+export function generateCalendarEmbeds(events: Event[], itemsPerPage: number): CalendarEmbed[] {
+	const embeds: CalendarEmbed[] = [];
 
 	// There can only be up to 25 fields in an embed, so this is just a check to make sure nothing breaks
 	if (itemsPerPage > 25) {
@@ -79,6 +83,8 @@ export function generateCalendarEmbeds(events: Event[], itemsPerPage: number): E
 				.setTitle(`Events - ${pageIndex + 1} of ${maxPages}`)
 				.setColor('Green');
 
+			const newCalendarEmbed: CalendarEmbed = { embed: newEmbed, events: [] };
+
 			page.forEach((event, eventIndex) => {
 				newEmbed.addFields({
 					name: `**${eventIndex + 1}. ${event.calEvent.summary}**`,
@@ -87,19 +93,21 @@ export function generateCalendarEmbeds(events: Event[], itemsPerPage: number): E
 					Location: ${event.calEvent.location}
 					Email: ${event.calEvent.creator.email}\n`
 				});
+				newCalendarEmbed.events.push(event);
 			});
 
-			embeds.push(newEmbed);
+			embeds.push(newCalendarEmbed);
 		});
 	} else {
-		embed = new EmbedBuilder()
+		const emptyEmbed = new EmbedBuilder()
 			.setTitle('No Events Found')
 			.setColor('Green')
 			.addFields({
 				name: 'Try adjusting your filters',
 				value: 'No events match your selections, please change them!'
 			});
-		embeds.push(embed);
+		const newCalendarEmbed: CalendarEmbed = { embed: emptyEmbed, events: [] };
+		embeds.push(newCalendarEmbed);
 	}
 	return embeds;
 }
@@ -189,7 +197,7 @@ export function generateEventSelectButtons(embed: EmbedBuilder, events: Event[])
 			const selectEvent = new ButtonBuilder()
 				.setCustomId(`toggle-${i}`)
 				.setLabel(`Select #${i}`)
-				.setStyle(ButtonStyle.Secondary);
+				.setStyle(events[i].selected ? ButtonStyle.Primary : ButtonStyle.Secondary);
 			selectEventButtons.push(selectEvent);
 		}
 

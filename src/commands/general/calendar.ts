@@ -246,6 +246,7 @@ export default class extends Command {
 				if (btnInt.customId.startsWith('toggle-')) {
 					const eventIndex = Number(btnInt.customId.split('-')[1]) - 1;
 					const event = filteredEvents[(currentPage * EVENTS_PER_PAGE) + eventIndex];
+					event.selected = !event.selected;
 					if (selectedEvents.includes(event)) {
 						selectedEvents = selectedEvents.filter(e => e !== event);
 						const m = await dm.send(`➖ Removed **${event.calEvent.summary}**`);
