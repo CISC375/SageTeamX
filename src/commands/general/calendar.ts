@@ -167,6 +167,9 @@ export default class extends Command {
 				embeds: [embeds[currentPage].embed],
 				components: initialComponents
 			});
+			initalReply.edit({
+				content: `I sent you a DM with the calendar for **${courseCode.toUpperCase()}**`
+			});
 		} catch (error) {
 			console.error('Failed to send DM:', error);
 			await interaction.followUp({
