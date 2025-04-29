@@ -51,6 +51,7 @@ export default class extends Command {
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
 		// Local variables
 		let currentPage = 0;
+		let downloadPressed = false;
 		let selectedEvents: Event[] = [];
 		const courseCode = interaction.options.getString(this.options[0].name, this.options[0].required);
 		const filters: Filter[] = [
@@ -153,11 +154,7 @@ export default class extends Command {
 
 		// Create initial componenets
 		const initialComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-		const selectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
-		initialComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-		if (selectButtons) {
-			initialComponents.push(selectButtons);
-		}
+		initialComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length, downloadPressed));
 
 		// Send intital dm
 		const dm = await interaction.user.createDM();
@@ -202,10 +199,12 @@ export default class extends Command {
 					maxPage = embeds.length;
 
 					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-					const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
-					newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-					if (newSelectButtons) {
-						newComponents.push(newSelectButtons);
+					newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length, downloadPressed));
+					if (downloadPressed) {
+						const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
+						if (newSelectButtons) {
+							newComponents.push(newSelectButtons);
+						}
 					}
 
 					message.edit({
@@ -268,37 +267,59 @@ export default class extends Command {
 
 				// Single Download button, context‑aware
 				} else if (btnInt.customId === 'download') {
-					// Decide whether to download selected events or all of them
-					const toDownload = selectedEvents.length > 0
-						? selectedEvents
-						: filteredEvents;
-					if (toDownload.length === 0) {
-						await dm.send('⚠️ No events to download!');
-						return;
-					}
+					if (downloadPressed) {
+						// Decide whether to download selected events or all of them
+						const toDownload = selectedEvents.length > 0
+							? selectedEvents
+							: filteredEvents;
+						if (toDownload.length === 0) {
+							await dm.send('⚠️ No events to download!');
+							return;
+						}
 
-					const prep = await dm.send(`⏳ Preparing ${toDownload.length} event(s)…`);
-					try {
-					// downloadEvents writes to './events.ics'
-						await downloadEvents(toDownload, calendar, interaction);
-						await prep.edit({
-							content: `📥 Here are your ${toDownload.length} event(s):`,
-							files: ['./events.ics']
+						const prep = await dm.send(`⏳ Preparing ${toDownload.length} event(s)…`);
+						try {
+						// downloadEvents writes to './events.ics'
+							await downloadEvents(toDownload, calendar, interaction);
+							await prep.edit({
+								content: `📥 Here are your ${toDownload.length} event(s):`,
+								files: ['./events.ics']
+							});
+							fs.unlinkSync('./events.ics');
+						} catch (e) {
+							console.error('Download failed:', e);
+							await prep.edit('⚠️ Failed to generate calendar file.');
+						}
+						downloadPressed = false;
+						embeds.forEach((embed) => {
+							const { fields } = embed.embed.data;
+							if (fields) {
+								fields.forEach((field) => {
+									[, field.name] = field.name.split(/\*\*\d+\.\*\*\s/);
+								});
+							}
 						});
-						fs.unlinkSync('./events.ics');
-					} catch (e) {
-						console.error('Download failed:', e);
-						await prep.edit('⚠️ Failed to generate calendar file.');
+					} else {
+						downloadPressed = true;
+						embeds.forEach((embed) => {
+							const { fields } = embed.embed.data;
+							if (fields) {
+								fields.forEach((field, index) => {
+									field.name = `**${index + 1}.** ${field.name}`;
+								});
+							}
+						});
 					}
-					return; // Skip the re‑render below
 				}
 
 				// Re‑render embed & buttons for toggles / pagination
 				const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-				const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
-				newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-				if (newSelectButtons) {
-					newComponents.push(newSelectButtons);
+				newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length, downloadPressed));
+				if (downloadPressed) {
+					const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
+					if (newSelectButtons) {
+						newComponents.push(newSelectButtons);
+					}
 				}
 
 				await message.edit({
@@ -330,10 +351,12 @@ export default class extends Command {
 			maxPage = embeds.length;
 
 			const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-			const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
-			newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-			if (newSelectButtons) {
-				newComponents.push(newSelectButtons);
+			newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length, downloadPressed));
+			if (downloadPressed) {
+				const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
+				if (newSelectButtons) {
+					newComponents.push(newSelectButtons);
+				}
 			}
 
 			message.edit({

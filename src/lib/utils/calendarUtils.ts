@@ -85,9 +85,9 @@ export function generateCalendarEmbeds(events: Event[], itemsPerPage: number): C
 
 			const newCalendarEmbed: CalendarEmbed = { embed: newEmbed, events: [] };
 
-			page.forEach((event, eventIndex) => {
+			page.forEach((event) => {
 				newEmbed.addFields({
-					name: `**${eventIndex + 1}. ${event.calEvent.summary}**`,
+					name: `**${event.calEvent.summary}**`,
 					value: `Date: ${new Date(event.calEvent.start.dateTime).toLocaleDateString()}
 					Time: ${new Date(event.calEvent.start.dateTime).toLocaleTimeString()} - ${new Date(event.calEvent.end.dateTime).toLocaleTimeString()}
 					Location: ${event.calEvent.location}
@@ -118,9 +118,10 @@ export function generateCalendarEmbeds(events: Event[], itemsPerPage: number): C
  * @param {number} currentPage The current embed page
  * @param {number} maxPage The total number of embeds
  * @param {number} downloadCount The number of selected events to be downloaded
+ * @param {boolean} downloadPressed ...
  * @returns {ActionRowBuilder<ButtonBuilder>}  All of the needed buttons to control the calendar embeds
  */
-export function generateCalendarButtons(currentPage: number, maxPage: number, downloadCount: number): ActionRowBuilder<ButtonBuilder> {
+export function generateCalendarButtons(currentPage: number, maxPage: number, downloadCount: number, downloadPressed: boolean): ActionRowBuilder<ButtonBuilder> {
 	const nextButton = new ButtonBuilder()
 		.setCustomId('next')
 		.setLabel('Next')
@@ -133,9 +134,17 @@ export function generateCalendarButtons(currentPage: number, maxPage: number, do
 		.setStyle(ButtonStyle.Primary)
 		.setDisabled(currentPage === 0);
 
+	let downloadLabel = 'Download Events';
+	if (downloadPressed) {
+		downloadLabel = 'Download Every Event';
+		if (downloadCount) {
+			downloadLabel = `Download ${downloadCount} event(s)`;
+		}
+	}
+
 	const downloadButton = new ButtonBuilder()
 		.setCustomId('download')
-		.setLabel(`Download ${downloadCount ? `${downloadCount} event(s)` : 'Every Event'}`)
+		.setLabel(downloadLabel)
 		.setStyle(ButtonStyle.Success);
 
 	return new ActionRowBuilder<ButtonBuilder>().addComponents(
