@@ -164,7 +164,7 @@ export default class extends Command {
 		let message: Message<false>;
 		try {
 			message = await dm.send({
-				embeds: [embeds[currentPage]],
+				embeds: [embeds[currentPage].embed],
 				components: initialComponents
 			});
 		} catch (error) {
@@ -206,7 +206,7 @@ export default class extends Command {
 					}
 
 					message.edit({
-						embeds: [embeds[currentPage]],
+						embeds: [embeds[currentPage].embed],
 						components: newComponents
 					});
 				}, interaction, dm, content);
@@ -299,7 +299,7 @@ export default class extends Command {
 				}
 
 				await message.edit({
-					embeds: [embeds[currentPage]],
+					embeds: [embeds[currentPage].embed],
 					components: newComponents
 				});
 			} catch (error) {
@@ -334,7 +334,7 @@ export default class extends Command {
 			}
 
 			message.edit({
-				embeds: [embeds[currentPage]],
+				embeds: [embeds[currentPage].embed],
 				components: newComponents
 			});
 		});

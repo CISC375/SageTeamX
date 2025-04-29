@@ -178,26 +178,28 @@ export function generateCalendarFilterMessage(filters: Filter[]): PagifiedSelect
 /**
  * This function will generate select buttons for each event on the given embed (up to 5 events)
  *
- * @param {EmbedBuilder} embed The embed to generate buttons for
+ * @param {EmbedBuilder} calendarEmbed The embed to generate buttons for
  * @param {Event[]} events All of the events retrieved from the google calendar
  * @returns {ActionRowBuilder<ButtonBuilder>} An action row containing all of the select butttons
  */
-export function generateEventSelectButtons(embed: EmbedBuilder, events: Event[]): ActionRowBuilder<ButtonBuilder> | void {
+export function generateEventSelectButtons(calendarEmbed: CalendarEmbed, events: Event[]): ActionRowBuilder<ButtonBuilder> | void {
 	const selectEventButtons: ButtonBuilder[] = [];
+	const { embed } = calendarEmbed;
+	const emebdEvents = calendarEmbed.events;
 
 	if (events.length && embed) {
 		// This is to ensure that the number of buttons does not exceed to the limit per row
-		let eventsInEmbed = embed.data.fields.length;
+		let eventsInEmbed = emebdEvents.length;
 		if (eventsInEmbed > 5) {
 			eventsInEmbed = 5;
 		}
 
 		// Create buttons for each event on the page (up to 5)
-		for (let i = 1; i <= eventsInEmbed; i++) {
+		for (let i = 0; i < eventsInEmbed; i++) {
 			const selectEvent = new ButtonBuilder()
-				.setCustomId(`toggle-${i}`)
-				.setLabel(`Select #${i}`)
-				.setStyle(events[i].selected ? ButtonStyle.Primary : ButtonStyle.Secondary);
+				.setCustomId(`toggle-${i + 1}`)
+				.setLabel(emebdEvents[i].selected ? `Remove #${i + 1}` : `Select #${i + 1}`)
+				.setStyle(emebdEvents[i].selected ? ButtonStyle.Danger : ButtonStyle.Secondary);
 			selectEventButtons.push(selectEvent);
 		}
 
