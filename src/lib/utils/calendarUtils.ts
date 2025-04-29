@@ -54,6 +54,29 @@ export async function filterCalendarEvents(events: Event[], filters: Filter[]): 
 	return filteredEvents;
 }
 
+export function updateCalendarEmbed(embeds: CalendarEmbed[], add: boolean): CalendarEmbed[] {
+	if (add) {
+		embeds.forEach((embed) => {
+			const { fields } = embed.embed.data;
+			if (fields) {
+				fields.forEach((field, index) => {
+					field.name = `**${index + 1}.** ${field.name}`;
+				});
+			}
+		});
+	} else {
+		embeds.forEach((embed) => {
+			const { fields } = embed.embed.data;
+			if (fields) {
+				fields.forEach((field) => {
+					[, field.name] = field.name.split(/\*\*\d+\.\*\*\s/);
+				});
+			}
+		});
+	}
+	return embeds;
+}
+
 /**
  * This function will create embeds to contain all the events passed into the function
  *

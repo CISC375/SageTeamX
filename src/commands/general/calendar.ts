@@ -25,7 +25,8 @@ import
 	generateCalendarEmbeds,
 	generateEventSelectButtons,
 	generateCalendarFilterMessage,
-	Event } from '@root/src/lib/utils/calendarUtils';
+	Event,
+	updateCalendarEmbed } from '@root/src/lib/utils/calendarUtils';
 
 // Global constants
 const MONGO_URI = process.env.DB_CONN_STRING || '';
@@ -291,24 +292,10 @@ export default class extends Command {
 							await prep.edit('⚠️ Failed to generate calendar file.');
 						}
 						downloadPressed = false;
-						embeds.forEach((embed) => {
-							const { fields } = embed.embed.data;
-							if (fields) {
-								fields.forEach((field) => {
-									[, field.name] = field.name.split(/\*\*\d+\.\*\*\s/);
-								});
-							}
-						});
+						embeds = updateCalendarEmbed(embeds, false);
 					} else {
 						downloadPressed = true;
-						embeds.forEach((embed) => {
-							const { fields } = embed.embed.data;
-							if (fields) {
-								fields.forEach((field, index) => {
-									field.name = `**${index + 1}.** ${field.name}`;
-								});
-							}
-						});
+						embeds = updateCalendarEmbed(embeds, true);
 					}
 				}
 
