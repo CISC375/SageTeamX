@@ -177,7 +177,7 @@ export default class extends Command {
 		}
 
 		// Create pagified select menus based on the filters
-		let content = '**Select Filters**';
+		let content = '**\nSelect Filters**';
 		const filterComponents = generateCalendarFilterMessage(filters);
 
 		// Separate single page menus and pagified menus. Send pagified menus in a separate message
