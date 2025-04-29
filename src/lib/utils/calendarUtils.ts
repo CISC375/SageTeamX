@@ -54,6 +54,13 @@ export async function filterCalendarEvents(events: Event[], filters: Filter[]): 
 	return filteredEvents;
 }
 
+/**
+ * This is a helper function update the calendar embed fields when the download button is pressed
+ *
+ * @param {CalendarEmbed[]} embeds The embeds that you want to update
+ * @param {boolean} add Whether or not you want to add or remove from the calendar fields
+ * @returns {CalendarEmbed[]} The updated embeds
+ */
 export function updateCalendarEmbed(embeds: CalendarEmbed[], add: boolean): CalendarEmbed[] {
 	if (add) {
 		embeds.forEach((embed) => {
@@ -141,7 +148,7 @@ export function generateCalendarEmbeds(events: Event[], itemsPerPage: number): C
  * @param {number} currentPage The current embed page
  * @param {number} maxPage The total number of embeds
  * @param {number} downloadCount The number of selected events to be downloaded
- * @param {boolean} downloadPressed ...
+ * @param {boolean} downloadPressed  Whether or not the download button has been pressed
  * @returns {ActionRowBuilder<ButtonBuilder>}  All of the needed buttons to control the calendar embeds
  */
 export function generateCalendarButtons(currentPage: number, maxPage: number, downloadCount: number, downloadPressed: boolean): ActionRowBuilder<ButtonBuilder> {
