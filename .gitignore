@@ -2,7 +2,6 @@
 resources/*
 !resources/.exists
 src/commands/admin/eval.ts
-src/commands/general/temp.ts
 
 config.ts
 
