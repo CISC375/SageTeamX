@@ -8,10 +8,12 @@ export interface Reminder {
 
 export interface CalReminder {
 	owner: string;
-	calendarId: string
-	eventId: string,
-	expires: Date;
 	content: string;
-	repeat: null | 'daily' | 'weekly' | 'every_event';
+	calendarId: string;
+	eventId: string,
+	offset: number;
+	expires: Date;
 	mode: 'public' | 'private';
+	repeat: null | 'daily' | 'weekly' | 'every_event';
+	repeatUntil: Date;
 }
