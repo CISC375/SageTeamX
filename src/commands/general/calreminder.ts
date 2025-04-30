@@ -336,6 +336,7 @@ export default class extends Command {
 					const reminder: Reminder = {
 						owner: btnInt.user.id,
 						content: eventInfo,
+						mode: "private",
 						expires: remindDate, // next fire time
 						repeat: repeatInterval, // "every_event" or null
 						calendarId: calendar.calendarId, // for fetching next events

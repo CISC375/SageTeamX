@@ -3,7 +3,6 @@ import { ChannelType, Client, EmbedBuilder, TextChannel } from "discord.js";
 import { schedule } from "node-cron";
 import { Reminder } from "@lib/types/Reminder";
 import { Poll, PollResult } from "@lib/types/Poll";
-import { retrieveEvents } from "../lib/auth";
 
 async function register(bot: Client): Promise<void> {
 	schedule("0/30 * * * * *", () => {
@@ -114,71 +113,48 @@ async function checkPolls(bot: Client): Promise<void> {
 	});
 }
 
-export async function checkReminders(bot: Client): Promise<void> {
+async function checkReminders(bot: Client): Promise<void> {
 	const now = new Date();
 
-	// 1) fetch all due reminders
-	const due = await bot.mongo
-		.collection<
-			Reminder & {
-				_id: any;
-				repeat: "every_event" | null;
-				calendarId?: string;
-				offset?: number;
-				repeatUntil?: Date;
-			}
-		>(DB.REMINDERS)
+	// 1) fetch all reminders whose time has come
+	const reminders: Reminder[] = await bot.mongo
+		.collection<Reminder>(DB.REMINDERS)
 		.find({ expires: { $lte: now } })
 		.toArray();
 
-	for (const rem of due) {
-		// fire it
+	// 2) send each one as a DM‐embed first, fallback to Sage channel
+	for (const rem of reminders) {
+		// build a pretty embed
+		const embed = new EmbedBuilder()
+			.setTitle("⏰ Reminder")
+			.setDescription(rem.content) // your full "content" string
+			.setColor("Blue")
+			.setTimestamp(now);
+
+		// only if it's repeating, tack on a “Repeats” field
+		if (rem.repeat) {
+			embed.addFields({
+				name: "🔁 Repeats",
+				value:
+					rem.repeat === "every_event" ? "Every event" : rem.repeat,
+				inline: true,
+			});
+		}
+
 		try {
 			const user = await bot.users.fetch(rem.owner);
-			await user.send(`⏰ **Reminder:** ${rem.content}`);
+			await user.send({ embeds: [embed] });
 		} catch {
 			const sage = (await bot.channels.fetch(
 				CHANNELS.SAGE
 			)) as TextChannel;
-			await sage.send(
-				`<@${rem.owner}>, I couldn’t DM you. Here’s your reminder: **${rem.content}**`
-			);
+			await sage.send({ embeds: [embed] });
 		}
-
-		// if repeating, schedule the next if still within 180 days
-		if (
-			rem.repeat === "every_event" &&
-			rem.calendarId &&
-			typeof rem.offset === "number" &&
-			rem.repeatUntil &&
-			now.getTime() < rem.repeatUntil.getTime()
-		) {
-			const events = await retrieveEvents(rem.calendarId, null as any);
-			// compute next event reminder time
-			const next = events
-				.map((e) => ({
-					e,
-					remindAt: new Date(
-						new Date(e.start!.dateTime!).getTime() - rem.offset!
-					),
-				}))
-				.find(({ remindAt }) => remindAt.getTime() > now.getTime());
-
-			if (next && next.remindAt.getTime() <= rem.repeatUntil.getTime()) {
-				// update for the next fire
-				await bot.mongo
-					.collection(DB.REMINDERS)
-					.updateOne(
-						{ _id: rem._id },
-						{ $set: { expires: next.remindAt } }
-					);
-				continue;
-			}
-		}
-
-		// otherwise delete it
-		await bot.mongo.collection(DB.REMINDERS).deleteOne({ _id: rem._id });
 	}
-}
 
+	// 3) clean up the ones we just dispatched
+	await bot.mongo
+		.collection(DB.REMINDERS)
+		.deleteMany({ expires: { $lte: now } });
+}
 export default register;
