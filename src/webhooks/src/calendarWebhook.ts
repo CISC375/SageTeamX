@@ -4,6 +4,7 @@ import express from 'express';
 import { Collection, MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
 import { BOT, DB } from '../../../config';
+
 dotenv.config();
 
 const MONGO_URI = process.env.DB_CONN_STRING || '';
