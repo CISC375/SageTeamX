@@ -1,4 +1,3 @@
-/* eslint-disable camelcase */
 import { DB } from '@root/config';
 import { Command } from '@root/src/lib/types/Command';
 import { CalReminder } from '@root/src/lib/types/Reminder';
@@ -12,10 +11,10 @@ import {
 	ComponentType
 } from 'discord.js';
 import parse from 'parse-duration';
-import { PagifiedSelectMenu } from '@root/src/lib/types/PagifiedSelect';
 import { retrieveEvents } from '@root/src/lib/auth';
-import { calendar_v3 } from 'googleapis';
+import { calendar_v3 as calendarV3 } from 'googleapis';
 import { MongoClient } from 'mongodb';
+import { PagifiedSelectMenu } from '@root/src/lib/types/PagifiedSelect';
 const MONGO_URI = process.env.DB_CONN_STRING || '';
 
 export default class extends Command {
@@ -37,7 +36,7 @@ export default class extends Command {
 
 		function generateMessage(
 			repeatInterval: 'every_event' | null,
-			chosenEvent?: calendar_v3.Schema$Event,
+			chosenEvent?: calendarV3.Schema$Event,
 			chosenOffset?: number,
 			renderMenus = false,
 			eventCurrentPage = 0,
@@ -48,7 +47,8 @@ export default class extends Command {
 				eventMenu.createSelectMenu({
 					customId: 'select_event',
 					placeHolder: 'Select an event',
-					minimumValues: 1
+					minimumValues: 1,
+					maximumValues: 1
 				});
 				let defaultSet = false;
 
@@ -86,6 +86,7 @@ export default class extends Command {
 				offsetMenu.createSelectMenu({
 					customId: 'select_offset',
 					placeHolder: 'Select reminder offset',
+					minimumValues: 1,
 					maximumValues: 1
 				});
 
@@ -206,7 +207,7 @@ export default class extends Command {
 
 		const filteredEvents = events; // no filtering needed since each calendar is specific to a course
 
-		let chosenEvent: calendar_v3.Schema$Event = null;
+		let chosenEvent: calendarV3.Schema$Event = null;
 		let chosenOffset: number = null;
 		let repeatInterval: 'every_event' = null;
 		let activeReminderId: string = null;
@@ -392,7 +393,15 @@ export default class extends Command {
 			if (action) {
 				await btnInt.deferUpdate();
 				action();
-				const newRows = generateMessage(repeatInterval);
+
+				const newRows = generateMessage(
+					repeatInterval,
+					chosenEvent,
+					chosenOffset,
+					true, // ← force menus to regenerate
+					eventMenu.currentPage, // ← keep the event page
+					offsetMenu.currentPage // ← keep the offset page
+				);
 				await btnInt.editReply({ components: newRows });
 			}
 		});
