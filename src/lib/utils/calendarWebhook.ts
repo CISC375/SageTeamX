@@ -1,10 +1,11 @@
 /* eslint-disable camelcase */
-import { retrieveEvents, retrieveSyncToken } from '../../lib/auth';
+import 'module-alias/register';
+import { retrieveEvents, retrieveSyncToken } from '@lib/auth';
 import express from 'express';
 import { Collection, MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
-import { BOT, DB } from '../../../config';
-import { notifyEventChange } from '../../lib/utils/webhookUtils';
+import { BOT, DB } from '@root/config';
+import { notifyEventChange } from './webhookUtils';
 
 dotenv.config();
 
