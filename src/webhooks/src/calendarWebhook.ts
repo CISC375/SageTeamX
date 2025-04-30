@@ -4,6 +4,7 @@ import express from 'express';
 import { Collection, MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
 import { BOT, DB } from '../../../config';
+import { notifyEventChange } from '../../lib/utils/webhookUtils';
 
 dotenv.config();
 
@@ -45,6 +46,7 @@ async function handleChangedReminders(collection: Collection, token: string, cha
 					const newExpirationDate = new Date(dateObj.getTime());
 					const newContent = `${changedEvents[i].summary} Starts at: ${dateObj.toLocaleString()}`;
 					await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate, content: newContent } });
+					await notifyEventChange(reminder, newExpirationDate);
 					found = true;
 				}
 			}
