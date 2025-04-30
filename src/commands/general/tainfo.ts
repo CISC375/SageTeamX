@@ -102,7 +102,7 @@ export default class extends Command {
 					const name = rawName.replace(/^Name:\s*/, '').trim();
 					const email = rawEmail.replace(/^Email:\s*/, '').trim();
 					return {
-						markdown: `**Name:** ${name}  **Email:** ${email}`
+						markdown: `**Name:** ${name}\n**Email:** ${email}`
 						// plain: `Name: ${name}  Email: ${email}`
 					};
 				});
