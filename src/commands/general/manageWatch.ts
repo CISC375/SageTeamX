@@ -13,7 +13,7 @@ const ADDRESS = process.env.WEBHOOK_ADDRESS;
 
 export default class extends Command {
 
-	name = 'temp';
+	name = 'managewatch';
 	description = 'create a watch hook';
 	options: ApplicationCommandStringOptionData[] = [
 		{
