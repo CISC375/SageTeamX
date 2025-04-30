@@ -153,21 +153,20 @@ export default class extends Command {
 				];
 			}
 
+			// 2) All your pre-flight checks (courseCode, DB lookup, retrieveEvents, filters, etc.)
 			const courseCode = interaction.options
 				.getString("classname")
 				?.toUpperCase();
-
 			if (!courseCode) {
-				await interaction.reply({
+				await interaction.editReply({
 					content: "❗ You must specify a class name.",
-					ephemeral: true,
 				});
 				return;
 			}
 
 			// OPTIONAL name filter (e.g. "Phil", "Sophia")
 			const nameFilter =
-				interaction.options.getString("filter")?.trim().toLowerCase() ||
+				interaction.options.getString("filter")?.trim().toLowerCase() ??
 				null;
 
 			// Lookup calendar from MongoDB
@@ -188,9 +187,8 @@ export default class extends Command {
 				await client.close();
 
 				if (!calendarInDB) {
-					await interaction.reply({
+					await interaction.editReply({
 						content: `⚠️ There are no matching calendars with course code **${courseCode}**.`,
-						ephemeral: true,
 					});
 					return;
 				}
@@ -201,9 +199,8 @@ export default class extends Command {
 				};
 			} catch (error) {
 				console.error("Calendar lookup failed:", error);
-				await interaction.reply({
+				await interaction.editReply({
 					content: `❌ Database error while fetching calendar for **${courseCode}**.`,
-					ephemeral: true,
 				});
 				return;
 			}
@@ -215,10 +212,9 @@ export default class extends Command {
 			);
 
 			if (!events || events.length === 0) {
-				await interaction.reply({
+				await interaction.editReply({
 					content:
 						"⚠️ Failed to fetch calendar events or no events found.",
-					ephemeral: true,
 				});
 				return;
 			}
@@ -229,9 +225,8 @@ export default class extends Command {
 					e.summary?.toLowerCase().includes(nameFilter)
 				);
 				if (filteredEvents.length === 0) {
-					await interaction.reply({
+					await interaction.editReply({
 						content: `⚠️ No events found for **${courseCode}** matching **${nameFilter}**.`,
-						ephemeral: true,
 					});
 					return;
 				}
@@ -248,6 +243,7 @@ export default class extends Command {
 				chosenOffset,
 				true
 			);
+
 			if (chosenOffset === null) {
 				chosenOffset = 0;
 			}
@@ -340,11 +336,13 @@ export default class extends Command {
 					const reminder: Reminder = {
 						owner: btnInt.user.id,
 						content: eventInfo,
-						mode: "public",
-						expires: repeatInterval
-							? new Date(remindDate.getTime() + EXPIRE_BUFFER_MS) // give repeat reminders more time
-							: remindDate, // one-time reminders
-						repeat: repeatInterval,
+						expires: remindDate, // next fire time
+						repeat: repeatInterval, // "every_event" or null
+						calendarId: calendar.calendarId, // for fetching next events
+						offset: chosenOffset, // ms before event
+						repeatUntil: new Date(
+							remindDate.getTime() + EXPIRE_BUFFER_MS
+						),
 					};
 
 					let result;
@@ -439,7 +437,8 @@ export default class extends Command {
 			});
 		} catch (err) {
 			console.error("calreminder error:", err);
-			if (interaction.replied || interaction.deferred) {
+			// 5) Error fallback: if we’ve already deferred/replied, use followUp
+			if (interaction.deferred || interaction.replied) {
 				await interaction.followUp({
 					content:
 						"❌ An error occurred; the team has been notified.",
