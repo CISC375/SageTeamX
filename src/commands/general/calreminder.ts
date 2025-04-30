@@ -1,6 +1,6 @@
-import { DB } from "@root/config";
-import { Command } from "@root/src/lib/types/Command";
-import { Reminder } from "@root/src/lib/types/Reminder";
+import { DB } from '@root/config';
+import { Command } from '@root/src/lib/types/Command';
+import { Reminder } from '@root/src/lib/types/Reminder';
 import {
 	ActionRowBuilder,
 	ApplicationCommandOptionData,
@@ -8,66 +8,68 @@ import {
 	ButtonBuilder,
 	ButtonStyle,
 	ChatInputCommandInteraction,
-	ComponentType,
-} from "discord.js";
-import parse from "parse-duration";
-import { retrieveEvents } from "@root/src/lib/auth";
-import { calendar_v3 as calendarV3 } from "googleapis";
-import { MongoClient } from "mongodb";
-import { PagifiedSelectMenu } from "@root/src/lib/types/PagifiedSelect";
-const MONGO_URI = process.env.DB_CONN_STRING || "";
+	ComponentType
+} from 'discord.js';
+import parse from 'parse-duration';
+import { retrieveEvents } from '@root/src/lib/auth';
+import { calendar_v3 as calendarV3 } from 'googleapis';
+import { MongoClient } from 'mongodb';
+import { PagifiedSelectMenu } from '@root/src/lib/types/PagifiedSelect';
+const MONGO_URI = process.env.DB_CONN_STRING || '';
 
 export default class extends Command {
-	name = "calreminder";
-	description = "Setup reminders for calendar events";
+
+	name = 'calreminder';
+	description = 'Setup reminders for calendar events';
 	options: ApplicationCommandOptionData[] = [
 		{
-			name: "classname",
-			description: "Course ID",
+			name: 'classname',
+			description: 'Course ID',
 			type: ApplicationCommandOptionType.String,
-			required: true,
+			required: true
 		},
 		{
-			name: "filter",
+			name: 'filter',
 			description:
-				"Office-hours name or keyword to narrow results (optional)",
+				'Office-hours name or keyword to narrow results (optional)',
 			type: ApplicationCommandOptionType.String,
-			required: false,
-		},
+			required: false
+		}
 	];
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		await interaction.deferReply({ ephemeral: true });
-
+		if (!interaction.deferred && !interaction.replied) {
+			await interaction.deferReply({ ephemeral: true });
+		}
 		try {
 			let eventMenu: PagifiedSelectMenu;
 			let offsetMenu: PagifiedSelectMenu;
 
-			function generateMessage(
-				repeatInterval: "every_event" | null,
+			const generateMessage = (
+				repeatInterval: 'every_event' | null,
 				chosenEvent?: calendarV3.Schema$Event,
 				chosenOffset?: number,
 				renderMenus = false,
 				eventCurrentPage = 0,
 				offsetCurrentPage = 0
-			) {
+			) => {
 				if (renderMenus) {
 					eventMenu = new PagifiedSelectMenu();
 					eventMenu.createSelectMenu({
-						customId: "select_event",
-						placeHolder: "Select an event",
+						customId: 'select_event',
+						placeHolder: 'Select an event',
 						minimumValues: 1,
-						maximumValues: 1,
+						maximumValues: 1
 					});
 					let defaultSet = false;
 
 					filteredEvents.forEach((event, index) => {
 						if (!event.start?.dateTime) return;
 
-						const isDefault =
-							!defaultSet &&
-							chosenEvent?.start?.dateTime ===
-								event.start?.dateTime;
+						const isDefault
+							= !defaultSet
+							&& chosenEvent?.start?.dateTime
+								=== event.start?.dateTime;
 
 						if (isDefault) defaultSet = true;
 
@@ -77,7 +79,7 @@ export default class extends Command {
 							description: `Starts at: ${new Date(
 								event.start.dateTime
 							).toLocaleString()}`,
-							default: isDefault,
+							default: isDefault
 						});
 					});
 
@@ -85,33 +87,33 @@ export default class extends Command {
 
 					// Create offset select menu
 					const offsetOptions = [
-						{ label: "At event", value: "0" },
-						{ label: "10 minutes before", value: "10m" },
-						{ label: "30 minutes before", value: "30m" },
-						{ label: "1 hour before", value: "1h" },
-						{ label: "1 day before", value: "1d" },
+						{ label: 'At event', value: '0' },
+						{ label: '10 minutes before', value: '10m' },
+						{ label: '30 minutes before', value: '30m' },
+						{ label: '1 hour before', value: '1h' },
+						{ label: '1 day before', value: '1d' }
 					];
 
 					offsetMenu = new PagifiedSelectMenu();
 					offsetMenu.createSelectMenu({
-						customId: "select_offset",
-						placeHolder: "Select reminder offset",
+						customId: 'select_offset',
+						placeHolder: 'Select reminder offset',
 						minimumValues: 1,
-						maximumValues: 1,
+						maximumValues: 1
 					});
 
 					let offsetDefaultSet = false;
 
 					offsetOptions.forEach((option) => {
-						const isDefault =
-							!offsetDefaultSet &&
-							chosenOffset === parse(option.value);
+						const isDefault
+							= !offsetDefaultSet
+							&& chosenOffset === parse(option.value);
 						if (isDefault) offsetDefaultSet = true;
 
 						offsetMenu.addOption({
 							label: option.label,
 							value: option.value,
-							default: isDefault,
+							default: isDefault
 						});
 					});
 
@@ -126,22 +128,22 @@ export default class extends Command {
 
 				// 3) Generate repeat button
 				const toggleRepeatButton = new ButtonBuilder()
-					.setCustomId("toggle_repeat")
+					.setCustomId('toggle_repeat')
 					.setLabel(
-						repeatInterval === "every_event"
-							? "Repeat: On"
-							: "Repeat: Off"
+						repeatInterval === 'every_event'
+							? 'Repeat: On'
+							: 'Repeat: Off'
 					)
 					.setStyle(ButtonStyle.Secondary);
 
 				// 4) Generate set reminder button
 				const setReminder = new ButtonBuilder()
-					.setCustomId("set_reminder")
-					.setLabel("Set Reminder")
+					.setCustomId('set_reminder')
+					.setLabel('Set Reminder')
 					.setStyle(ButtonStyle.Success);
 
-				const setReminderAndRepeatRow =
-					new ActionRowBuilder<ButtonBuilder>().addComponents(
+				const setReminderAndRepeatRow
+					= new ActionRowBuilder<ButtonBuilder>().addComponents(
 						toggleRepeatButton,
 						setReminder
 					);
@@ -149,58 +151,58 @@ export default class extends Command {
 				return [
 					...eventMenuRows,
 					...offsetMenuRows,
-					setReminderAndRepeatRow,
+					setReminderAndRepeatRow
 				];
-			}
+			};
 
 			// 2) All your pre-flight checks (courseCode, DB lookup, retrieveEvents, filters, etc.)
 			const courseCode = interaction.options
-				.getString("classname")
+				.getString('classname')
 				?.toUpperCase();
 			if (!courseCode) {
 				await interaction.editReply({
-					content: "❗ You must specify a class name.",
+					content: '❗ You must specify a class name.'
 				});
 				return;
 			}
 
 			// OPTIONAL name filter (e.g. "Phil", "Sophia")
-			const nameFilter =
-				interaction.options.getString("filter")?.trim().toLowerCase() ??
-				null;
+			const nameFilter
+				= interaction.options.getString('filter')?.trim().toLowerCase()
+				?? null;
 
 			// Lookup calendar from MongoDB
 			let calendar: { calendarId: string; calendarName: string };
 			try {
 				const client = new MongoClient(MONGO_URI, {
-					useUnifiedTopology: true,
+					useUnifiedTopology: true
 				});
 				await client.connect();
 
-				const db = client.db("CalendarDatabase");
-				const collection = db.collection("calendarIds");
+				const db = client.db('CalendarDatabase');
+				const collection = db.collection('calendarIds');
 
 				const calendarInDB = await collection.findOne({
-					calendarName: { $regex: `^${courseCode}$`, $options: "i" },
+					calendarName: { $regex: `^${courseCode}$`, $options: 'i' }
 				});
 
 				await client.close();
 
 				if (!calendarInDB) {
 					await interaction.editReply({
-						content: `⚠️ There are no matching calendars with course code **${courseCode}**.`,
+						content: `⚠️ There are no matching calendars with course code **${courseCode}**.`
 					});
 					return;
 				}
 
 				calendar = {
 					calendarId: calendarInDB.calendarId,
-					calendarName: calendarInDB.calendarName,
+					calendarName: calendarInDB.calendarName
 				};
 			} catch (error) {
-				console.error("Calendar lookup failed:", error);
+				console.error('Calendar lookup failed:', error);
 				await interaction.editReply({
-					content: `❌ Database error while fetching calendar for **${courseCode}**.`,
+					content: `❌ Database error while fetching calendar for **${courseCode}**.`
 				});
 				return;
 			}
@@ -214,7 +216,7 @@ export default class extends Command {
 			if (!events || events.length === 0) {
 				await interaction.editReply({
 					content:
-						"⚠️ Failed to fetch calendar events or no events found.",
+						'⚠️ Failed to fetch calendar events or no events found.'
 				});
 				return;
 			}
@@ -226,7 +228,7 @@ export default class extends Command {
 				);
 				if (filteredEvents.length === 0) {
 					await interaction.editReply({
-						content: `⚠️ No events found for **${courseCode}** matching **${nameFilter}**.`,
+						content: `⚠️ No events found for **${courseCode}** matching **${nameFilter}**.`
 					});
 					return;
 				}
@@ -234,7 +236,7 @@ export default class extends Command {
 
 			let chosenEvent: calendarV3.Schema$Event = null;
 			let chosenOffset: number = null;
-			let repeatInterval: "every_event" = null;
+			let repeatInterval: 'every_event' = null;
 			let activeReminderId: string = null;
 
 			const initialComponents = generateMessage(
@@ -250,39 +252,39 @@ export default class extends Command {
 
 			// 2) Send your menus by editing the deferred reply:
 			const replyMessage = await interaction.editReply({
-				components: initialComponents,
+				components: initialComponents
 			});
 
 			// Main collector for event & offset
 			const collector = replyMessage.createMessageComponentCollector({
 				componentType: ComponentType.StringSelect,
-				time: 60_000,
+				time: 60_000
 			});
 
-			collector.on("collect", async (i) => {
-				if (i.customId === "select_event") {
-					const [, indexStr] = i.values[0].split("::");
+			collector.on('collect', async (i) => {
+				if (i.customId === 'select_event') {
+					const [, indexStr] = i.values[0].split('::');
 					const selectedIndex = parseInt(indexStr);
 					chosenEvent = filteredEvents[selectedIndex];
 					await i.deferUpdate();
-				} else if (i.customId === "select_offset") {
+				} else if (i.customId === 'select_offset') {
 					const rawOffsetStr = i.values[0];
-					chosenOffset =
-						rawOffsetStr === "0" ? 0 : parse(rawOffsetStr);
+					chosenOffset
+						= rawOffsetStr === '0' ? 0 : parse(rawOffsetStr);
 					await i.deferUpdate();
 				}
 			});
 
 			// Button collector for Cancel and Set Reminder
-			const buttonCollector =
-				replyMessage.createMessageComponentCollector({
+			const buttonCollector
+				= replyMessage.createMessageComponentCollector({
 					componentType: ComponentType.Button,
-					time: 300_000, // 5 minutes
+					time: 300_000 // 5 minutes
 				});
 
-			buttonCollector.on("collect", async (btnInt) => {
-				if (btnInt.customId === "toggle_repeat") {
-					repeatInterval = repeatInterval ? null : "every_event";
+			buttonCollector.on('collect', async (btnInt) => {
+				if (btnInt.customId === 'toggle_repeat') {
+					repeatInterval = repeatInterval ? null : 'every_event';
 
 					const updatedComponents = generateMessage(
 						repeatInterval,
@@ -294,9 +296,9 @@ export default class extends Command {
 					);
 
 					await btnInt.update({
-						components: updatedComponents,
+						components: updatedComponents
 					});
-				} else if (btnInt.customId === "set_reminder") {
+				} else if (btnInt.customId === 'set_reminder') {
 					// If user hasn’t selected both fields, just silently acknowledge
 					if (!chosenEvent || chosenOffset === null) {
 						if (!btnInt.deferred && !btnInt.replied) {
@@ -317,8 +319,8 @@ export default class extends Command {
 					if (remindDate.getTime() <= Date.now()) {
 						await btnInt.editReply({
 							content:
-								"⏰ That reminder time is in the past. No reminder was set.",
-							components: [],
+								'⏰ That reminder time is in the past. No reminder was set.',
+							components: []
 						});
 						collector.stop();
 						buttonCollector.stop();
@@ -336,14 +338,14 @@ export default class extends Command {
 					const reminder: Reminder = {
 						owner: btnInt.user.id,
 						content: eventInfo,
-						mode: "private",
+						mode: 'private',
 						expires: remindDate, // next fire time
 						repeat: repeatInterval, // "every_event" or null
 						calendarId: calendar.calendarId, // for fetching next events
 						offset: chosenOffset, // ms before event
 						repeatUntil: new Date(
 							remindDate.getTime() + EXPIRE_BUFFER_MS
-						),
+						)
 					};
 
 					let result;
@@ -353,11 +355,11 @@ export default class extends Command {
 							.insertOne(reminder);
 						activeReminderId = result.insertedId;
 					} catch (err) {
-						console.error("Failed to insert reminder:", err);
+						console.error('Failed to insert reminder:', err);
 						await btnInt.editReply({
 							content:
-								"❌ Failed to save reminder. Please try again later.",
-							components: [],
+								'❌ Failed to save reminder. Please try again later.',
+							components: []
 						});
 						buttonCollector.stop();
 						return;
@@ -365,12 +367,12 @@ export default class extends Command {
 
 					// Build Cancel button row
 					const cancelButton = new ButtonBuilder()
-						.setCustomId("cancel_reminder")
-						.setLabel("Cancel Reminder")
+						.setCustomId('cancel_reminder')
+						.setLabel('Cancel Reminder')
 						.setStyle(ButtonStyle.Danger);
 
-					const buttonRow =
-						new ActionRowBuilder<ButtonBuilder>().addComponents(
+					const buttonRow
+						= new ActionRowBuilder<ButtonBuilder>().addComponents(
 							cancelButton
 						);
 
@@ -382,11 +384,11 @@ export default class extends Command {
 							repeatInterval
 								? `\n🔁 Repeats every event (for up to 180 days)
 `
-								: ""
+								: ''
 						}`,
-						components: [buttonRow],
+						components: [buttonRow]
 					});
-				} else if (btnInt.customId === "cancel_reminder") {
+				} else if (btnInt.customId === 'cancel_reminder') {
 					try {
 						// 1) Defer *a new reply* (ephemeral)
 						if (!btnInt.deferred && !btnInt.replied) {
@@ -402,22 +404,22 @@ export default class extends Command {
 
 						// 3) Send brand new ephemeral follow-up
 						await btnInt.followUp({
-							content: "❌ Your reminder has been canceled.",
-							ephemeral: true,
+							content: '❌ Your reminder has been canceled.',
+							ephemeral: true
 						});
 
 						// 4) Stop the collector
 						buttonCollector.stop();
 					} catch (err) {
-						console.error("Failed to cancel reminder:", err);
+						console.error('Failed to cancel reminder:', err);
 					}
 				}
 
 				const actions: Record<string, () => void> = {
-					"next_button:select_event": () => eventMenu.currentPage++,
-					"prev_button:select_event": () => eventMenu.currentPage--,
-					"next_button:select_offset": () => offsetMenu.currentPage++,
-					"prev_button:select_offset": () => offsetMenu.currentPage--,
+					'next_button:select_event': () => eventMenu.currentPage++,
+					'prev_button:select_event': () => eventMenu.currentPage--,
+					'next_button:select_offset': () => offsetMenu.currentPage++,
+					'prev_button:select_offset': () => offsetMenu.currentPage--
 				};
 				const action = actions[btnInt.customId];
 
@@ -437,21 +439,22 @@ export default class extends Command {
 				}
 			});
 		} catch (err) {
-			console.error("calreminder error:", err);
+			console.error('calreminder error:', err);
 			// 5) Error fallback: if we’ve already deferred/replied, use followUp
 			if (interaction.deferred || interaction.replied) {
 				await interaction.followUp({
 					content:
-						"❌ An error occurred; the team has been notified.",
-					ephemeral: true,
+						'❌ An error occurred; the team has been notified.',
+					ephemeral: true
 				});
 			} else {
 				await interaction.reply({
 					content:
-						"❌ An error occurred; the team has been notified.",
-					ephemeral: true,
+						'❌ An error occurred; the team has been notified.',
+					ephemeral: true
 				});
 			}
 		}
 	}
+
 }
