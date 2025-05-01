@@ -44,7 +44,7 @@ async function handleChangedReminders(collection: Collection, token: string, cha
 				if (changedEvents[i].id === reminder.eventId) {
 					console.log(changedEvents[i]);
 					const dateObj = new Date(changedEvents[i].start.dateTime);
-					const newExpirationDate = new Date(dateObj.getTime());
+					const newExpirationDate = new Date(dateObj.getTime() - reminder.offset);
 					const newContent = `${changedEvents[i].summary} Starts at: ${dateObj.toLocaleString()}`;
 					await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate, content: newContent } });
 					await notifyEventChange(reminder, newExpirationDate);
