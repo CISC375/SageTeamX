@@ -6,6 +6,7 @@ import { Collection, MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
 import { BOT, DB } from '@root/config';
 import { notifyEventChange } from './webhookUtils';
+import { calendar_v3 } from 'googleapis';
 
 dotenv.config();
 
@@ -34,23 +35,36 @@ async function handleChangedReminders(collection: Collection, token: string, cha
 	const newSyncToken = await retrieveSyncToken(channel.calendarId, token);
 	await collection.updateOne({ token: token }, { $set: { token: newSyncToken } });
 
+	const singleEvents: Map<string, calendar_v3.Schema$Event> = new Map<string, calendar_v3.Schema$Event>();
+	const parentEvents: Map<string, calendar_v3.Schema$Event> = new Map<string, calendar_v3.Schema$Event>();
+	for (const event of changedEvents) {
+		if (!event.recurrence && event.status !== 'cancelled') {
+			singleEvents.set(event.id, event);
+		} else {
+			parentEvents.set(event.summary, event);
+		}
+	}
+
 	const botDB = client.db(BOT.NAME);
 	collection = botDB.collection(DB.REMINDERS);
 	const reminders = await collection.find().toArray();
 	for (const reminder of reminders) {
-		if (reminder) {
-			let found = false;
-			for (let i = 0; i < changedEvents.length && !found; i++) {
-				if (changedEvents[i].id === reminder.eventId) {
-					console.log(changedEvents[i]);
-					const dateObj = new Date(changedEvents[i].start.dateTime);
-					const newExpirationDate = new Date(dateObj.getTime() - reminder.offset);
-					const newContent = `${changedEvents[i].summary} Starts at: ${dateObj.toLocaleString()}`;
-					await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate, content: newContent } });
-					await notifyEventChange(reminder, newExpirationDate);
-					found = true;
-				}
-			}
+		const changedEvent = singleEvents.get(reminder.eventId);
+		const changedReccuringEvent = parentEvents.get(reminder.content.split('Starts at:')[0].trim());
+		if (changedEvent) {
+			console.log(changedEvent);
+			const dateObj = new Date(changedEvent.start.dateTime);
+			const newExpirationDate = new Date(dateObj.getTime() - reminder.offset);
+			const newContent = `${changedEvent.summary} Starts at: ${dateObj.toLocaleString()}`;
+			await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate, content: newContent } });
+			await notifyEventChange(reminder, newExpirationDate);
+		} else if (changedReccuringEvent) {
+			console.log(changedReccuringEvent);
+			const dateObj = new Date(changedReccuringEvent.start.dateTime);
+			const newExpirationDate = new Date(dateObj.getTime() - reminder.offset);
+			const newContent = `${changedReccuringEvent.summary} Starts at: ${dateObj.toLocaleString()}`;
+			await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate, content: newContent } });
+			await notifyEventChange(reminder, newExpirationDate);
 		}
 	}
 	console.log(changedEvents);
