@@ -37,11 +37,14 @@ async function handleChangedReminders(collection: Collection, token: string, cha
 
 	const singleEvents: Map<string, calendar_v3.Schema$Event> = new Map<string, calendar_v3.Schema$Event>();
 	const parentEvents: Map<string, calendar_v3.Schema$Event> = new Map<string, calendar_v3.Schema$Event>();
+	const cancelledEvents: Map<string, calendar_v3.Schema$Event> = new Map<string, calendar_v3.Schema$Event>();
 	for (const event of changedEvents) {
 		if (!event.recurrence && event.status !== 'cancelled') {
 			singleEvents.set(event.id, event);
-		} else {
+		} else if (event.recurrence && event.status !== 'cancelled') {
 			parentEvents.set(event.summary, event);
+		} else if (event.status === 'cancelled') {
+			cancelledEvents.set(event.id, event);
 		}
 	}
 
@@ -51,6 +54,7 @@ async function handleChangedReminders(collection: Collection, token: string, cha
 	for (const reminder of reminders) {
 		const changedEvent = singleEvents.get(reminder.eventId);
 		const changedReccuringEvent = parentEvents.get(reminder.content.split('Starts at:')[0].trim());
+		const cancelledEvent = cancelledEvents.get(reminder.eventId);
 		if (changedEvent) {
 			console.log(changedEvent);
 			const dateObj = new Date(changedEvent.start.dateTime);
@@ -65,6 +69,17 @@ async function handleChangedReminders(collection: Collection, token: string, cha
 			const newContent = `${changedReccuringEvent.summary} Starts at: ${dateObj.toLocaleString()}`;
 			await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate, content: newContent } });
 			await notifyEventChange(reminder, newExpirationDate);
+			if (cancelledEvent) {
+				const year = dateObj.getUTCFullYear().toString().padStart(4, '0');
+				const month = (dateObj.getUTCMonth() + 1).toString().padStart(2, '0');
+				const day = dateObj.getUTCDate().toString().padStart(2, '0');
+				const hour = dateObj.getUTCHours().toString().padStart(2, '0');
+				const minute = dateObj.getUTCMinutes().toString().padStart(2, '0');
+				const seconds = dateObj.getUTCSeconds().toString().padStart(2, '0');
+				const newEventId = `${changedReccuringEvent.id}_${year}${month}${day}T${hour}${minute}${seconds}Z`;
+				console.log(newEventId);
+				await collection.updateOne({ _id: reminder._id }, { $set: { eventId: newEventId } });
+			}
 		}
 	}
 	console.log(changedEvents);
