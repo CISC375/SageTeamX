@@ -71,7 +71,8 @@ export default class extends Command {
 				{
 					calendarId: calendarID,
 					channelId: watchChannel.data.id,
-					resourceId: watchChannel.data.resourceId
+					resourceId: watchChannel.data.resourceId,
+					expires: new Date(Number(watchChannel.data.expiration))
 				}
 			);
 		} else {
