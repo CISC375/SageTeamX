@@ -59,9 +59,12 @@ async function handleChangedReminders(collection: Collection, token: string, cha
 			console.log(changedEvent);
 			const dateObj = new Date(changedEvent.start.dateTime);
 			const newExpirationDate = new Date(dateObj.getTime() - reminder.offset);
-			const newContent = `${changedEvent.summary} Starts at: ${dateObj.toLocaleString()}`;
-			await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate, content: newContent } });
-			await notifyEventChange(reminder, { newExpirationDate: newExpirationDate });
+			if (newExpirationDate.getTime() !== reminder.expires.getTime()) {
+				const newContent = `${changedEvent.summary} Starts at: ${dateObj.toLocaleString()}`;
+				await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate, content: newContent } });
+				await notifyEventChange(reminder, { newExpirationDate: newExpirationDate });
+				parentEvents.delete(changedEvent.summary);
+			}
 		} else if (changedReccuringEvent) {
 			await collection.findOneAndDelete({ _id: reminder._id });
 			await notifyEventChange(reminder, { type: 'recurring' });
