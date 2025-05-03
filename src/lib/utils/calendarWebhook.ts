@@ -61,14 +61,14 @@ async function handleChangedReminders(collection: Collection, token: string, cha
 			const newExpirationDate = new Date(dateObj.getTime() - reminder.offset);
 			const newContent = `${changedEvent.summary} Starts at: ${dateObj.toLocaleString()}`;
 			await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate, content: newContent } });
-			await notifyEventChange(reminder, newExpirationDate);
+			await notifyEventChange(reminder, { newExpirationDate: newExpirationDate });
 		} else if (changedReccuringEvent) {
 			console.log(changedReccuringEvent);
 			const dateObj = new Date(changedReccuringEvent.start.dateTime);
 			const newExpirationDate = new Date(dateObj.getTime() - reminder.offset);
 			const newContent = `${changedReccuringEvent.summary} Starts at: ${dateObj.toLocaleString()}`;
 			await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate, content: newContent } });
-			await notifyEventChange(reminder, newExpirationDate);
+			await notifyEventChange(reminder, { newExpirationDate: newExpirationDate });
 			if (cancelledEvent) {
 				const year = dateObj.getUTCFullYear().toString().padStart(4, '0');
 				const month = (dateObj.getUTCMonth() + 1).toString().padStart(2, '0');
@@ -80,6 +80,10 @@ async function handleChangedReminders(collection: Collection, token: string, cha
 				console.log(newEventId);
 				await collection.updateOne({ _id: reminder._id }, { $set: { eventId: newEventId } });
 			}
+		} else if (cancelledEvent) {
+			console.log(reminder);
+			await collection.findOneAndDelete({ _id: reminder._id });
+			await notifyEventChange(reminder, { cancelled: true });
 		}
 	}
 	console.log(changedEvents);
