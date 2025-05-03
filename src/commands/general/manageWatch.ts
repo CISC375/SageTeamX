@@ -61,7 +61,8 @@ export default class extends Command {
 				requestBody: {
 					id: randomUUID(),
 					type: 'web_hook',
-					address: ADDRESS
+					address: ADDRESS,
+					expiration: new Date('2025-05-03T21:15:11.000+00:00').getTime().toString()
 				},
 				maxResults: 2500
 			});
