@@ -63,27 +63,12 @@ async function handleChangedReminders(collection: Collection, token: string, cha
 			await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate, content: newContent } });
 			await notifyEventChange(reminder, { newExpirationDate: newExpirationDate });
 		} else if (changedReccuringEvent) {
-			console.log(changedReccuringEvent);
-			const dateObj = new Date(changedReccuringEvent.start.dateTime);
-			const newExpirationDate = new Date(dateObj.getTime() - reminder.offset);
-			const newContent = `${changedReccuringEvent.summary} Starts at: ${dateObj.toLocaleString()}`;
-			await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate, content: newContent } });
-			await notifyEventChange(reminder, { newExpirationDate: newExpirationDate });
-			if (cancelledEvent) {
-				const year = dateObj.getUTCFullYear().toString().padStart(4, '0');
-				const month = (dateObj.getUTCMonth() + 1).toString().padStart(2, '0');
-				const day = dateObj.getUTCDate().toString().padStart(2, '0');
-				const hour = dateObj.getUTCHours().toString().padStart(2, '0');
-				const minute = dateObj.getUTCMinutes().toString().padStart(2, '0');
-				const seconds = dateObj.getUTCSeconds().toString().padStart(2, '0');
-				const newEventId = `${changedReccuringEvent.id}_${year}${month}${day}T${hour}${minute}${seconds}Z`;
-				console.log(newEventId);
-				await collection.updateOne({ _id: reminder._id }, { $set: { eventId: newEventId } });
-			}
+			await collection.findOneAndDelete({ _id: reminder._id });
+			await notifyEventChange(reminder, { type: 'recurring' });
 		} else if (cancelledEvent) {
 			console.log(reminder);
 			await collection.findOneAndDelete({ _id: reminder._id });
-			await notifyEventChange(reminder, { cancelled: true });
+			await notifyEventChange(reminder, { type: 'cancelled' });
 		}
 	}
 	console.log(changedEvents);
