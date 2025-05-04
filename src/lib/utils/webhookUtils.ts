@@ -8,6 +8,15 @@ import { calendar_v3 } from 'googleapis';
 import { Collection, MongoClient } from 'mongodb';
 import { WatchChannel } from '../types/EventWatch';
 
+/**
+ * This helper function is used to update/delete calendar reminders in MongoDB based on if the events they're tracking have changed
+ *
+ * @param {Collection} collection The MongoDB collection to update
+ * @param {string} token The current sync token of the tracked google calendar
+ * @param {WatchChannel} channel The active watch channel that is tracking the google calendar
+ * @param {MongoClient} client A MongoDB client to handle connection to MongoDB
+ * @returns {Promise<void>} This function returns nothing
+ */
 export async function handleChangedReminders(collection: Collection, token: string, channel: WatchChannel, client: MongoClient): Promise<void> {
 	const changedEvents = await retrieveEvents(channel.calendarId, null, true, token);
 	const newSyncToken = await retrieveSyncToken(channel.calendarId, token);
@@ -55,6 +64,15 @@ export async function handleChangedReminders(collection: Collection, token: stri
 	console.log(changedEvents);
 }
 
+/**
+ * This helper function will notify a user when one of their calendar reminders has been updated
+ *
+ * @param {CalReminder} reminder The calendar reminder that was changed
+ * @param {Object} options Settings to modify what is sent to the user
+ * @param {Date} options.newExpirationDate The new expiration date of the calendar reminder
+ * @param {string} options.type Specifies what changed in the calendar reminder
+ * @returns {Promise<void>} This function returns nothing
+ */
 export async function notifyEventChange(reminder: CalReminder, options: {newExpirationDate?: Date, type?: string}): Promise<void> {
 	const channel = await bot.channels.fetch(CHANNELS.SAGE) as TextChannel;
 	const eventName = reminder.content.split('Starts at:')[0].trim();
