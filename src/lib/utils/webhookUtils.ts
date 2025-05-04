@@ -22,6 +22,7 @@ export async function handleChangedReminders(collection: Collection, token: stri
 	const newSyncToken = await retrieveSyncToken(channel.calendarId, token);
 	await collection.updateOne({ token: token }, { $set: { token: newSyncToken } });
 
+	// Sort the changed events into different categories
 	const singleEvents: Map<string, calendar_v3.Schema$Event> = new Map<string, calendar_v3.Schema$Event>();
 	const parentEvents: Map<string, calendar_v3.Schema$Event> = new Map<string, calendar_v3.Schema$Event>();
 	const cancelledEvents: Map<string, calendar_v3.Schema$Event> = new Map<string, calendar_v3.Schema$Event>();
@@ -35,6 +36,7 @@ export async function handleChangedReminders(collection: Collection, token: stri
 		}
 	}
 
+	// Traverse through all of the reminders in the DB and check which ones need to be updated
 	const botDB = client.db(BOT.NAME);
 	collection = botDB.collection(DB.REMINDERS);
 	const reminders = await collection.find().toArray();
