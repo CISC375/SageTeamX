@@ -12,7 +12,7 @@ const DB_NAME = 'CalendarDatabase';
 const ADDRESS = process.env.WEBHOOK_ADDRESS;
 
 async function register(): Promise<void> {
-	schedule('0/30 * * * * *', () => {
+	schedule('0 2 * * *', () => {
 		handleRenewal();
 	});
 }
