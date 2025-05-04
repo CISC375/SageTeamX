@@ -69,7 +69,7 @@ export default class RemoveCalendarCommand extends Command {
 				await collection.deleteOne({ calendarId: selectedId });
 				const removed = calendarDocs.find((calendarDoc) => calendarDoc.calendarId === selectedId);
 				await i.update({
-					content: `✅ Successfully removed **${removed?.calendarName}** (\`${selectedId}\`).`,
+					content: `✅ Successfully removed **${removed?.calendarName}**.`,
 					components: []
 				});
 				await client.close();
