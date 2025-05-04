@@ -62,7 +62,7 @@ export default class extends Command {
 					id: randomUUID(),
 					type: 'web_hook',
 					address: ADDRESS,
-					expiration: new Date('2025-05-03T21:15:11.000+00:00').getTime().toString()
+					expiration: new Date('2025-05-05T09:00:11.000+00:00').getTime().toString()
 				},
 				maxResults: 2500
 			});

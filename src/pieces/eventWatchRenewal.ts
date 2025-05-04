@@ -1,4 +1,3 @@
-import { Client } from 'discord.js';
 import { MongoClient } from 'mongodb';
 import { schedule } from 'node-cron';
 import { retrieveCalendarToken } from '../lib/auth';
@@ -12,7 +11,7 @@ const COLLECTION_NAME = 'watchChannels';
 const DB_NAME = 'CalendarDatabase';
 const ADDRESS = process.env.WEBHOOK_ADDRESS;
 
-async function register(bot: Client): Promise<void> {
+async function register(): Promise<void> {
 	schedule('0/30 * * * * *', () => {
 		handleRenewal();
 	});
@@ -26,13 +25,10 @@ async function handleRenewal(): Promise<void> {
 	const collection = db.collection(COLLECTION_NAME);
 	const channels = await collection.find().toArray();
 	for (const channel of channels) {
-		console.log(channel);
 		const test = new Date();
 		test.setDate(test.getDate() + 2);
 		const time = test.getTime();
 		const channelExpiration = new Date(channel.expires).getTime();
-		console.log(channelExpiration);
-		console.log(time);
 		if (channelExpiration < time) {
 			console.log(await calendar.channels.stop({
 				requestBody: {

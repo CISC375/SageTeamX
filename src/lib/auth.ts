@@ -155,9 +155,7 @@ export async function retrieveSyncToken(calendarId: string, syncToken?: string):
 			});
 
 			pageToken = response.data.nextPageToken;
-			if (pageToken === null) {
-				syncToken = response.data.nextSyncToken;
-			}
+			syncToken = response.data.nextSyncToken;
 		}
 	} catch (error) {
 		console.log(error);
