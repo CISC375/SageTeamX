@@ -19,14 +19,13 @@ import * as fs from 'fs';
 import { retrieveEvents } from '@root/src/lib/auth';
 import
 { downloadEvents,
-	Filter,
 	filterCalendarEvents,
 	generateCalendarButtons,
 	generateCalendarEmbeds,
 	generateEventSelectButtons,
 	generateCalendarFilterMessage,
-	Event,
 	updateCalendarEmbed } from '@root/src/lib/utils/calendarUtils';
+import { CalendarEvent, Filter } from '@root/src/lib/types/Calendar';
 
 // Global constants
 const MONGO_URI = process.env.DB_CONN_STRING || '';
@@ -53,7 +52,7 @@ export default class extends Command {
 		// Local variables
 		let currentPage = 0;
 		let downloadPressed = false;
-		let selectedEvents: Event[] = [];
+		let selectedEvents: CalendarEvent[] = [];
 		const courseCode = interaction.options.getString(this.options[0].name, this.options[0].required);
 		const filters: Filter[] = [
 			{
@@ -62,7 +61,7 @@ export default class extends Command {
 				values: ['In Person', 'Virtual'],
 				newValues: [],
 				flag: true,
-				condition: (newValues: string[], event: Event) => {
+				condition: (newValues: string[], event: CalendarEvent) => {
 					const valuesToCheck = ['virtual', 'online', 'zoom'];
 					const summary = event.calEvent.summary?.toLowerCase() || '';
 					const location = event.calEvent.location?.toLowerCase() || '';
@@ -76,7 +75,7 @@ export default class extends Command {
 				values: WEEKDAYS,
 				newValues: [],
 				flag: true,
-				condition: (newValues: string[], event: Event) => {
+				condition: (newValues: string[], event: CalendarEvent) => {
 					if (!event.calEvent.start?.dateTime) return false;
 					const dt = new Date(event.calEvent.start.dateTime);
 					const weekdayIndex = dt.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -112,13 +111,13 @@ export default class extends Command {
 		}
 
 		// Retrieve events from selected calendar
-		const events: Event[] = [];
+		const events: CalendarEvent[] = [];
 		const retrivedEvents = await retrieveEvents(calendar.calendarId, interaction);
 		if (retrivedEvents === null) {
 			return;
 		}
 		retrivedEvents.forEach((retrivedEvent) => {
-			const newEvent: Event = { calEvent: retrivedEvent, calendarName: calendar.calendarName, selected: false };
+			const newEvent: CalendarEvent = { calEvent: retrivedEvent, calendarName: calendar.calendarName, selected: false };
 			if (!newEvent.calEvent.location) {
 				newEvent.calEvent.location = '`Location not specified for this event`';
 
@@ -147,7 +146,7 @@ export default class extends Command {
 		);
 
 		// Create a filtered events variable to keep the original array intact
-		let filteredEvents: Event[] = events;
+		let filteredEvents: CalendarEvent[] = events;
 
 		// Create initial embed
 		let embeds = generateCalendarEmbeds(filteredEvents, EVENTS_PER_PAGE);

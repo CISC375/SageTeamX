@@ -4,26 +4,7 @@ import { calendar_v3 } from 'googleapis';
 import { retrieveEvents } from '../auth';
 import { PagifiedSelectMenu } from '../types/PagifiedSelect';
 import * as fs from 'fs';
-
-export interface Event {
-	calEvent: calendar_v3.Schema$Event;
-	calendarName: string;
-	selected: boolean;
-}
-
-export interface Filter {
-	customId: string;
-	placeholder: string,
-	values: string[];
-	newValues: string[];
-	flag: boolean;
-	condition: (newValues: string[], event: Event) => boolean;
-}
-
-export interface CalendarEmbed {
-	embed: EmbedBuilder;
-	events: Event[];
-}
+import { CalendarEmbed, CalendarEvent, Filter } from '../types/Calendar';
 
 /**
  * This function will filter out events based on the given filter array
@@ -32,8 +13,8 @@ export interface CalendarEmbed {
  * @param {Filter[]} filters The filters that you want to use to filter the events
  * @returns {Promise<Event[]>} This function will return an async promise of the filtered events in an array
  */
-export async function filterCalendarEvents(events: Event[], filters: Filter[]): Promise<Event[]> {
-	const filteredEvents: Event[] = [];
+export async function filterCalendarEvents(events: CalendarEvent[], filters: Filter[]): Promise<CalendarEvent[]> {
+	const filteredEvents: CalendarEvent[] = [];
 
 	let allFiltersFlags = true;
 
@@ -91,7 +72,7 @@ export function updateCalendarEmbed(embeds: CalendarEmbed[], add: boolean): Cale
  * @param {number} itemsPerPage The number of events you want to display on one embed
  * @returns {EmbedBuilder[]} Embeds containing all of the calendar events
  */
-export function generateCalendarEmbeds(events: Event[], itemsPerPage: number): CalendarEmbed[] {
+export function generateCalendarEmbeds(events: CalendarEvent[], itemsPerPage: number): CalendarEmbed[] {
 	const embeds: CalendarEmbed[] = [];
 
 	// There can only be up to 25 fields in an embed, so this is just a check to make sure nothing breaks
@@ -101,7 +82,7 @@ export function generateCalendarEmbeds(events: Event[], itemsPerPage: number): C
 
 	if (events.length) {
 		// Pagify events array
-		const pagifiedEvents: Event[][] = [];
+		const pagifiedEvents: CalendarEvent[][] = [];
 		for (let i = 0; i < events.length; i += itemsPerPage) {
 			pagifiedEvents.push(events.slice(i, i + itemsPerPage));
 		}
@@ -221,7 +202,7 @@ export function generateCalendarFilterMessage(filters: Filter[]): PagifiedSelect
  * @param {Event[]} events All of the events retrieved from the google calendar
  * @returns {ActionRowBuilder<ButtonBuilder>} An action row containing all of the select butttons
  */
-export function generateEventSelectButtons(calendarEmbed: CalendarEmbed, events: Event[]): ActionRowBuilder<ButtonBuilder> | void {
+export function generateEventSelectButtons(calendarEmbed: CalendarEmbed, events: CalendarEvent[]): ActionRowBuilder<ButtonBuilder> | void {
 	const selectEventButtons: ButtonBuilder[] = [];
 	const { embed } = calendarEmbed;
 	const emebdEvents = calendarEmbed.events;
@@ -270,7 +251,7 @@ function formatTime(dateTimeString: string): string {
  * @param {{calendarId: string, calendarName: string}} calendar An arry of all of the calendars retrived from MongoDB
  * @param {ChatInputCommandInteraction} interaction The interaction created by calling /calendar
  */
-export async function downloadEvents(selectedEvents: Event[], calendar: {calendarId: string, calendarName: string}, interaction: ChatInputCommandInteraction): Promise<void> {
+export async function downloadEvents(selectedEvents: CalendarEvent[], calendar: {calendarId: string, calendarName: string}, interaction: ChatInputCommandInteraction): Promise<void> {
 	const formattedEvents: string[] = [];
 	const parentEvents: calendar_v3.Schema$Event[] = await retrieveEvents(calendar.calendarId, interaction, false);
 	const recurrenceRules: Record<string, string[]> = Object.fromEntries(parentEvents.map((event) => [event.id, event.recurrence]));
