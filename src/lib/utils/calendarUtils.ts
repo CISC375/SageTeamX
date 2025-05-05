@@ -126,8 +126,8 @@ export function generateCalendarEmbeds(events: CalendarEvent[], itemsPerPage: nu
 /**
  * Generates pagification buttons and download buttons for the calendar embeds
  *
- * @param {CalendarEvent[]} filteredEvents ...
- * @param {CalendarEvent[]} selectedEvents ...
+ * @param {CalendarEvent[]} filteredEvents All of the filtered events
+ * @param {CalendarEvent[]} selectedEvents The events selected from the filtered events array (if any)
  * @param {number} currentPage The current embed page
  * @param {number} maxPage The total number of embeds
  * @param {boolean} downloadPressed  Whether or not the download button has been pressed
