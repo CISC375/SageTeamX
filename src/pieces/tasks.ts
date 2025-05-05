@@ -1,7 +1,7 @@
 import { CHANNELS, DB } from '@root/config';
 import { ChannelType, Client, EmbedBuilder, TextChannel } from 'discord.js';
 import { schedule } from 'node-cron';
-import { CalReminder, Reminder } from '@lib/types/Reminder';
+import { Reminder } from '@lib/types/Reminder';
 import { Poll, PollResult } from '@lib/types/Poll';
 
 async function register(bot: Client): Promise<void> {
@@ -120,7 +120,7 @@ async function checkReminders(bot: Client): Promise<void> {
 	const now = new Date();
 
 	// 1) fetch all reminders whose time has come
-	const reminders: (Reminder | CalReminder)[] = await bot.mongo
+	const reminders: Reminder[] = await bot.mongo
 		.collection<Reminder>(DB.REMINDERS)
 		.find({ expires: { $lte: now } })
 		.toArray();

@@ -21,26 +21,29 @@ const PORT = 3001;
 webhook.post('/calendarWebhook', async (req, res) => {
 	// Send a 200 OK status
 	res.sendStatus(200);
+	const incomingChannelId = req.headers['x-goog-channel-id'];
 
-	// Connect to MongoDB and retrieve the correct watch channel
-	const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
-	await client.connect();
-	const db = client.db(DB_NAME);
-	const channelCollection = db.collection(CHANNEL_COLLECTION_NAME);
-	const channel: WatchChannel = await channelCollection.findOne({ channelId: req.headers['x-goog-channel-id'] });
+	if (typeof incomingChannelId === 'string') {
+		// Connect to MongoDB and retrieve the correct watch channel
+		const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
+		await client.connect();
+		const db = client.db(DB_NAME);
+		const channelCollection = db.collection<WatchChannel>(CHANNEL_COLLECTION_NAME);
+		const channel: WatchChannel = await channelCollection.findOne({ channelId: incomingChannelId });
 
-	// Retrive the current sync token if it exists
-	const tokenCollection = db.collection(TOKEN_COLLECTION_NAME);
-	const syncToken: SyncToken = await tokenCollection.findOne({ calendarId: channel.calendarId });
-	if (syncToken) {
-		// Check for changed events
-		await handleChangedReminders(tokenCollection, syncToken.token, channel, client);
-	} else {
-		// Insert a new sync token if one doesn't exist (Full Sync)
-		const token = await retrieveSyncToken(channel.calendarId);
-		await tokenCollection.insertOne({ token: token, calendarId: channel.calendarId });
+		// Retrive the current sync token if it exists
+		const tokenCollection = db.collection<SyncToken>(TOKEN_COLLECTION_NAME);
+		const syncToken: SyncToken = await tokenCollection.findOne({ calendarId: channel.calendarId });
+		if (syncToken) {
+			// Check for changed events
+			await handleChangedReminders(tokenCollection, syncToken.token, channel, client);
+		} else {
+			// Insert a new sync token if one doesn't exist (Full Sync)
+			const token = await retrieveSyncToken(channel.calendarId);
+			await tokenCollection.insertOne({ token: token, calendarId: channel.calendarId });
+		}
+		await client.close();
 	}
-	await client.close();
 });
 
 webhook.listen(PORT, () => {
