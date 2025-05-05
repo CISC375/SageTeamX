@@ -60,8 +60,7 @@ export default class extends Command {
 			content,
 			mode: 'public', // temporary
 			expires: new Date(duration + Date.now()),
-			repeat,
-			summary: content // safe default
+			repeat
 		};
 
 		interaction.client.mongo.collection(DB.REMINDERS).insertOne(reminder);
