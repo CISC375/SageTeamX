@@ -2,7 +2,7 @@
 import { BOT, DB } from '../../../config';
 import { Reminder } from '../types/Reminder';
 import { bot } from '../../sage';
-import { EmbedBuilder } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, CacheType, ComponentType, EmbedBuilder } from 'discord.js';
 import { retrieveEvents, retrieveSyncToken } from '../auth';
 import { calendar_v3 } from 'googleapis';
 import { Collection, MongoClient, ObjectID } from 'mongodb';
@@ -23,8 +23,47 @@ interface UserNotifcation {
 async function notifyEventChange(userNotifications: UserNotifcation[]): Promise<void> {
 	for (const userNotifcation of userNotifications) {
 		const user = await bot.users.fetch(userNotifcation.owner);
-		await user.send({ embeds: [userNotifcation.embeds[0]] });
+		const maxPages = userNotifcation.embeds.length;
+		let currentPage = 0;
+
+		const initialButtons = generatePaginationButtons(currentPage, maxPages);
+		const message = await user.send({ embeds: [userNotifcation.embeds[currentPage]], components: [initialButtons] });
+
+		const messageCollecter = message.createMessageComponentCollector({
+			componentType: ComponentType.Button,
+			time: 300000
+		});
+
+		messageCollecter.on('collect', async (i: ButtonInteraction<CacheType>) => {
+			await i.deferUpdate();
+			if (i.customId === 'next') {
+				currentPage++;
+			} else if (i.customId === 'prev') {
+				currentPage--;
+			}
+
+			const newButtons = generatePaginationButtons(currentPage, maxPages);
+			message.edit({ embeds: [userNotifcation.embeds[currentPage]], components: [newButtons] });
+		});
 	}
+}
+
+function generatePaginationButtons(currentPage: number, maxPages: number): ActionRowBuilder<ButtonBuilder> {
+	const previousButton = new ButtonBuilder()
+		.setCustomId('prev')
+		.setLabel('Previous')
+		.setStyle(ButtonStyle.Primary)
+		.setDisabled(currentPage === 0);
+
+	const nextButton = new ButtonBuilder()
+		.setCustomId('next')
+		.setLabel('Next')
+		.setStyle(ButtonStyle.Success)
+		.setDisabled(currentPage + 1 === maxPages);
+
+	const paginationRow = new ActionRowBuilder<ButtonBuilder>().addComponents(previousButton, nextButton);
+
+	return paginationRow;
 }
 
 function generateNotificationEmbed(remindersToNotify: ReminderDocument[]): EmbedBuilder[] {
