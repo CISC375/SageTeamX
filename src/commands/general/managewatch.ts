@@ -4,11 +4,15 @@ import { MongoClient } from 'mongodb';
 import dotenv from 'dotenv';
 import { retrieveCalendarToken } from '@root/src/lib/auth';
 import { randomUUID } from 'crypto';
+import { SyncToken } from '@root/src/lib/types/EventWatch';
 
 dotenv.config();
 
 const MONGO_URI = process.env.DB_CONN_STRING || '';
 const DB_NAME = 'CalendarDatabase';
+const ID_COLLECTION_NAME = 'calendarIds';
+const TOKEN_COLLECTION_NAME = 'syncTokens';
+const CHANNEL_COLLECTION_NAME = 'watchChannels';
 const ADDRESS = process.env.WEBHOOK_ADDRESS;
 
 export default class extends Command {
@@ -31,21 +35,18 @@ export default class extends Command {
 	]
 
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
-		let COLLECTION_NAME = 'calendarIds';
-
 		const calendarCode = interaction.options.getString(this.options[0].name, this.options[0].required);
 		const remove = interaction.options.getString('remove', false);
 
 		const client = new MongoClient(MONGO_URI, { useUnifiedTopology: true });
 		await client.connect();
 		const db = client.db(DB_NAME);
-		let collection = db.collection(COLLECTION_NAME);
+		let collection = db.collection(ID_COLLECTION_NAME);
 		const calendarInDB = await collection.findOne({ calendarName: calendarCode.toUpperCase() });
 		const calendarID: string = calendarInDB.calendarId;
 
 		const calendar = await retrieveCalendarToken();
-		COLLECTION_NAME = 'watchChannels';
-		collection = db.collection(COLLECTION_NAME);
+		collection = db.collection(CHANNEL_COLLECTION_NAME);
 		const channel = await collection.findOne({ calendarId: calendarID });
 		if (remove && channel) {
 			console.log(await calendar.channels.stop({
@@ -55,6 +56,12 @@ export default class extends Command {
 				}
 			}));
 			await collection.deleteOne(channel);
+
+			collection = db.collection(TOKEN_COLLECTION_NAME);
+			const syncToken: SyncToken = await collection.findOne({ calendarId: calendarID });
+			if (syncToken) {
+				await collection.deleteOne(syncToken);
+			}
 		} else if (!channel) {
 			const watchChannel = await calendar.events.watch({
 				calendarId: calendarID,
