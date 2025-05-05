@@ -2,11 +2,46 @@
 import { BOT, CHANNELS, DB } from '../../../config';
 import { CalReminder } from '../types/Reminder';
 import { bot } from '../../sage';
-import { TextChannel } from 'discord.js';
+import { EmbedBuilder, TextChannel } from 'discord.js';
 import { retrieveEvents, retrieveSyncToken } from '../auth';
 import { calendar_v3 } from 'googleapis';
-import { Collection, MongoClient } from 'mongodb';
+import { Collection, MongoClient, ObjectID } from 'mongodb';
 import { WatchChannel } from '../types/EventWatch';
+
+interface MongoCalReminder extends CalReminder {
+	_id: ObjectID;
+	originalStartTime: Date;
+	newExpierationDate: Date;
+}
+
+function generateNotificationEmbed(remindersToNotify: MongoCalReminder[]): EmbedBuilder[] {
+	const embeds: EmbedBuilder[] = [];
+	const itemsPerPage = 3;
+
+	const pagifiedReminders: MongoCalReminder[][] = [];
+	for (let i = 0; i < remindersToNotify.length; i += itemsPerPage) {
+		pagifiedReminders.push(remindersToNotify.slice(i, i + itemsPerPage));
+	}
+	const maxPages = pagifiedReminders.length;
+
+	pagifiedReminders.forEach((page, pageIndex) => {
+		const newEmbed = new EmbedBuilder()
+			.setTitle(`Updated Reminders Page ${pageIndex + 1} of ${maxPages}`)
+			.setColor('Blue');
+
+		page.forEach((reminder) => {
+			newEmbed.addFields({
+				name: `**${reminder.summary}**`,
+				value: `Original Start Time: **${reminder.originalStartTime.toLocaleString()}**\n
+						New Start Time **${reminder.newExpierationDate.toLocaleString()}**`
+			});
+		});
+
+		embeds.push(newEmbed);
+	});
+
+	return embeds;
+}
 
 /**
  * This helper function is used to update/delete calendar reminders in MongoDB based on if the events they're tracking have changed
@@ -39,56 +74,73 @@ export async function handleChangedReminders(collection: Collection, token: stri
 	// Traverse through all of the reminders in the DB and check which ones need to be updated
 	const botDB = client.db(BOT.NAME);
 	collection = botDB.collection(DB.REMINDERS);
-	const reminders = await collection.find().toArray();
+	const reminders: MongoCalReminder[] = await collection.find({ type: 'calreminder' }).toArray();
+	const usersToNotify: Map<string, MongoCalReminder[]> = new Map<string, MongoCalReminder[]>();
 	for (const reminder of reminders) {
 		const changedEvent = singleEvents.get(reminder.eventId);
 		const changedReccuringEvent = parentEvents.get(reminder.content.split('Starts at:')[0].trim());
 		const cancelledEvent = cancelledEvents.get(reminder.eventId);
+
 		if (changedEvent) {
 			console.log(changedEvent);
 			const dateObj = new Date(changedEvent.start.dateTime);
 			const newExpirationDate = new Date(dateObj.getTime() - reminder.offset);
 			if (newExpirationDate.getTime() !== reminder.expires.getTime()) {
-				const newContent = `${changedEvent.summary} Starts at: ${dateObj.toLocaleString()}`;
+				const newContent = `${reminder.summary} Starts at: ${dateObj.toLocaleString()}`;
+				const originalStartTime = reminder.expires;
+				reminder.originalStartTime = originalStartTime;
+				reminder.newExpierationDate = newExpirationDate;
 				await collection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate, content: newContent } });
-				await notifyEventChange(reminder, { newExpirationDate: newExpirationDate });
+				const remindersToNotify = usersToNotify.get(reminder.owner);
+				if (remindersToNotify !== undefined) {
+					remindersToNotify.push(reminder);
+					usersToNotify.set(reminder.owner, remindersToNotify);
+				} else {
+					console.log('here');
+					const newRemindersToNotify = [reminder];
+					usersToNotify.set(reminder.owner, newRemindersToNotify);
+				}
 			}
 			parentEvents.delete(changedEvent.summary);
 		} else if (changedReccuringEvent) {
 			await collection.findOneAndDelete({ _id: reminder._id });
-			await notifyEventChange(reminder, { type: 'recurring' });
+			const remindersToNotify = usersToNotify.get(reminder.owner);
+			if (remindersToNotify !== undefined) {
+				remindersToNotify.push(reminder);
+				usersToNotify.set(reminder.owner, remindersToNotify);
+			} else {
+				const newRemindersToNotify = [reminder];
+				usersToNotify.set(reminder.owner, newRemindersToNotify);
+			}
 		} else if (cancelledEvent) {
 			console.log(reminder);
 			await collection.findOneAndDelete({ _id: reminder._id });
-			await notifyEventChange(reminder, { type: 'cancelled' });
+			const remindersToNotify = usersToNotify.get(reminder.owner);
+			if (remindersToNotify !== undefined) {
+				remindersToNotify.push(reminder);
+				usersToNotify.set(reminder.owner, remindersToNotify);
+			} else {
+				const newRemindersToNotify = [reminder];
+				usersToNotify.set(reminder.owner, newRemindersToNotify);
+			}
 		}
+	}
+
+	if (usersToNotify.size) {
+		console.log('here1');
+		const embedsToSend: {owner: string, embeds: EmbedBuilder[]}[] = [];
+		usersToNotify.forEach((value, key) => {
+			const newEmbedToSend = { owner: key, embeds: generateNotificationEmbed(value) };
+			embedsToSend.push(newEmbedToSend);
+		});
+		await notifyEventChange(embedsToSend);
 	}
 	console.log(changedEvents);
 }
 
-/**
- * This helper function will notify a user when one of their calendar reminders has been updated
- *
- * @param {CalReminder} reminder The calendar reminder that was changed
- * @param {Object} options Settings to modify what is sent to the user
- * @param {Date} options.newExpirationDate The new expiration date of the calendar reminder
- * @param {string} options.type Specifies what changed in the calendar reminder
- * @returns {Promise<void>} This function returns nothing
- */
-export async function notifyEventChange(reminder: CalReminder, options: {newExpirationDate?: Date, type?: string}): Promise<void> {
-	const channel = await bot.channels.fetch(CHANNELS.SAGE) as TextChannel;
-	const eventName = reminder.content.split('Starts at:')[0].trim();
-	let message: string;
-	if (options.type === 'cancelled') {
-		message = `Hey <@${reminder.owner}>, you had a reminder set for **${eventName}**.` +
-					` But that event was deleted, so I removed the reminder you had for it.`;
-	} else if (options.type === 'recurring') {
-		message = `Hey <@${reminder.owner}>, you had a reminder set for **${eventName}**.` +
-					` But that event series was moved, so I removed the reminder you had for it. Please use the \`/calreminder\` command to set a new one.`;
-	} else {
-		message = `Hey <@${reminder.owner}>, you had a reminder set for **${eventName}**.` +
-					` But that event was moved, so I updated your reminder time to **${options.newExpirationDate.toLocaleTimeString()}**.`;
+async function notifyEventChange(embedsToSend: {owner: string, embeds: EmbedBuilder[]}[]): Promise<void> {
+	for (const embed of embedsToSend) {
+		const user = await bot.users.fetch(embed.owner);
+		const message = await user.send({ embeds: [embed.embeds[0]] });
 	}
-	channel.send(message);
-	return;
 }

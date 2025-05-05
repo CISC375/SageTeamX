@@ -336,7 +336,9 @@ export default class extends Command {
 					const EXPIRE_BUFFER_MS = 180 * 24 * 60 * 60 * 1000; // 180 days in ms
 
 					const reminder: CalReminder = {
+						type: 'calreminder',
 						owner: btnInt.user.id,
+						summary: chosenEvent.summary,
 						content: eventInfo,
 						eventId: chosenEvent.id,
 						calendarId: calendar.calendarId, // for fetching next events

@@ -7,7 +7,9 @@ export interface Reminder {
 }
 
 export interface CalReminder {
+	type: string;
 	owner: string;
+	summary: string;
 	content: string;
 	calendarId: string;
 	eventId: string,
