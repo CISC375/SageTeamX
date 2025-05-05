@@ -126,13 +126,20 @@ export function generateCalendarEmbeds(events: CalendarEvent[], itemsPerPage: nu
 /**
  * Generates pagification buttons and download buttons for the calendar embeds
  *
+ * @param {CalendarEvent[]} filteredEvents ...
+ * @param {CalendarEvent[]} selectedEvents ...
  * @param {number} currentPage The current embed page
  * @param {number} maxPage The total number of embeds
- * @param {number} downloadCount The number of selected events to be downloaded
  * @param {boolean} downloadPressed  Whether or not the download button has been pressed
  * @returns {ActionRowBuilder<ButtonBuilder>}  All of the needed buttons to control the calendar embeds
  */
-export function generateCalendarButtons(currentPage: number, maxPage: number, downloadCount: number, downloadPressed: boolean): ActionRowBuilder<ButtonBuilder> {
+export function generateCalendarButtons(
+	filteredEvents: CalendarEvent[],
+	selectedEvents: CalendarEvent[],
+	currentPage: number,
+	maxPage: number,
+	downloadPressed: boolean
+): ActionRowBuilder<ButtonBuilder> {
 	const nextButton = new ButtonBuilder()
 		.setCustomId('next')
 		.setLabel('Next')
@@ -147,9 +154,9 @@ export function generateCalendarButtons(currentPage: number, maxPage: number, do
 
 	let downloadLabel = 'Download Events';
 	if (downloadPressed) {
-		downloadLabel = 'Download Every Event';
-		if (downloadCount) {
-			downloadLabel = `Download ${downloadCount} event(s)`;
+		downloadLabel = `Download Every Event (${filteredEvents.length})`;
+		if (selectedEvents.length) {
+			downloadLabel = `Download ${selectedEvents.length} event(s)`;
 		}
 	}
 

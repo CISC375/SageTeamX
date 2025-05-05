@@ -154,7 +154,7 @@ export default class extends Command {
 
 		// Create initial componenets
 		const initialComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-		initialComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length, downloadPressed));
+		initialComponents.push(generateCalendarButtons(filteredEvents, selectedEvents, currentPage, maxPage, downloadPressed));
 
 		// Send intital dm
 		const dm = await interaction.user.createDM();
@@ -199,7 +199,7 @@ export default class extends Command {
 					maxPage = embeds.length;
 
 					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-					newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length, downloadPressed));
+					newComponents.push(generateCalendarButtons(filteredEvents, selectedEvents, currentPage, maxPage, downloadPressed));
 					if (downloadPressed) {
 						const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
 						if (newSelectButtons) {
@@ -272,6 +272,7 @@ export default class extends Command {
 						const toDownload = selectedEvents.length > 0
 							? selectedEvents
 							: filteredEvents;
+
 						if (toDownload.length === 0) {
 							await dm.send('⚠️ No events to download!');
 							return;
@@ -304,7 +305,7 @@ export default class extends Command {
 
 				// Re‑render embed & buttons for toggles / pagination
 				const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-				newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length, downloadPressed));
+				newComponents.push(generateCalendarButtons(filteredEvents, selectedEvents, currentPage, maxPage, downloadPressed));
 				if (downloadPressed) {
 					const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
 					if (newSelectButtons) {
@@ -341,7 +342,7 @@ export default class extends Command {
 			maxPage = embeds.length;
 
 			const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-			newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length, downloadPressed));
+			newComponents.push(generateCalendarButtons(filteredEvents, selectedEvents, currentPage, maxPage, downloadPressed));
 			if (downloadPressed) {
 				const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
 				if (newSelectButtons) {
