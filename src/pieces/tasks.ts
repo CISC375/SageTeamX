@@ -178,17 +178,34 @@ async function tryRescheduleReminder(
 ): Promise<void> {
 	try {
 		const futureEvents = await retrieveEvents(rem.calendarId);
-		const nextEvent = futureEvents.find(
-			(e) =>
-				new Date(e.start?.dateTime || 0) > now &&
-				e.summary === rem.summary
-		);
+		const nextEvent = futureEvents
+			.filter(
+				(e) =>
+					new Date(e.start?.dateTime || 0) > now &&
+					e.summary === rem.summary
+			)
+			.sort(
+				(a, b) =>
+					new Date(a.start.dateTime).getTime() -
+					new Date(b.start.dateTime).getTime()
+			)[0];
 
 		if (!nextEvent) return;
 
 		const nextStart = new Date(nextEvent.start.dateTime);
 		const nextReminderTime = new Date(nextStart.getTime() - rem.offset);
+
 		if (nextReminderTime > new Date(rem.repeatUntil)) return;
+
+		// Prevent duplicate reminders
+		const existing = await bot.mongo.collection(DB.REMINDERS).findOne({
+			summary: rem.summary,
+			calendarId: rem.calendarId,
+			expires: nextReminderTime,
+			owner: rem.owner,
+		});
+
+		if (existing) return;
 
 		const tz = nextEvent.start.timeZone || "America/New_York";
 		const formattedStart = nextStart.toLocaleString("en-US", {
