@@ -7,8 +7,7 @@ import {
 	ButtonStyle,
 	ComponentType,
 	EmbedBuilder,
-	DMChannel,
-	AttachmentBuilder
+	DMChannel
 } from 'discord.js';
 import { Command } from '@lib/types/Command';
 import 'dotenv/config';
@@ -20,7 +19,6 @@ const CALENDAR_ID
 	= 'c_dd28a9977da52689612627d786654e9914d35324f7fcfc928a7aab294a4a7ce3@group.calendar.google.com';
 const EXPIRATION_TIME = 5 * 60 * 1000; // 5 minutes
 const NUM_ENTRIES_PER_PAGE = 5;
-
 
 // Function to chunk an array into smaller ones; used for pagination
 function chunk<T>(arr: T[], size: number): T[][] {
@@ -79,7 +77,9 @@ export default class extends Command {
 						!ev.summary
 							?.toLowerCase()
 							.includes(className.toLowerCase())
-					) { continue; }
+					) {
+						continue;
+					}
 					const name = ev.summary.split('-')[1]?.trim();
 					if (!name) continue;
 					const email
@@ -95,36 +95,39 @@ export default class extends Command {
 					});
 				}
 
-				// Build dual arrays: markdown for embeds, plain for downloadable text file
 				const taData = Array.from(taSet).map((line) => {
 					const [rawName, rawEmail] = line
 						.replace(/\*\*/g, '') // remove all asterisks for plain text
 						.split('  ');
-					const name = rawName.replace(/^Name:\s*/, '').trim();
-					const email = rawEmail.replace(/^Email:\s*/, '').trim();
 					return {
-						markdown: `**Name:** ${name}  **Email:** ${email}`,
-						plain: `Name: ${name}  Email: ${email}`
+						name: rawName.replace(/^Name:\s*/, '').trim(),
+						email: rawEmail.replace(/^Email:\s*/, '').trim()
 					};
 				});
 
-				// Set for embed
-				const taSetMdEntries = taData.map((x) => x.markdown);
-				// Set for downloadable text file
-				const taSetPlainEntries = taData.map((x) => x.plain);
-
-				const pages = chunk(taSetMdEntries, NUM_ENTRIES_PER_PAGE);
+				const pages = chunk(taData, NUM_ENTRIES_PER_PAGE);
 				let pageIndex = 0;
 
-				const makeEmbed = (page: number) =>
-					new EmbedBuilder()
+				const makeEmbed = (page: number) => {
+					const embed = new EmbedBuilder()
 						.setTitle(
 							`TAs for **${className}** (page ${page + 1}/${
 								pages.length
 							})`
 						)
-						.setDescription(pages[page].join('\n\n'))
 						.setColor('#0099ff');
+
+					pages[page].forEach((ta) =>
+						embed.addFields(
+							{ name: 'Name', value: ta.name, inline: true },
+							{ name: 'Email', value: ta.email, inline: true },
+							// Spacer for new line
+							{ name: '\u200b', value: '\u200b', inline: true }
+						)
+					);
+
+					return embed;
+				};
 
 				const makeRow = () =>
 					new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -138,10 +141,6 @@ export default class extends Command {
 							.setLabel('Next ➡')
 							.setStyle(ButtonStyle.Secondary)
 							.setDisabled(pageIndex === pages.length - 1),
-						new ButtonBuilder()
-							.setCustomId('download')
-							.setLabel('Download .txt')
-							.setStyle(ButtonStyle.Primary),
 						new ButtonBuilder()
 							.setCustomId('close')
 							.setLabel('Close ✖️')
@@ -184,18 +183,8 @@ export default class extends Command {
 							embeds: [makeEmbed(pageIndex)],
 							components: [makeRow()]
 						});
-					} else if (btn.customId === 'download') {
-						const content = taSetPlainEntries.join('\n');
-						const file = new AttachmentBuilder(
-							Buffer.from(content, 'utf-8'),
-							{
-								name: `${className}_TAs.txt`
-							}
-						);
-						return btn.reply({ files: [file], ephemeral: true });
 					} else if (btn.customId === 'close') {
 						await btn.update({
-							content: 'Paginator closed.',
 							components: []
 						});
 						return dmCollector.stop();
@@ -216,11 +205,6 @@ export default class extends Command {
 									.setCustomId('next')
 									.setLabel('Next ➡')
 									.setStyle(ButtonStyle.Primary)
-									.setDisabled(true),
-								new ButtonBuilder()
-									.setCustomId('download')
-									.setLabel('Download .txt')
-									.setStyle(ButtonStyle.Secondary)
 									.setDisabled(true),
 								new ButtonBuilder()
 									.setCustomId('close')

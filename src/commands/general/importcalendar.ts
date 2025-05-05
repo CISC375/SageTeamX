@@ -80,7 +80,7 @@ export default class ImportCalendarCommand extends Command {
 
 			// 8️⃣ Success
 			await interaction.followUp({
-				content: `✅ Successfully added **${calendarName}** (\`${calendarId}\`) to the calendar list.`
+				content: `✅ Successfully added **${calendarName}** to the calendar list.`
 			});
 		} catch (dbErr) {
 			console.error('Database error:', dbErr);
