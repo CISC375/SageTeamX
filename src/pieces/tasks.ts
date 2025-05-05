@@ -3,6 +3,8 @@ import { ChannelType, Client, EmbedBuilder, TextChannel } from 'discord.js';
 import { schedule } from 'node-cron';
 import { Reminder } from '@lib/types/Reminder';
 import { Poll, PollResult } from '@lib/types/Poll';
+import { retrieveEvents } from '../lib/auth';
+import { ObjectId } from 'mongodb';
 
 async function register(bot: Client): Promise<void> {
 	schedule('0/30 * * * * *', () => {
@@ -119,22 +121,22 @@ async function checkPolls(bot: Client): Promise<void> {
 async function checkReminders(bot: Client): Promise<void> {
 	const now = new Date();
 
-	// 1) fetch all reminders whose time has come
+	// 1) Fetch all reminders due
 	const reminders: Reminder[] = await bot.mongo
 		.collection<Reminder>(DB.REMINDERS)
 		.find({ expires: { $lte: now } })
 		.toArray();
 
-	// 2) send each one as a DM‐embed first, fallback to Sage channel
+	const handledIds: ObjectId[] = [];
+
+	// 2) Send each one
 	for (const rem of reminders) {
-		// build a pretty embed
 		const embed = new EmbedBuilder()
 			.setTitle('⏰ Reminder')
-			.setDescription(rem.content) // your full "content" string
+			.setDescription(rem.content)
 			.setColor('Blue')
 			.setTimestamp(now);
 
-		// only if it's repeating, tack on a “Repeats” field
 		if (rem.repeat) {
 			embed.addFields({
 				name: '🔁 Repeats',
@@ -148,16 +150,57 @@ async function checkReminders(bot: Client): Promise<void> {
 			const user = await bot.users.fetch(rem.owner);
 			await user.send({ embeds: [embed] });
 		} catch {
-			const sage = (await bot.channels.fetch(
+			const fallbackChannel = (await bot.channels.fetch(
 				CHANNELS.SAGE
 			)) as TextChannel;
-			await sage.send({ embeds: [embed] });
+			await fallbackChannel.send({ embeds: [embed] });
 		}
+
+		// 3) Reschedule if it's a repeating reminder
+		if (rem.repeat === 'every_event') {
+			await tryRescheduleReminder(rem, now, bot);
+		}
+
+		// Collect ID to delete after loop
+		if (rem._id) handledIds.push(rem._id);
 	}
 
-	// 3) clean up the ones we just dispatched
-	await bot.mongo
-		.collection(DB.REMINDERS)
-		.deleteMany({ expires: { $lte: now } });
+	// 4) Remove all processed reminders
+	if (handledIds.length > 0) {
+		await bot.mongo.collection(DB.REMINDERS).deleteMany({
+			_id: { $in: handledIds }
+		});
+	}
 }
+async function tryRescheduleReminder(
+	rem: Reminder,
+	now: Date,
+	bot: Client
+): Promise<void> {
+	try {
+		const futureEvents = await retrieveEvents(rem.calendarId);
+		const nextEvent = futureEvents.find(
+			(e) =>
+				new Date(e.start?.dateTime || 0) > now
+				&& e.summary === rem.summary
+		);
+
+		if (!nextEvent) return;
+
+		const nextStart = new Date(nextEvent.start.dateTime);
+		const nextReminderTime = new Date(nextStart.getTime() - rem.offset);
+
+		if (nextReminderTime > new Date(rem.repeatUntil)) return;
+
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		const { _id, ...reminderData } = rem;
+		await bot.mongo.collection(DB.REMINDERS).insertOne({
+			...reminderData,
+			expires: nextReminderTime
+		});
+	} catch (err) {
+		console.error('Failed to reschedule repeating reminder:', err);
+	}
+}
+
 export default register;

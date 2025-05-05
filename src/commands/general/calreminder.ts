@@ -208,6 +208,7 @@ export default class extends Command {
 			}
 
 			// Retrieve events
+
 			const events = await retrieveEvents(
 				calendar.calendarId,
 				interaction
@@ -339,6 +340,7 @@ export default class extends Command {
 						owner: btnInt.user.id,
 						content: eventInfo,
 						mode: 'private',
+						summary: chosenEvent.summary,
 						expires: remindDate, // next fire time
 						repeat: repeatInterval, // "every_event" or null
 						calendarId: calendar.calendarId, // for fetching next events
