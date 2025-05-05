@@ -9,7 +9,7 @@ import { CalendarEmbed, CalendarEvent, Filter } from '../types/Calendar';
 /**
  * This function will filter out events based on the given filter array
  *
- * @param {Event[]} events The events that you want to filter
+ * @param {CalendarEvent[]} events The events that you want to filter
  * @param {Filter[]} filters The filters that you want to use to filter the events
  * @returns {Promise<Event[]>} This function will return an async promise of the filtered events in an array
  */
@@ -68,7 +68,7 @@ export function updateCalendarEmbed(embeds: CalendarEmbed[], add: boolean): Cale
 /**
  * This function will create embeds to contain all the events passed into the function
  *
- * @param {Event[]} events The events you want to display in the embed
+ * @param {CalendarEvent[]} events The events you want to display in the embed
  * @param {number} itemsPerPage The number of events you want to display on one embed
  * @returns {EmbedBuilder[]} Embeds containing all of the calendar events
  */
@@ -199,7 +199,7 @@ export function generateCalendarFilterMessage(filters: Filter[]): PagifiedSelect
  * This function will generate select buttons for each event on the given embed (up to 5 events)
  *
  * @param {EmbedBuilder} calendarEmbed The embed to generate buttons for
- * @param {Event[]} events All of the events retrieved from the google calendar
+ * @param {CalendarEvent[]} events All of the events retrieved from the google calendar
  * @returns {ActionRowBuilder<ButtonBuilder>} An action row containing all of the select butttons
  */
 export function generateEventSelectButtons(calendarEmbed: CalendarEmbed, events: CalendarEvent[]): ActionRowBuilder<ButtonBuilder> | void {
@@ -247,7 +247,7 @@ function formatTime(dateTimeString: string): string {
 /**
  * Creates an ics file containing all of the selected events
  *
- * @param {Event[]} selectedEvents The selected events to download
+ * @param {CalendarEvent[]} selectedEvents The selected events to download
  * @param {{calendarId: string, calendarName: string}} calendar An arry of all of the calendars retrived from MongoDB
  * @param {ChatInputCommandInteraction} interaction The interaction created by calling /calendar
  */
