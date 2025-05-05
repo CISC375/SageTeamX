@@ -208,6 +208,7 @@ export default class extends Command {
 			}
 
 			// Retrieve events
+
 			const events = await retrieveEvents(
 				calendar.calendarId,
 				interaction
@@ -328,9 +329,10 @@ export default class extends Command {
 					}
 
 					// Build more detailed reminder text
-					const eventInfo = `${
-						chosenEvent.summary
-					}\nStarts at: ${dateObj.toLocaleString()}`;
+					const eventInfo = formatEventInfo(
+						chosenEvent,
+						chosenEvent.start?.timeZone
+					);
 
 					// Create reminder in DB
 					const EXPIRE_BUFFER_MS = 180 * 24 * 60 * 60 * 1000; // 180 days in ms
@@ -339,6 +341,7 @@ export default class extends Command {
 						owner: btnInt.user.id,
 						content: eventInfo,
 						mode: 'private',
+						summary: chosenEvent.summary,
 						expires: remindDate, // next fire time
 						repeat: repeatInterval, // "every_event" or null
 						calendarId: calendar.calendarId, // for fetching next events
@@ -457,4 +460,20 @@ export default class extends Command {
 		}
 	}
 
+}
+
+function formatEventInfo(
+	event: calendarV3.Schema$Event,
+	timeZone = 'America/New_York'
+): string {
+	const dateObj = new Date(event.start?.dateTime || '');
+	const formattedStart = dateObj.toLocaleString('en-US', {
+		timeZone,
+		dateStyle: 'short',
+		timeStyle: 'short'
+	});
+
+	return `${event.summary || 'Untitled Event'}\nStarts at: ${formattedStart}${
+		event.location ? `\nLocation: ${event.location}` : ''
+	}${event.description ? `\nDetails: ${event.description}` : ''}`;
 }
