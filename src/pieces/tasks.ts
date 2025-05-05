@@ -226,7 +226,8 @@ async function tryRescheduleReminder(
 		await bot.mongo.collection(DB.REMINDERS).insertOne({
 			...reminderData,
 			expires: nextReminderTime,
-			content: newContent
+			content: newContent,
+			eventId: nextEvent.id
 		});
 	} catch (err) {
 		console.error('Failed to reschedule repeating reminder:', err);
