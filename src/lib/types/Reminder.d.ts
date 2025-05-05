@@ -1,4 +1,5 @@
 export interface Reminder {
+	_id?: ObjectId;
 	owner: string;
 	expires: Date;
 	content: string;

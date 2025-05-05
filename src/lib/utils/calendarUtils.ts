@@ -4,30 +4,17 @@ import { calendar_v3 } from 'googleapis';
 import { retrieveEvents } from '../auth';
 import { PagifiedSelectMenu } from '../types/PagifiedSelect';
 import * as fs from 'fs';
-
-export interface Event {
-	calEvent: calendar_v3.Schema$Event;
-	calendarName: string;
-}
-
-export interface Filter {
-	customId: string;
-	placeholder: string,
-	values: string[];
-	newValues: string[];
-	flag: boolean;
-	condition: (newValues: string[], event: Event) => boolean;
-}
+import { CalendarEmbed, CalendarEvent, Filter } from '../types/Calendar';
 
 /**
  * This function will filter out events based on the given filter array
  *
- * @param {Event[]} events The events that you want to filter
+ * @param {CalendarEvent[]} events The events that you want to filter
  * @param {Filter[]} filters The filters that you want to use to filter the events
  * @returns {Promise<Event[]>} This function will return an async promise of the filtered events in an array
  */
-export async function filterCalendarEvents(events: Event[], filters: Filter[]): Promise<Event[]> {
-	const filteredEvents: Event[] = [];
+export async function filterCalendarEvents(events: CalendarEvent[], filters: Filter[]): Promise<CalendarEvent[]> {
+	const filteredEvents: CalendarEvent[] = [];
 
 	let allFiltersFlags = true;
 
@@ -49,15 +36,44 @@ export async function filterCalendarEvents(events: Event[], filters: Filter[]): 
 }
 
 /**
+ * This is a helper function update the calendar embed fields when the download button is pressed
+ *
+ * @param {CalendarEmbed[]} embeds The embeds that you want to update
+ * @param {boolean} add Whether or not you want to add or remove from the calendar fields
+ * @returns {CalendarEmbed[]} The updated embeds
+ */
+export function updateCalendarEmbed(embeds: CalendarEmbed[], add: boolean): CalendarEmbed[] {
+	if (add) {
+		embeds.forEach((embed) => {
+			const { fields } = embed.embed.data;
+			if (fields) {
+				fields.forEach((field, index) => {
+					field.name = `**${index + 1}.** ${field.name}`;
+				});
+			}
+		});
+	} else {
+		embeds.forEach((embed) => {
+			const { fields } = embed.embed.data;
+			if (fields) {
+				fields.forEach((field) => {
+					[, field.name] = field.name.split(/\*\*\d+\.\*\*\s/);
+				});
+			}
+		});
+	}
+	return embeds;
+}
+
+/**
  * This function will create embeds to contain all the events passed into the function
  *
- * @param {Event[]} events The events you want to display in the embed
+ * @param {CalendarEvent[]} events The events you want to display in the embed
  * @param {number} itemsPerPage The number of events you want to display on one embed
  * @returns {EmbedBuilder[]} Embeds containing all of the calendar events
  */
-export function generateCalendarEmbeds(events: Event[], itemsPerPage: number): EmbedBuilder[] {
-	const embeds: EmbedBuilder[] = [];
-	let embed: EmbedBuilder;
+export function generateCalendarEmbeds(events: CalendarEvent[], itemsPerPage: number): CalendarEmbed[] {
+	const embeds: CalendarEmbed[] = [];
 
 	// There can only be up to 25 fields in an embed, so this is just a check to make sure nothing breaks
 	if (itemsPerPage > 25) {
@@ -66,7 +82,7 @@ export function generateCalendarEmbeds(events: Event[], itemsPerPage: number): E
 
 	if (events.length) {
 		// Pagify events array
-		const pagifiedEvents: Event[][] = [];
+		const pagifiedEvents: CalendarEvent[][] = [];
 		for (let i = 0; i < events.length; i += itemsPerPage) {
 			pagifiedEvents.push(events.slice(i, i + itemsPerPage));
 		}
@@ -78,27 +94,31 @@ export function generateCalendarEmbeds(events: Event[], itemsPerPage: number): E
 				.setTitle(`Events - ${pageIndex + 1} of ${maxPages}`)
 				.setColor('Green');
 
-			page.forEach((event, eventIndex) => {
+			const newCalendarEmbed: CalendarEmbed = { embed: newEmbed, events: [] };
+
+			page.forEach((event) => {
 				newEmbed.addFields({
-					name: `**${eventIndex + 1}. ${event.calEvent.summary}**`,
+					name: `**${event.calEvent.summary}**`,
 					value: `Date: ${new Date(event.calEvent.start.dateTime).toLocaleDateString()}
 					Time: ${new Date(event.calEvent.start.dateTime).toLocaleTimeString()} - ${new Date(event.calEvent.end.dateTime).toLocaleTimeString()}
 					Location: ${event.calEvent.location}
 					Email: ${event.calEvent.creator.email}\n`
 				});
+				newCalendarEmbed.events.push(event);
 			});
 
-			embeds.push(newEmbed);
+			embeds.push(newCalendarEmbed);
 		});
 	} else {
-		embed = new EmbedBuilder()
+		const emptyEmbed = new EmbedBuilder()
 			.setTitle('No Events Found')
 			.setColor('Green')
 			.addFields({
 				name: 'Try adjusting your filters',
 				value: 'No events match your selections, please change them!'
 			});
-		embeds.push(embed);
+		const newCalendarEmbed: CalendarEmbed = { embed: emptyEmbed, events: [] };
+		embeds.push(newCalendarEmbed);
 	}
 	return embeds;
 }
@@ -106,12 +126,20 @@ export function generateCalendarEmbeds(events: Event[], itemsPerPage: number): E
 /**
  * Generates pagification buttons and download buttons for the calendar embeds
  *
+ * @param {CalendarEvent[]} filteredEvents All of the filtered events
+ * @param {CalendarEvent[]} selectedEvents The events selected from the filtered events array (if any)
  * @param {number} currentPage The current embed page
  * @param {number} maxPage The total number of embeds
- * @param {number} downloadCount The number of selected events to be downloaded
+ * @param {boolean} downloadPressed  Whether or not the download button has been pressed
  * @returns {ActionRowBuilder<ButtonBuilder>}  All of the needed buttons to control the calendar embeds
  */
-export function generateCalendarButtons(currentPage: number, maxPage: number, downloadCount: number): ActionRowBuilder<ButtonBuilder> {
+export function generateCalendarButtons(
+	filteredEvents: CalendarEvent[],
+	selectedEvents: CalendarEvent[],
+	currentPage: number,
+	maxPage: number,
+	downloadPressed: boolean
+): ActionRowBuilder<ButtonBuilder> {
 	const nextButton = new ButtonBuilder()
 		.setCustomId('next')
 		.setLabel('Next')
@@ -124,9 +152,17 @@ export function generateCalendarButtons(currentPage: number, maxPage: number, do
 		.setStyle(ButtonStyle.Primary)
 		.setDisabled(currentPage === 0);
 
+	let downloadLabel = 'Download Events';
+	if (downloadPressed) {
+		downloadLabel = `Download Every Event (${filteredEvents.length})`;
+		if (selectedEvents.length) {
+			downloadLabel = `Download ${selectedEvents.length} event(s)`;
+		}
+	}
+
 	const downloadButton = new ButtonBuilder()
 		.setCustomId('download')
-		.setLabel(`Download ${downloadCount ? `${downloadCount} event(s)` : 'All'}`)
+		.setLabel(downloadLabel)
 		.setStyle(ButtonStyle.Success);
 
 	return new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -169,26 +205,28 @@ export function generateCalendarFilterMessage(filters: Filter[]): PagifiedSelect
 /**
  * This function will generate select buttons for each event on the given embed (up to 5 events)
  *
- * @param {EmbedBuilder} embed The embed to generate buttons for
- * @param {Event[]} events All of the events retrieved from the google calendar
+ * @param {EmbedBuilder} calendarEmbed The embed to generate buttons for
+ * @param {CalendarEvent[]} events All of the events retrieved from the google calendar
  * @returns {ActionRowBuilder<ButtonBuilder>} An action row containing all of the select butttons
  */
-export function generateEventSelectButtons(embed: EmbedBuilder, events: Event[]): ActionRowBuilder<ButtonBuilder> | void {
+export function generateEventSelectButtons(calendarEmbed: CalendarEmbed, events: CalendarEvent[]): ActionRowBuilder<ButtonBuilder> | void {
 	const selectEventButtons: ButtonBuilder[] = [];
+	const { embed } = calendarEmbed;
+	const emebdEvents = calendarEmbed.events;
 
 	if (events.length && embed) {
 		// This is to ensure that the number of buttons does not exceed to the limit per row
-		let eventsInEmbed = embed.data.fields.length;
+		let eventsInEmbed = emebdEvents.length;
 		if (eventsInEmbed > 5) {
 			eventsInEmbed = 5;
 		}
 
 		// Create buttons for each event on the page (up to 5)
-		for (let i = 1; i <= eventsInEmbed; i++) {
+		for (let i = 0; i < eventsInEmbed; i++) {
 			const selectEvent = new ButtonBuilder()
-				.setCustomId(`toggle-${i}`)
-				.setLabel(`Select #${i}`)
-				.setStyle(ButtonStyle.Secondary);
+				.setCustomId(`toggle-${i + 1}`)
+				.setLabel(emebdEvents[i].selected ? `Remove #${i + 1}` : `Select #${i + 1}`)
+				.setStyle(emebdEvents[i].selected ? ButtonStyle.Danger : ButtonStyle.Secondary);
 			selectEventButtons.push(selectEvent);
 		}
 
@@ -216,11 +254,11 @@ function formatTime(dateTimeString: string): string {
 /**
  * Creates an ics file containing all of the selected events
  *
- * @param {Event[]} selectedEvents The selected events to download
+ * @param {CalendarEvent[]} selectedEvents The selected events to download
  * @param {{calendarId: string, calendarName: string}} calendar An arry of all of the calendars retrived from MongoDB
  * @param {ChatInputCommandInteraction} interaction The interaction created by calling /calendar
  */
-export async function downloadEvents(selectedEvents: Event[], calendar: {calendarId: string, calendarName: string}, interaction: ChatInputCommandInteraction): Promise<void> {
+export async function downloadEvents(selectedEvents: CalendarEvent[], calendar: {calendarId: string, calendarName: string}, interaction: ChatInputCommandInteraction): Promise<void> {
 	const formattedEvents: string[] = [];
 	const parentEvents: calendar_v3.Schema$Event[] = await retrieveEvents(calendar.calendarId, interaction, false);
 	const recurrenceRules: Record<string, string[]> = Object.fromEntries(parentEvents.map((event) => [event.id, event.recurrence]));
