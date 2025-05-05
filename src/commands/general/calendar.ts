@@ -19,13 +19,13 @@ import * as fs from 'fs';
 import { retrieveEvents } from '@root/src/lib/auth';
 import
 { downloadEvents,
-	Filter,
 	filterCalendarEvents,
 	generateCalendarButtons,
 	generateCalendarEmbeds,
 	generateEventSelectButtons,
 	generateCalendarFilterMessage,
-	Event } from '@root/src/lib/utils/calendarUtils';
+	updateCalendarEmbed } from '@root/src/lib/utils/calendarUtils';
+import { CalendarEvent, Filter } from '@root/src/lib/types/Calendar';
 
 // Global constants
 const MONGO_URI = process.env.DB_CONN_STRING || '';
@@ -51,7 +51,8 @@ export default class extends Command {
 	async run(interaction: ChatInputCommandInteraction): Promise<void> {
 		// Local variables
 		let currentPage = 0;
-		let selectedEvents: Event[] = [];
+		let downloadPressed = false;
+		let selectedEvents: CalendarEvent[] = [];
 		const courseCode = interaction.options.getString(this.options[0].name, this.options[0].required);
 		const filters: Filter[] = [
 			{
@@ -60,7 +61,7 @@ export default class extends Command {
 				values: ['In Person', 'Virtual'],
 				newValues: [],
 				flag: true,
-				condition: (newValues: string[], event: Event) => {
+				condition: (newValues: string[], event: CalendarEvent) => {
 					const valuesToCheck = ['virtual', 'online', 'zoom'];
 					const summary = event.calEvent.summary?.toLowerCase() || '';
 					const location = event.calEvent.location?.toLowerCase() || '';
@@ -74,7 +75,7 @@ export default class extends Command {
 				values: WEEKDAYS,
 				newValues: [],
 				flag: true,
-				condition: (newValues: string[], event: Event) => {
+				condition: (newValues: string[], event: CalendarEvent) => {
 					if (!event.calEvent.start?.dateTime) return false;
 					const dt = new Date(event.calEvent.start.dateTime);
 					const weekdayIndex = dt.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -110,13 +111,13 @@ export default class extends Command {
 		}
 
 		// Retrieve events from selected calendar
-		const events: Event[] = [];
+		const events: CalendarEvent[] = [];
 		const retrivedEvents = await retrieveEvents(calendar.calendarId, interaction);
 		if (retrivedEvents === null) {
 			return;
 		}
 		retrivedEvents.forEach((retrivedEvent) => {
-			const newEvent: Event = { calEvent: retrivedEvent, calendarName: calendar.calendarName };
+			const newEvent: CalendarEvent = { calEvent: retrivedEvent, calendarName: calendar.calendarName, selected: false };
 			if (!newEvent.calEvent.location) {
 				newEvent.calEvent.location = '`Location not specified for this event`';
 
@@ -145,7 +146,7 @@ export default class extends Command {
 		);
 
 		// Create a filtered events variable to keep the original array intact
-		let filteredEvents: Event[] = events;
+		let filteredEvents: CalendarEvent[] = events;
 
 		// Create initial embed
 		let embeds = generateCalendarEmbeds(filteredEvents, EVENTS_PER_PAGE);
@@ -153,19 +154,18 @@ export default class extends Command {
 
 		// Create initial componenets
 		const initialComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-		const selectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
-		initialComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-		if (selectButtons) {
-			initialComponents.push(selectButtons);
-		}
+		initialComponents.push(generateCalendarButtons(filteredEvents, selectedEvents, currentPage, maxPage, downloadPressed));
 
 		// Send intital dm
 		const dm = await interaction.user.createDM();
 		let message: Message<false>;
 		try {
 			message = await dm.send({
-				embeds: [embeds[currentPage]],
+				embeds: [embeds[currentPage].embed],
 				components: initialComponents
+			});
+			initalReply.edit({
+				content: `I sent you a DM with the calendar for **${courseCode.toUpperCase()}**`
 			});
 		} catch (error) {
 			console.error('Failed to send DM:', error);
@@ -177,7 +177,7 @@ export default class extends Command {
 		}
 
 		// Create pagified select menus based on the filters
-		let content = '**Select Filters**';
+		let content = '**\nSelect Filters**';
 		const filterComponents = generateCalendarFilterMessage(filters);
 
 		// Separate single page menus and pagified menus. Send pagified menus in a separate message
@@ -199,14 +199,16 @@ export default class extends Command {
 					maxPage = embeds.length;
 
 					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-					const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
-					newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-					if (newSelectButtons) {
-						newComponents.push(newSelectButtons);
+					newComponents.push(generateCalendarButtons(filteredEvents, selectedEvents, currentPage, maxPage, downloadPressed));
+					if (downloadPressed) {
+						const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
+						if (newSelectButtons) {
+							newComponents.push(newSelectButtons);
+						}
 					}
 
 					message.edit({
-						embeds: [embeds[currentPage]],
+						embeds: [embeds[currentPage].embed],
 						components: newComponents
 					});
 				}, interaction, dm, content);
@@ -246,6 +248,7 @@ export default class extends Command {
 				if (btnInt.customId.startsWith('toggle-')) {
 					const eventIndex = Number(btnInt.customId.split('-')[1]) - 1;
 					const event = filteredEvents[(currentPage * EVENTS_PER_PAGE) + eventIndex];
+					event.selected = !event.selected;
 					if (selectedEvents.includes(event)) {
 						selectedEvents = selectedEvents.filter(e => e !== event);
 						const m = await dm.send(`➖ Removed **${event.calEvent.summary}**`);
@@ -264,41 +267,54 @@ export default class extends Command {
 
 				// Single Download button, context‑aware
 				} else if (btnInt.customId === 'download') {
-					// Decide whether to download selected events or all of them
-					const toDownload = selectedEvents.length > 0
-						? selectedEvents
-						: filteredEvents;
-					if (toDownload.length === 0) {
-						await dm.send('⚠️ No events to download!');
-						return;
-					}
+					if (downloadPressed) {
+						// Decide whether to download selected events or all of them
+						const toDownload = selectedEvents.length > 0
+							? selectedEvents
+							: filteredEvents;
 
-					const prep = await dm.send(`⏳ Preparing ${toDownload.length} event(s)…`);
-					try {
-					// downloadEvents writes to './events.ics'
-						await downloadEvents(toDownload, calendar, interaction);
-						await prep.edit({
-							content: `📥 Here are your ${toDownload.length} event(s):`,
-							files: ['./events.ics']
+						if (toDownload.length === 0) {
+							await dm.send('⚠️ No events to download!');
+							return;
+						}
+
+						const prep = await dm.send(`⏳ Preparing ${toDownload.length} event(s)…`);
+						try {
+						// downloadEvents writes to './events.ics'
+							await downloadEvents(toDownload, calendar, interaction);
+							await prep.edit({
+								content: `📥 Here are your ${toDownload.length} event(s):`,
+								files: ['./events.ics']
+							});
+							fs.unlinkSync('./events.ics');
+						} catch (e) {
+							console.error('Download failed:', e);
+							await prep.edit('⚠️ Failed to generate calendar file.');
+						}
+						downloadPressed = false;
+						selectedEvents.forEach((event) => {
+							event.selected = false;
 						});
-						fs.unlinkSync('./events.ics');
-					} catch (e) {
-						console.error('Download failed:', e);
-						await prep.edit('⚠️ Failed to generate calendar file.');
+						selectedEvents = [];
+						embeds = updateCalendarEmbed(embeds, false);
+					} else {
+						downloadPressed = true;
+						embeds = updateCalendarEmbed(embeds, true);
 					}
-					return; // Skip the re‑render below
 				}
 
 				// Re‑render embed & buttons for toggles / pagination
 				const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-				const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
-				newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-				if (newSelectButtons) {
-					newComponents.push(newSelectButtons);
+				newComponents.push(generateCalendarButtons(filteredEvents, selectedEvents, currentPage, maxPage, downloadPressed));
+				if (downloadPressed) {
+					const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
+					if (newSelectButtons) {
+						newComponents.push(newSelectButtons);
+					}
 				}
 
 				await message.edit({
-					embeds: [embeds[currentPage]],
+					embeds: [embeds[currentPage].embed],
 					components: newComponents
 				});
 			} catch (error) {
@@ -326,14 +342,16 @@ export default class extends Command {
 			maxPage = embeds.length;
 
 			const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
-			const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
-			newComponents.push(generateCalendarButtons(currentPage, maxPage, selectedEvents.length));
-			if (newSelectButtons) {
-				newComponents.push(newSelectButtons);
+			newComponents.push(generateCalendarButtons(filteredEvents, selectedEvents, currentPage, maxPage, downloadPressed));
+			if (downloadPressed) {
+				const newSelectButtons = generateEventSelectButtons(embeds[currentPage], filteredEvents);
+				if (newSelectButtons) {
+					newComponents.push(newSelectButtons);
+				}
 			}
 
 			message.edit({
-				embeds: [embeds[currentPage]],
+				embeds: [embeds[currentPage].embed],
 				components: newComponents
 			});
 		});
