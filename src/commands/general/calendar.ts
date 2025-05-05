@@ -291,6 +291,10 @@ export default class extends Command {
 							await prep.edit('⚠️ Failed to generate calendar file.');
 						}
 						downloadPressed = false;
+						selectedEvents.forEach((event) => {
+							event.selected = false;
+						});
+						selectedEvents = [];
 						embeds = updateCalendarEmbed(embeds, false);
 					} else {
 						downloadPressed = true;
