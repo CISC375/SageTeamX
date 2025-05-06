@@ -5,11 +5,10 @@ import { bot } from '../../sage';
 import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, CacheType, ComponentType, EmbedBuilder } from 'discord.js';
 import { retrieveEvents, retrieveSyncToken } from '../auth';
 import { calendar_v3 } from 'googleapis';
-import { Collection, MongoClient, ObjectID } from 'mongodb';
+import { Collection, MongoClient } from 'mongodb';
 import { SyncToken, WatchChannel } from '../types/EventWatch';
 
 interface ReminderDocument extends Reminder {
-	_id: ObjectID;
 	oldStartTime?: Date;
 	newStartTime?: Date;
 	type?: string;
@@ -78,7 +77,7 @@ function generateNotificationEmbed(remindersToNotify: ReminderDocument[]): Embed
 
 	pagifiedReminders.forEach((page, pageIndex) => {
 		const newEmbed = new EmbedBuilder()
-			.setTitle(`Reminder Changes Page ${pageIndex + 1} of ${maxPages}`)
+			.setTitle(`Calendar Reminder Changes Page ${pageIndex + 1} of ${maxPages}`)
 			.setColor('Blue');
 
 		page.forEach((reminder) => {
@@ -89,15 +88,19 @@ function generateNotificationEmbed(remindersToNotify: ReminderDocument[]): Embed
 				});
 			} else if (reminder.type === 'recurring') {
 				newEmbed.addFields({
-					name: `**${reminder.content}**`,
-					value: `This event series has been moved. Your reminder has been removed for this event. 
-							Please create a new reminder using \`/calreminder\``
+					name: `**Event Name: ${reminder.eventSummary}**`,
+					value: `This event series has been moved, so your reminder may no longer be set for the proper time. Your reminder will also no longer be updated by future event changes.
+							You can view/cancel/add reminders by using the following commands:
+							View: \`/viewreminders
+							Cancel: \`/cancelreminder\`
+							Add: \`/calreminder\``
 				});
 			} else {
 				newEmbed.addFields({
-					name: `**${reminder.content}**`,
-					value: `This event has been moved, so I have updated your remider time.\n
-							New Reminder Time:** ${reminder.newStartTime.toLocaleString()}**`
+					name: `**Event Name: ${reminder.eventSummary}**`,
+					value: `New Reminder Time: ${reminder.newStartTime.toLocaleString()}
+							This event has been moved, so I updated your reminder time accordingly.
+							Old Reminder Time: ${reminder.expires.toLocaleString()}`
 				});
 			}
 		});
@@ -159,16 +162,18 @@ export async function handleChangedReminders(tokenCollection: Collection<SyncTok
 				const newContent = `${reminder.eventSummary} Starts at: ${dateObj.toLocaleString()}`;
 				reminder.oldStartTime = reminder.expires;
 				reminder.newStartTime = newExpirationDate;
-				await remindersCollection.updateOne({ _id: reminder._id }, { $set: { expires: newExpirationDate, content: newContent } });
+				await remindersCollection.updateOne(reminder, { $set: { expires: newExpirationDate, content: newContent } });
 				changed = true;
 			}
 			parentEvents.delete(changedSingleEvent.summary);
 		} else if (changedReccuringEvent) {
-			await remindersCollection.findOneAndDelete({ _id: reminder._id });
+			// These properties are updated so that the reminder will no longer be updated by future event changes
+			await remindersCollection.updateOne(reminder, { $set: { type: '', eventId: '' } });
 			reminder.type = 'recurring';
+			parentEvents.delete(changedReccuringEvent.summary);
 			changed = true;
 		} else if (cancelledEvent) {
-			await remindersCollection.findOneAndDelete({ _id: reminder._id });
+			await remindersCollection.findOneAndDelete(reminder);
 			reminder.type = 'cancelled';
 			changed = true;
 		}
