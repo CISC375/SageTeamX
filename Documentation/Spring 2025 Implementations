@@ -67,17 +67,9 @@ Commands:
 	- Builds reminder date, checks against past times
 	- Inserts reminder into MongoDB (calreminders collection)
 	- Sends ephemeral DM confirmation with the scheduled time
-
-5. /cancelreminder:
 	- “Cancel Reminder” button available after setting a reminder
 	- Deletes the reminder document from MongoDB
 	- Sends an ephemeral DM follow-up: “Your reminder has been canceled.”
 	- Basic try/catch around the delete, logs errors to console
 
-6. /viewreminders:
-	- Fetches all upcoming reminders for the invoking user from MongoDB
-	- Displays them in pages of 3 (same paginated UI as /calreminder)
-	- Shows event summary, reminder time, and repeat status
-	- All output sent as an ephemeral DM for privacy
-
-7. /tainfo: [description] (New command)
+5. /tainfo: [description] (New command)
