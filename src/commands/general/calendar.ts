@@ -194,6 +194,10 @@ export default class extends Command {
 					filteredEvents = await filterCalendarEvents(events, filters);
 					embeds = generateCalendarEmbeds(filteredEvents, EVENTS_PER_PAGE);
 
+					selectedEvents.forEach((event) => {
+						event.selected = false;
+					});
+
 					currentPage = 0;
 					selectedEvents = [];
 					downloadPressed = false;
@@ -337,6 +341,10 @@ export default class extends Command {
 
 			filteredEvents = await filterCalendarEvents(events, filters);
 			embeds = generateCalendarEmbeds(filteredEvents, EVENTS_PER_PAGE);
+
+			selectedEvents.forEach((event) => {
+				event.selected = false;
+			});
 
 			currentPage = 0;
 			selectedEvents = [];
