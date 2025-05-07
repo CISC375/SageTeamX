@@ -83,7 +83,7 @@ function generateNotificationEmbed(remindersToNotify: ReminderDocument[]): Embed
 		page.forEach((reminder) => {
 			if (reminder.type === 'cancelled') {
 				newEmbed.addFields({
-					name: `**${reminder.content}**`,
+					name: `**Event Name: ${reminder.eventSummary}**`,
 					value: 'This event has been cancelled. So your reminder has been removed.'
 				});
 			} else if (reminder.type === 'recurring') {
@@ -91,7 +91,7 @@ function generateNotificationEmbed(remindersToNotify: ReminderDocument[]): Embed
 					name: `**Event Name: ${reminder.eventSummary}**`,
 					value: `This event series has been moved, so your reminder may no longer be set for the proper time. Your reminder will also no longer be updated by future event changes.
 							You can view/cancel/add reminders by using the following commands:
-							View: \`/viewreminders
+							View: \`/viewreminders\`
 							Cancel: \`/cancelreminder\`
 							Add: \`/calreminder\``
 				});
@@ -129,15 +129,23 @@ export async function handleChangedReminders(tokenCollection: Collection<SyncTok
 	const singleEvents: Map<string, calendar_v3.Schema$Event> = new Map<string, calendar_v3.Schema$Event>();
 	const parentEvents: Map<string, calendar_v3.Schema$Event> = new Map<string, calendar_v3.Schema$Event>();
 	const cancelledEvents: Map<string, calendar_v3.Schema$Event> = new Map<string, calendar_v3.Schema$Event>();
+	const parentEventIds: string[] = [];
 	for (const event of changedEvents) {
 		if (!event.recurrence && event.status !== 'cancelled') {
 			singleEvents.set(event.id, event);
 		} else if (event.recurrence && event.status !== 'cancelled') {
 			parentEvents.set(event.summary, event);
-		} else if (event.status === 'cancelled') {
+			parentEventIds.push(event.id);
+		} else if (event.status === 'cancelled' && parentEventIds.some((id) => !event.id.includes(id))) {
 			cancelledEvents.set(event.id, event);
 		}
 	}
+
+	singleEvents.forEach((value) => {
+		if (parentEvents.has(value.summary)) {
+			parentEvents.delete(value.summary);
+		}
+	});
 
 	// Retrieve every reminder in Sage's database
 	const botDB = client.db(BOT.NAME);
@@ -165,12 +173,11 @@ export async function handleChangedReminders(tokenCollection: Collection<SyncTok
 				await remindersCollection.updateOne(reminder, { $set: { expires: newExpirationDate, content: newContent } });
 				changed = true;
 			}
-			parentEvents.delete(changedSingleEvent.summary);
 		} else if (changedReccuringEvent) {
 			// These properties are updated so that the reminder will no longer be updated by future event changes
 			await remindersCollection.updateOne(reminder, { $set: { type: '', eventId: '' } });
-			reminder.type = 'recurring';
 			parentEvents.delete(changedReccuringEvent.summary);
+			reminder.type = 'recurring';
 			changed = true;
 		} else if (cancelledEvent) {
 			await remindersCollection.findOneAndDelete(reminder);
