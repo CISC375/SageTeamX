@@ -196,6 +196,7 @@ export default class extends Command {
 
 					currentPage = 0;
 					selectedEvents = [];
+					downloadPressed = false;
 					maxPage = embeds.length;
 
 					const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
@@ -339,6 +340,7 @@ export default class extends Command {
 
 			currentPage = 0;
 			selectedEvents = [];
+			downloadPressed = false;
 			maxPage = embeds.length;
 
 			const newComponents: ActionRowBuilder<ButtonBuilder>[] = [];
