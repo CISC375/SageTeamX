@@ -1,10 +1,63 @@
 Here is what we got done:
 
-1.  /calendar:
+How to set up google cloud project for Sage (VERY IMPORTANT):
 
-2.  /importcalendar:
+- Go to https://cloud.google.com/
+- Click Console on the top right hand corner of the page
+- Click Create or select a project
+- Click New Project on the top right hand of the box that pops up
+- Give it a name, organization, location (Note: This may not work with your UDEL account)
+- Click Create project
+- You should now be in your created project (If not just search google cloud console and click console on the top right corner)
+- Click on APIs & Services
+- Search for the google calendar api and enable it
+- Go back to the APIs & Services page and click on OAuth consent sreen
+- Click on Audience and click Get Started
+- Give your app a name and provide an email address and then click next
+- Select External then click next
+- Provide the same email address then click next
+- Select I agree and the click continue and then click create
+- Navigate back to APIs & Services and click on credentials
+- Click on Create credentials and select Service account
+- Give your service account a name and click Create and continue
+- Select the editor role and then click Done
+- You should now be on the service accounts page (If not, navigate to IAM & Admin and click on Service Accounts)
+- Click on the service account you just created and click on keys at the top
+- Click on add key, create new key, select JSON, and then click create
+- The key will be automatically downloaded on your computer
+- Rename it credentials.json and add it to the root folder of Sage
+- Make sure this line is included in your .env file MYPATH=./credentials.json
+- Sage should now have access to the google calendar api and any other google services you desire
 
-3.  /calreminder: - Google OAuth flow wired up so users can link their calendar
+
+
+General Implementations:
+
+1. Improved Goolge Authentication
+	- No longer needs users to be added to a google cloud project
+	- Works on mobile
+	- If you skipped the wall of text explaing how to set it up, go back and read it
+
+2. Pagified Select Menus:
+	- Select menus in discord are pretty limited (Can only store 25 values)
+	- To get around this, we made a new class that can automatically generate and pagify a select menu if there are more than 25 values
+	- For more detailed documentation, go to src/lib/types/PagifiedSelect.ts
+
+
+Commands:
+
+1.  /calendar: Retrieve events from a google calendar and display them to the user (Pre-existing command)
+	- Can now retrieve from multiple course google calendars through the coursecode argument when using the command
+	- Events are retrived from the specified google calendar and are formatted into embeds, which have been given a cleaner look
+	- Users can now download the returned events using the download events button
+		- Buttons to select and download individual events are also provided
+	- Improved filtering system to use select menus instead of taking in user arguments
+
+2.  /importcalendar: [description] (New command)
+
+3. /removecalendar: [description] (New command)
+
+4.  /calreminder: - Google OAuth flow wired up so users can link their calendar (New command)
 
         - Events pulled into bot memory via retrieveEvents()
 
@@ -24,7 +77,7 @@ Here is what we got done:
 
         - Sends ephemeral DM confirmation with the scheduled time
 
-4.  /cancelreminder:
+5.  /cancelreminder:
 
         - “Cancel Reminder” button available after setting a reminder
 
@@ -34,7 +87,7 @@ Here is what we got done:
 
         - Basic try/catch around the delete, logs errors to console
 
-5.  /viewreminders:
+6.  /viewreminders:
 
         - Fetches all upcoming reminders for the invoking user from MongoDB
 
