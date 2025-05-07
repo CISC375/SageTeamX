@@ -58,41 +58,24 @@ Commands:
 3. /removecalendar: [description] (New command)
 
 4.  /calreminder: - Google OAuth flow wired up so users can link their calendar (New command)
-
-        - Events pulled into bot memory via retrieveEvents()
-
-        - Parsing system extracts summary, start date/time, location, etc.
-
-        - Filter menu lets you pick by course ID, day, date, location (virtual/in-person)
-
-        - UI shows 3 events per page with Next/Prev buttons
-
-        - Offset selector (At event, 10m / 30m / 1h / 1 d before)
-
-        - “Repeat” toggle for per-event reminders (bug documented in code)
-
-        - Builds reminder date, checks against past times
-
-        - Inserts reminder into MongoDB (calreminders collection)
-
-        - Sends ephemeral DM confirmation with the scheduled time
+	- Events pulled into bot memory via retrieveEvents()
+	- Parsing system extracts summary, start date/time, location, etc.
+	- Filter menu lets you pick by course ID, day, date, location (virtual/in-person)
+	- UI shows 3 events per page with Next/Prev buttons
+	- Offset selector (At event, 10m / 30m / 1h / 1 d before)
+	- “Repeat” toggle for per-event reminders (bug documented in code)
+	- Builds reminder date, checks against past times
+	- Inserts reminder into MongoDB (calreminders collection)
+	- Sends ephemeral DM confirmation with the scheduled time
 
 5.  /cancelreminder:
-
-        - “Cancel Reminder” button available after setting a reminder
-
-        - Deletes the reminder document from MongoDB
-
-        - Sends an ephemeral DM follow-up: “Your reminder has been canceled.”
-
-        - Basic try/catch around the delete, logs errors to console
+	- “Cancel Reminder” button available after setting a reminder
+	- Deletes the reminder document from MongoDB
+	- Sends an ephemeral DM follow-up: “Your reminder has been canceled.”
+	- Basic try/catch around the delete, logs errors to console
 
 6.  /viewreminders:
-
-        - Fetches all upcoming reminders for the invoking user from MongoDB
-
-        - Displays them in pages of 3 (same paginated UI as /calreminder)
-
-        - Shows event summary, reminder time, and repeat status
-
-        - All output sent as an ephemeral DM for privacy
+	- Fetches all upcoming reminders for the invoking user from MongoDB
+	- Displays them in pages of 3 (same paginated UI as /calreminder)
+	- Shows event summary, reminder time, and repeat status
+	- All output sent as an ephemeral DM for privacy
