@@ -81,34 +81,16 @@ async function main() {
 
 		// eslint-disable-next-line no-extra-parens
 		const status = (await bot.mongo.collection(DB.CLIENT_DATA).findOne({ _id: bot.user.id }) as SageData)?.status;
-        if(status?.type && status?.content) {
+        if(status?.type && status?.content){
+			const activityType = ActivityType[status.type as keyof typeof ActivityType];
 
-		const activityType = ActivityType[status.type as keyof typeof ActivityType];
-		let activityName = status.content;
-		let url: string | undefined = undefined;
-
-		if(activityType === ActivityType.Streaming) {
-			activityName = "Streaming"
-			if (status.content.includes('twitch')) {
-				url = status.content.includes('http') ? status.content: 'https://twitch.tv/fillerinput';}
-				else if(status.content.toLowerCase().includes('youtube')){
-					url = status.content.includes('http')? status.content: 'https://youtube.com/fillerinput';
-				} else {
-					url = 'https://twitch.tv/fillerinput';
-				}
-				}
-				bot.user.setPresence({
-					activities: [{ name: status.content, type: activityType, url}], status: 'online'
-				});
-		} else {
-		
-		const content = status?.content || `${PREFIX}help`;
-	
+			bot.user.setPresence({activities:[{name: `${status.content}`, type: activityType}],
+			status: `online`
+			});
+		} else{ 
 		// fix this so supports all types
-		bot.user.setPresence({
-			activities: [{ name: `${content} (v${sageVersion})`, type: ActivityType.Playing}], status: 'online'
-		});
-	}
+            bot.user.setPresence({ activities: [{name: `${PREFIX}help (v${sageVersion})`, type: ActivityType.Playing}],status: `online`});
+		}
 	});
 }
 
