@@ -32,15 +32,13 @@ export default class extends Command {
 	async run(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean> | void> {
 		const bot = interaction.client;
 		const content = interaction.options.getString('content');
-		const type = interaction.options.getString('status').toUpperCase();
+		const type = interaction.options.getString('status');
 		console.log('bot has set its input to:', { type, content });
 
-		const activitytype = ActivityType[type.toUpperCase() as keyof ActivityType];
+		const activityType = ActivityType[type as keyof typeof ActivityType];
 
-		// setting Sage's activity status in the guild
-		// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-		// @ts-ignore - idk why TypeScript is complaining about this when it's literally the correct type
-		bot.user.setActivity(content, { type: activitytype});
+		bot.user.setActivity(content, { type: activityType });
+		
 		//	updating Sage's activity status in the database (so that it stays upon a restart)
 		bot.mongo.collection(DB.CLIENT_DATA).updateOne(
 			{ _id: bot.user.id },
