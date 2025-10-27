@@ -65,27 +65,52 @@ export async function updateDropdowns(interaction: CommandInteraction): Promise<
 	Thank you Ben for making v14 refactoring so much easier, now I'll just find some more hair having pulled all of mine out
 	- S
 	*/
+	console.log('updateDropdowns called');
 	const channel = await interaction.guild.channels.fetch(CHANNELS.ROLE_SELECT) as TextChannel;
+	console.log('channel fetched');
 	let coursesMsg, assignablesMsg;
 
 	// find both dropdown messages, based on what's in the config
 	try {
 		coursesMsg = await channel.messages.fetch(ROLE_DROPDOWNS.COURSE_ROLES);
+		console.log('course role fetched');
 		assignablesMsg = await channel.messages.fetch(ROLE_DROPDOWNS.ASSIGN_ROLES);
+		console.log('assign role fetched');
 	} catch (error) {
 		const responseEmbed = new EmbedBuilder()
 			.setColor('#ff0000')
 			.setTitle('Argument error')
 			.setDescription(`Unknown message(s), make sure your channel and message ID are correct.`);
 		interaction.channel.send({ embeds: [responseEmbed] });
+		return;
 	}
-	if (coursesMsg.author.id !== BOT.CLIENT_ID || assignablesMsg.author.id !== BOT.CLIENT_ID) {
-		const responseEmbed = new EmbedBuilder()
-			.setColor('#ff0000')
-			.setTitle('Argument error')
-			.setDescription(`You must tag a message that was sent by ${BOT.NAME} (me!).`);
-		interaction.channel.send({ embeds: [responseEmbed] });
+
+	console.log('coursesMsg.author:', coursesMsg?.author?.id);
+	console.log('assignablesMsg.author:', assignablesMsg?.author?.id);
+	console.log('bot id:', BOT.CLIENT_ID);
+
+	const botId = interaction.client.user.id;
+	console.log('coursesMsg keys:', Object.keys(coursesMsg));
+	console.log('assignablesMsg keys:', Object.keys(assignablesMsg));
+	console.log('coursesMsg.data:', coursesMsg.data);
+	console.log('assignablesMsg.data:', assignablesMsg.data);
+	try {
+		const msg = await channel.messages.fetch(ROLE_DROPDOWNS.COURSE_ROLES); console.log('Fetched message:', msg?.id, msg?.content);
+	} catch (err) {
+		console.error('Failed to fetch COURSE_ROLES message:', err);
 	}
+	// check whether each message was sent by the bot, checks normal and legacy ways of bot sending message
+	const isCoursesBotMsg = coursesMsg.author?.id === botId || coursesMsg.interactionMetadata?.user?.id === botId || coursesMsg.interaction?.user?.id === botId; // compatibility for older discord.js
+
+	const isAssignablesBotMsg = assignablesMsg.author?.id === botId || assignablesMsg.interactionMetadata?.user?.id === botId || assignablesMsg.interaction?.user?.id === botId;
+
+	if (!isCoursesBotMsg || !isAssignablesBotMsg) {
+		const responseEmbed = new EmbedBuilder().setColor('#ff0000').setTitle('Argument error').setDescription(`You must tag a message that was sent by ${interaction.client.user.username} (me!).`);
+		await interaction.channel.send({ embeds: [responseEmbed] });
+		console.log('Message author mismatch — likely sent via interaction');
+		return;
+	}
+
 
 	// get roles from DB
 	let courses: Array<Course> = await interaction.client.mongo.collection(DB.COURSES).find().toArray();
@@ -93,6 +118,7 @@ export async function updateDropdowns(interaction: CommandInteraction): Promise<
 	let assignables = [];
 	for (const role of assignableRoles) {
 		const { name } = await interaction.guild.roles.fetch(role.id);
+		console.log('role id fetched');
 		assignables.push({ name, id: role.id });
 	}
 
@@ -111,8 +137,6 @@ export async function updateDropdowns(interaction: CommandInteraction): Promise<
 		.setMinValues(0);
 	// these have to be here otherwise it won't add the dropdown components
 	// typings reference - https://discord-api-types.dev/api/discord-api-types-v10/enum/ComponentType
-	coursesDropdown.data.type = 3;
-	assignablesDropdown.data.type = 3;
 
 	// add options to dropdowns
 	coursesDropdown.addOptions(courses.map(c => ({ label: `CISC ${c.name}`, value: c.roles.student })));
@@ -121,11 +145,14 @@ export async function updateDropdowns(interaction: CommandInteraction): Promise<
 	// create component rows, add to messages
 	const coursesRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(coursesDropdown);
 	const assignablesRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(assignablesDropdown);
-	coursesMsg.edit({ components: [coursesRow] });
-	assignablesMsg.edit({ components: [assignablesRow] });
+	await coursesMsg.edit({ components: [coursesRow] });
+	console.log('course msg edit');
+	await assignablesMsg.edit({ components: [assignablesRow] });
+	console.log('assignable msg edit');
 
 	return;
 }
+
 
 export type TimestampType = 't' | 'T' | 'd' | 'D' | 'f' | 'F' | 'R';
 export function dateToTimestamp(date: Date, type: TimestampType = 't'): string {

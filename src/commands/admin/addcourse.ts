@@ -26,6 +26,7 @@ export default class extends Command {
 		//	make sure course does not exist already
 		if (await interaction.client.mongo.collection(DB.COURSES).countDocuments({ name: course }) > 0) {
 			interaction.editReply({ content: `${course} has already been registered as a course.` });
+			return;
 		}
 		const reason = `Creating new course \`${course}\` as requested 
 		by \`${interaction.user.username}\` \`(${interaction.user.id})\`.`;
@@ -111,7 +112,14 @@ export default class extends Command {
 		};
 		await interaction.client.mongo.collection(DB.COURSES).insertOne(newCourse);
 
-		await updateDropdowns(interaction);
+		try {
+			await updateDropdowns(interaction);
+			console.log('Succesful update dropdowns');
+		} catch (err) {
+			console.error('update dropdown failed');
+			await interaction.followUp({ content: 'Error while updating dropdowns', ephemeral: true });
+			return;
+		}
 
 		interaction.editReply(`Successfully added course with ID ${course}`);
 	}

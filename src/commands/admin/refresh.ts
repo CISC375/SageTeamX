@@ -1,3 +1,7 @@
+/**
+ *Refreshes every command available to bot
+ Use after updating, adding, or removing any commands
+ */
 import { BOT } from '@root/config';
 import { BOTMASTER_PERMS } from '@root/src/lib/permissions';
 import { Command } from '@root/src/lib/types/Command';

@@ -1,3 +1,8 @@
+/**
+ *Checks if command exists and isn't already disabled, if it isn't it disables command
+ Updates mongo database to show command is disabled
+ Cannot disable this command or the enable command
+ */
 import { ApplicationCommandOptionData, ApplicationCommandOptionType, ApplicationCommandPermissions, ChatInputCommandInteraction, Formatters,
 	InteractionResponse } from 'discord.js';
 import { BOTMASTER_PERMS } from '@lib/permissions';

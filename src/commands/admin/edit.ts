@@ -1,3 +1,7 @@
+/**
+ *Edits message sent by bot
+ User must give bot valid message link to perform edit(if able)
+ */
 import { BOTMASTER_PERMS } from '@lib/permissions';
 import { ApplicationCommandOptionData, ApplicationCommandPermissions, ChatInputCommandInteraction, ActionRowBuilder, ModalActionRowComponentBuilder, TextChannel,
 	TextInputBuilder, ApplicationCommandOptionType, InteractionResponse, ModalBuilder, TextInputStyle } from 'discord.js';

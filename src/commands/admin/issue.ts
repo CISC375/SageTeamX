@@ -1,3 +1,8 @@
+/**
+ *Creates Github issue in linked repository
+ To link desired github repo must have github token and repository filled in config file
+ Let's user fill out github issue report when calling command
+ */
 import { ADMIN_PERMS } from '@lib/permissions';
 import { RequestError } from '@octokit/types';
 import { BOT, GITHUB_PROJECT } from '@root/config';

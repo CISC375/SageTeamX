@@ -1,3 +1,7 @@
+/**
+ *Lists all commands that the bot can use
+ Commands listed with '+' are ones user has access to and ones with '-' they do not
+ */
 import { ApplicationCommandPermissions, ChatInputCommandInteraction, Formatters, InteractionResponse } from 'discord.js';
 import { BOTMASTER_PERMS } from '@lib/permissions';
 import { Command } from '@lib/types/Command';

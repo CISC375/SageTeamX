@@ -1,3 +1,10 @@
+/**
+ *Changes status of bot to 1 of 4 states
+ Online makes the bot interactive with users
+ Idle makes the bot stay connected with server but users can't interact with it
+ Dnd makes the bot active but will not receive any notifications
+ Invisible makes the bot appear offline to users but it is still running in the background
+ */
 import { BOT } from '@root/config';
 import { BOTMASTER_PERMS } from '@lib/permissions';
 import { ApplicationCommandOptionData, ApplicationCommandOptionType, ApplicationCommandPermissions, ChatInputCommandInteraction, InteractionResponse,

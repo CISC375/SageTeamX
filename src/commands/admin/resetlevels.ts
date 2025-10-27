@@ -1,3 +1,7 @@
+/**
+ *Reset all levels for every user in the server to 0
+ Updates mongo database to set every user level to 0 aswell
+ */
 import { DB, FIRST_LEVEL, LEVEL_TIER_ROLES, ROLES } from '@root/config';
 import { BOTMASTER_PERMS } from '@lib/permissions';
 import { Command } from '@lib/types/Command';

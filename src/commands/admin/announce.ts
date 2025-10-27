@@ -1,3 +1,10 @@
+/**
+ *Creates announcement in specified channel or the announcement channel if no valid channel is given
+ Does not ping users unless certain keywords are used in announcement
+ @everyone will cause every user in server to be pinged
+ @here will cause every user online at the moment to be pinged
+ @/role will ping every user with that role in the server
+ */
 import { BOTMASTER_PERMS } from '@lib/permissions';
 import { TextChannel, ApplicationCommandPermissions, ChatInputCommandInteraction, ApplicationCommandOptionData, ModalBuilder, ActionRowBuilder,
 	ModalActionRowComponentBuilder, InteractionResponse, TextInputBuilder, TextInputStyle, ApplicationCommandOptionType } from 'discord.js';

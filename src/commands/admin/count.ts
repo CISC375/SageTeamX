@@ -1,3 +1,7 @@
+/**
+ *Counts amount of channels in server listed under one category
+Lets admins keep track of channel categories
+ */
 import { ADMIN_PERMS } from '@lib/permissions';
 import { Command } from '@lib/types/Command';
 import { ApplicationCommandOptionData, ApplicationCommandOptionType, ApplicationCommandPermissions, CategoryChannel, ChatInputCommandInteraction,

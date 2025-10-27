@@ -1,3 +1,6 @@
+/**
+ *Updates bot status to one of 5 categories
+ */
 import { ApplicationCommandOptionData, ApplicationCommandOptionType, ApplicationCommandPermissions, ChatInputCommandInteraction, InteractionResponse } from 'discord.js';
 import { BOT, DB } from '@root/config';
 import { BOTMASTER_PERMS } from '@lib/permissions';
@@ -31,7 +34,7 @@ export default class extends Command {
 
 	async run(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean> | void> {
 		const bot = interaction.client;
-		const content = interaction.options.getString('category');
+		const content = interaction.options.getString('content');
 		const type = interaction.options.getString('status').toUpperCase();
 
 		// setting Sage's activity status in the guild

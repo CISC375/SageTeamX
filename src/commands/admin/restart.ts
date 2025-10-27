@@ -1,3 +1,7 @@
+/**
+ *Restarts bot and clears its memory caches
+ Use when you need to apply updates or get out of bad state(bot not performing correctly)
+ */
 import { BOT } from '@root/config';
 import { BOTMASTER_PERMS } from '@lib/permissions';
 import { ActivityType, ApplicationCommandPermissions, ChatInputCommandInteraction, InteractionResponse } from 'discord.js';
