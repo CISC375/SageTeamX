@@ -7,9 +7,13 @@ import {
 } from 'discord.js';
 import { Reminder } from '@lib/types/Reminder';
 import parse from 'parse-duration';
-import { reminderTime } from '@root/src/lib/utils/generalUtils';
+import { reminderTime, generateErrorEmbed } from '@root/src/lib/utils/generalUtils';
 import { Command } from '@lib/types/Command';
 
+/**
+ * A command that allows a user to set a personal reminder.
+ * The bot will DM the user at the specified time.
+ */
 export default class extends Command {
 
 	description = `Have ${BOT.NAME} give you a reminder.`;
@@ -39,37 +43,49 @@ export default class extends Command {
 		}
 	];
 
-	run(
+
+	async run(
 		interaction: ChatInputCommandInteraction
 	): Promise<InteractionResponse<boolean> | void> {
-		const content = interaction.options.getString('content');
-		const rawDuration = interaction.options.getString('duration');
-		const duration = parse(rawDuration);
-		const repeat
+		try {
+			const content = interaction.options.getString('content');
+			const rawDuration = interaction.options.getString('duration');
+			const duration = parse(rawDuration);
+			const repeat
 			= interaction.options.getString('repeat') as 'daily' | 'weekly'
 			|| null;
 
-		if (!duration) {
+			// Handle invalid duration strings
+			if (!duration) {
+				return interaction.reply({
+					content: `**${rawDuration}** is not a valid duration. You can use words like hours, minutes, seconds, days, weeks, months, or years.`,
+					ephemeral: true
+				});
+			}
+			const reminder: Reminder = {
+				owner: interaction.user.id,
+				content,
+				mode: 'public', // temporary
+				expires: new Date(duration + Date.now()),
+				repeat,
+				summary: content // safe default
+			};
+
+			// Insert the reminder into the database
+			await interaction.client.mongo.collection(DB.REMINDERS).insertOne(reminder);
+			// Confirm to the user
 			return interaction.reply({
-				content: `**${rawDuration}** is not a valid duration. You can use words like hours, minutes, seconds, days, weeks, months, or years.`,
+				content: `I'll remind you about that at ${reminderTime(reminder)}.`,
+				ephemeral: true
+			});
+		} catch (error) {
+		// Catch any unexpected errors (e.g., database failure)
+			console.error(`[remind] Error: ${error}`);
+			return interaction.reply({
+				embeds: [generateErrorEmbed('Sorry, I couldn\'t save your reminder. Please try again later.')],
 				ephemeral: true
 			});
 		}
-		const reminder: Reminder = {
-			owner: interaction.user.id,
-			content,
-			mode: 'public', // temporary
-			expires: new Date(duration + Date.now()),
-			repeat,
-			summary: content // safe default
-		};
-
-		interaction.client.mongo.collection(DB.REMINDERS).insertOne(reminder);
-
-		return interaction.reply({
-			content: `I'll remind you about that at ${reminderTime(reminder)}.`,
-			ephemeral: true
-		});
 	}
 
 }
