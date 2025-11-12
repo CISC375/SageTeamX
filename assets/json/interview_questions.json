@@ -1,0 +1,30 @@
+[
+  {
+    "category": "Data Structures",
+    "question": "What is the difference between an Array and a Linked List?"
+  },
+  {
+    "category": "Data Structures",
+    "question": "What are the advantages of a Hash Table, and what are its potential downsides?"
+  },
+  {
+    "category": "Algorithms",
+    "question": "Explain the concept of Big O notation and why it's important."
+  },
+  {
+    "category": "Algorithms",
+    "question": "What is the difference between a breadth-first search (BFS) and a depth-first search (DFS)?"
+  },
+  {
+    "category": "Java",
+    "question": "What is the difference between an abstract class and an interface in Java?"
+  },
+  {
+    "category": "Python",
+    "question": "What are lists and tuples in Python, and how do they differ?"
+  },
+  {
+    "category": "General Concepts",
+    "question": "What is recursion? Give a simple example."
+  }
+]
