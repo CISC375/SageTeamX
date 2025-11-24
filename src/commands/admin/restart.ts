@@ -1,21 +1,23 @@
-import { BOT } from '@root/config';
+import { BOT, DB } from '@root/config';
 import { BOTMASTER_PERMS } from '@lib/permissions';
-import { ActivityType, ApplicationCommandPermissions, ChatInputCommandInteraction, InteractionResponse } from 'discord.js';
+import { ApplicationCommandPermissions, ChatInputCommandInteraction, InteractionResponse, PresenceStatusData } from 'discord.js';
 import { Command } from '@lib/types/Command';
 
 export default class extends Command {
 
-	description = `Sets ${BOT.NAME}'s activity to 'Playing Restart...' and ends the process.`;
+	description = `Clears ${BOT.NAME}'s status.`;
 	permissions: ApplicationCommandPermissions[] = BOTMASTER_PERMS;
 
 	async run(interaction: ChatInputCommandInteraction): Promise<InteractionResponse<boolean> | void> {
 		const bot = interaction.client;
-		bot.user.setActivity(`Restarting...`, { type: ActivityType.Playing });
-		interaction.reply(`Restarting ${BOT.NAME}`)
-			.then(() => {
-				bot.destroy();
-				process.exit(0);
-			});
+
+		await bot.user.setPresence({ activities: [], status: 'online' as PresenceStatusData });
+		bot.mongo.collection(DB.CLIENT_DATA).updateOne(
+			{ _id: bot.user.id },
+			{ $set: { status: null } },
+			{ upsert: true });
+
+		return interaction.reply({ content: `Cleared ${BOT.NAME}'s activity.`, ephemeral: true });
 	}
 
 }
