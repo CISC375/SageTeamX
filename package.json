@@ -38,7 +38,7 @@
 	"dependencies": {
 		"@discordjs/node-pre-gyp": "0.4.5",
 		"@google-cloud/local-auth": "^3.0.1",
-		"@octokit/rest": "^18.3.5",
+		"@octokit/rest": "^22.0.0",
 		"axios": "^1.4.0",
 		"canvas": "^2.11.2",
 		"console-stamp": "^3.0.2",
@@ -47,12 +47,12 @@
 		"googleapis": "^105.0.0",
 		"module-alias": "^2.2.2",
 		"moment": "^2.29.1",
-		"mongodb": "^3.6.3",
-		"node": "^20.19.0",
+		"mongodb": "^3.7.4",
+		"node": "^20.19.5",
 		"node-cron": "^2.0.3",
 		"node-fetch": "^2.6.1",
 		"nodemailer": "^6.4.17",
-		"parse-duration": "^0.4.4",
+		"parse-duration": "^2.1.4",
 		"pretty-ms": "^7.0.1"
 	},
 	"_moduleAliases": {

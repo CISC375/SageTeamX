@@ -9,6 +9,7 @@ import { version as sageVersion } from '@root/package.json';
 import { registerFont } from 'canvas';
 import { SageData } from '@lib/types/SageData';
 import { setBotmasterPerms } from './lib/permissions';
+import { content } from 'googleapis/build/src/apis/content';
 
 const BOT_INTENTS = [
 	IntentsBitField.Flags.DirectMessages,
@@ -80,12 +81,16 @@ async function main() {
 
 		// eslint-disable-next-line no-extra-parens
 		const status = (await bot.mongo.collection(DB.CLIENT_DATA).findOne({ _id: bot.user.id }) as SageData)?.status;
+        if(status?.type && status?.content){
+			const activityType = ActivityType[status.type as keyof typeof ActivityType];
 
-		const activity = status?.name || `${PREFIX}help`;
-
+			bot.user.setPresence({activities:[{name: `${status.content}`, type: activityType}],
+			status: `online`
+			});
+		} else{ 
 		// fix this so supports all types
-		bot.user.setActivity(`${activity} (v${sageVersion})`, { type: ActivityType.Playing });
-		setTimeout(() => bot.user.setActivity(activity, { type: ActivityType.Playing }), 30e3);
+            bot.user.setPresence({ activities: [{name: `${PREFIX}help (v${sageVersion})`, type: ActivityType.Playing}],status: `online`});
+		}
 	});
 }
 
