@@ -1,6 +1,6 @@
 import { BOT } from '@root/config';
 import { Command } from '@lib/types/Command';
-import { SageInteractionType } from '@lib/types/InteractionType';
+import { SageInteractionType, SageComponentInteractionData } from '@lib/types/InteractionType';
 import { buildCustomId, getDataFromCustomId } from '@lib/utils/interactionUtils';
 import {ActionRowBuilder,ButtonBuilder,ButtonInteraction,ButtonStyle,ChatInputCommandInteraction,ComponentType,
 } from 'discord.js';
@@ -25,7 +25,12 @@ export default class extends Command {
 					row.addComponents(
 						new ButtonBuilder()
 							.setCustomId(buildCustomId('tictactoe', { index }))
-							.setLabel(mark ?? ' ')
+							// .setCustomId(buildCustomId({
+							// 	type: SageInteractionType.RPS,
+							// 	commandOwner: interaction.user.id,
+							// 	additionalData: [index.toString()]
+							// }))
+							.setLabel(mark ?? '-')
 							.setStyle(mark === playerSymbol ? ButtonStyle.Primary :
 								mark === botSymbol ? ButtonStyle.Danger :
 								ButtonStyle.Secondary)
@@ -65,6 +70,8 @@ export default class extends Command {
 
 		collector.on('collect', async (btn: ButtonInteraction) => {
 			const { index } = getDataFromCustomId(btn.customId);
+			// const data = getDataFromCustomId(btn.customId) as SageComponentInteractionData;
+			// const index = Number(data.additionalData[0]);
 			if (board[index]) return btn.reply({ content: 'That spot is taken!', ephemeral: true });
 
 			board[index] = playerSymbol;
